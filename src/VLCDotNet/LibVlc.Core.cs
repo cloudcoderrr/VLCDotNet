@@ -20,9 +20,14 @@ namespace VLCDotNet
         // ----- Instance (libvlc.h) -----------------------------------------
 
         /// <summary>Creates and initializes a libvlc instance. (<c>libvlc_new</c>)</summary>
+        /// <remarks>
+        /// <paramref name="argv"/> is marshaled as an array of <c>LPStr</c> pointers.
+        /// The CLR does not permit <c>LPUTF8Str</c> as an array sub-type; libvlc
+        /// options are ASCII and <c>LPStr</c> is UTF-8 on Unix, so this is correct.
+        /// </remarks>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern IntPtr libvlc_new(int argc,
-            [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPUTF8Str)] string[]? argv);
+            [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPStr)] string[]? argv);
 
         /// <summary>Decrements the reference count and destroys the instance when it reaches zero. (<c>libvlc_release</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
