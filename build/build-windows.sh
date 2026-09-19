@@ -36,8 +36,9 @@ if [ ! -x "${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-clang" ]; then
 fi
 export PATH="${LLVM_MINGW_DIR}/bin:${PATH}"
 
-# -u: llvm-mingw is UCRT-only.
-BUILD_ARGS=(-r -z -p -u -a "${ARCH}")
+# -u: llvm-mingw is UCRT-only. -S 0x0A000000: target the Windows 10 API level so
+# VLC's d3d11 output can use Win8+ DXGI types (IID_IDXGIResource1, etc.).
+BUILD_ARGS=(-r -z -p -u -S 0x0A000000 -a "${ARCH}")
 
 # Install directory that the win32 build script populates via package-win-install.
 INSTALL_PREFIX="${WORK_DIR}/install-win-${ARCH}"
