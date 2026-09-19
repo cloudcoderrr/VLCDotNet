@@ -75,6 +75,7 @@ CONFIG_FLAGS=(
   "--with-contrib=${VLC_SRC}/contrib/${TRIPLET}"
   --disable-vlc --disable-qt --disable-skins2 --disable-nls
   --disable-lua --disable-a52
+  --disable-xcb --disable-alsa --disable-pulse --disable-vdpau
   --enable-avcodec --enable-swscale
   --enable-shared --disable-static
 )
