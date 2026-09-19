@@ -77,6 +77,8 @@ CONFIG_FLAGS=(
   --disable-vdpau
   --disable-mad
   --disable-xcb          # headless: video verified via vmem callbacks, no X11
+  --disable-alsa         # headless: audio verified via amem callbacks
+  --disable-pulse
 )
 [ "${CROSS}" = "1" ] && CONFIG_FLAGS+=("--host=${TRIPLET}" "--build=x86_64-linux-gnu")
 
