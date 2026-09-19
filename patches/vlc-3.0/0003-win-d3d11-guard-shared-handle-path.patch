@@ -17,7 +17,7 @@ diff --git a/modules/video_output/win32/direct3d11.c b/modules/video_output/win3
 index 1111111..2222222 100644
 --- a/modules/video_output/win32/direct3d11.c
 +++ b/modules/video_output/win32/direct3d11.c
-@@ -1042,15 +1042,22 @@ static int CreateStaging(vout_display_t *vd, ID3D11DeviceContext *shared_context)
+@@ -1042,16 +1042,23 @@ static int CreateStaging(vout_display_t *vd, ID3D11DeviceContext *shared_context)
      if (shared_context)
      {
 +#if defined(IID_IDXGIResource1) && defined(DXGI_SHARED_RESOURCE_READ) && defined(DXGI_SHARED_RESOURCE_WRITE)
