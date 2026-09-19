@@ -40,6 +40,12 @@ export PATH="${LLVM_MINGW_DIR}/bin:${PATH}"
 # VLC's d3d11 output can use Win8+ DXGI types (IID_IDXGIResource1, etc.).
 BUILD_ARGS=(-r -z -p -u -S 0x0A000000 -a "${ARCH}")
 
+# libbluray is optional for our package and currently fails to link on the
+# x86_64 llvm-mingw UCRT path because the contrib freetype archive pulls an
+# unresolved _setjmp into liblibbluray_plugin.la. Disable the VLC bluray module
+# at configure time so both Windows arches build a consistent plugin set.
+export CONFIGFLAGS="${CONFIGFLAGS:-} --disable-bluray"
+
 # Install directory that the win32 build script populates via package-win-install.
 INSTALL_PREFIX="${WORK_DIR}/install-win-${ARCH}"
 rm -rf "${INSTALL_PREFIX}"
