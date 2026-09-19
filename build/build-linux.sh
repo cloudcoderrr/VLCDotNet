@@ -42,7 +42,7 @@ mkdir -p "${CONTRIB_BUILD}"
   [ "${CROSS}" = "1" ] && HOST_ARG="--host=${TRIPLET}"
   # VLC is a GPL project; allow GPL contribs (freetype2 et al. gate on it) but
   # skip the slow encoders we never need for decode, and gnutls (local files only).
-  ../bootstrap ${HOST_ARG} --disable-gnutls --disable-x264 --disable-x265
+  ../bootstrap ${HOST_ARG} --disable-gnutls --disable-x264 --disable-x265 --disable-mpg123
   log "Fetching prebuilt contribs (fallback to source build)"
   if ! make prebuilt 2>/dev/null; then
     warn "Prebuilt contribs unavailable for ${TRIPLET}; building from source"

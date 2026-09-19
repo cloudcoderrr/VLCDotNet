@@ -75,6 +75,13 @@ jobs:
             gperf help2man \
             gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf \
             gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+      - name: Cache VLC source + contrib build
+        uses: actions/cache@v4
+        with:
+          path: build/_work
+          key: vlc3-linux-${{ matrix.arch }}-${{ env.VLC_VERSION }}-v1-${{ github.run_id }}
+          restore-keys: |
+            vlc3-linux-${{ matrix.arch }}-${{ env.VLC_VERSION }}-v1-
       - name: Build (${{ matrix.arch }})
         run: bash build/build-linux.sh ${{ matrix.arch }}
       - uses: actions/upload-artifact@v4
