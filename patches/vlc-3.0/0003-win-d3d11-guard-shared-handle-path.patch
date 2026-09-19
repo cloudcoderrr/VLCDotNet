@@ -1,0 +1,40 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] win32: guard D3D11 shared-handle path when IDXGIResource1 is unavailable
+
+Some Windows x64 mingw header sets do not expose IDXGIResource1,
+IID_IDXGIResource1 and the DXGI_SHARED_RESOURCE_* flags, even though the rest
+of the Direct3D11 stack is present. VLC 3.0.23 uses that API only for the
+cross-context shared-handle path in CreateStaging().
+
+Guard that block at compile time. If the declarations are unavailable, return
+VLC_EGENERIC from that optional path so the build succeeds and the runtime can
+fall back away from the shared-resource mode instead of failing compilation.
+---
+ modules/video_output/win32/direct3d11.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/modules/video_output/win32/direct3d11.c b/modules/video_output/win32/direct3d11.c
+index 1111111..2222222 100644
+--- a/modules/video_output/win32/direct3d11.c
++++ b/modules/video_output/win32/direct3d11.c
+@@ -1038,6 +1038,7 @@ static int CreateStaging(vout_display_t *vd, ID3D11DeviceContext *shared_context)
+ 
+     if (shared_context)
+     {
++#if defined(IID_IDXGIResource1) && defined(DXGI_SHARED_RESOURCE_READ) && defined(DXGI_SHARED_RESOURCE_WRITE)
+         assert(sys->sharedHandle == INVALID_HANDLE_VALUE);
+         HRESULT hr;
+         IDXGIResource1* sharedResource = NULL;
+@@ -1048,6 +1049,13 @@ static int CreateStaging(vout_display_t *vd, ID3D11DeviceContext *shared_context)
+             msg_Err(vd, "Failed to get the shared handle");
+             return VLC_EGENERIC;
+         }
++#else
++        msg_Warn(vd,
++                 "IDXGIResource1 shared handles are unavailable on this toolchain; "
++                 "disabling the D3D11 shared-resource path");
++        return VLC_EGENERIC;
++#endif
+ 
+     }
+ 
