@@ -38,7 +38,7 @@ CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
 (
   cd "${CONTRIB_BUILD}"
-  BOOT_ARGS=(--disable-gnutls --disable-x264 --disable-x265 --disable-mpg123)
+  BOOT_ARGS=(--disable-gnutls --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf)
   if [ "${CROSS}" = "1" ]; then
     # Explicit --build is required so autoconf treats this as a cross build and
     # never tries to execute target binaries on the x86_64 runner.
