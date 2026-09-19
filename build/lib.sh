@@ -68,6 +68,7 @@ normalize_output() {
   # into real files, because CI artifact upload does not preserve symlinks.
   local f
   for f in \
+    "${prefix}"/libvlc*.dll "${prefix}"/libvlccore*.dll \
     "${prefix}"/bin/libvlc*.dll "${prefix}"/bin/libvlccore*.dll \
     "${prefix}"/lib/libvlc*.so* "${prefix}"/lib/libvlccore*.so* \
     "${prefix}"/lib/libvlc*.dylib "${prefix}"/lib/libvlccore*.dylib \

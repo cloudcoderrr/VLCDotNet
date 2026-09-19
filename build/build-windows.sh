@@ -45,6 +45,19 @@ rm -rf "${INSTALL_PREFIX}"
 mkdir -p "${INSTALL_PREFIX}"
 BUILD_ARGS+=(-o "${INSTALL_PREFIX}")
 
+# VLC 3.0.23 C code trips several clang default-error diagnostics (e.g. the
+# obsolete crystalhd decoder); downgrade them so the build completes.
+export CFLAGS="${CFLAGS:-} -Wno-error=incompatible-function-pointer-types -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
+export CXXFLAGS="${CXXFLAGS:-} -Wno-error=incompatible-function-pointer-types -Wno-error=incompatible-pointer-types"
+
+# We only need libvlc + plugins, not the NSIS installer. Provide a no-op makensis
+# so the win32 build script's package step completes without building an installer.
+sudo tee /usr/local/bin/makensis >/dev/null <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+sudo chmod +x /usr/local/bin/makensis
+
 log "Running extras/package/win32/build.sh ${BUILD_ARGS[*]}"
 (
   cd "${VLC_SRC}"
