@@ -45,11 +45,12 @@ BUILD_ARGS=(-r -z -p -u -S 0x0A000000 -a "${ARCH}")
 # unresolved _setjmp into liblibbluray_plugin.la. Disable the VLC bluray module
 # at configure time so both Windows arches build a consistent plugin set.
 export CONFIGFLAGS="${CONFIGFLAGS:-} --disable-bluray"
+EXTRA_LINK_FLAGS=""
 if [ "${ARCH}" = "x86_64" ]; then
   # x86_64 UCRT contribs such as freetype and SDL_image emit references to
-  # _setjmp. Resolve them through mingw-w64's support library at plugin link
-  # time; arm64 does not need this workaround.
-  export LDFLAGS="${LDFLAGS:-} -lmingwex"
+  # _setjmp. Resolve them through mingw-w64's support library at cross-link
+  # time only; leaking this into build.sh's native tools breaks configure.
+  EXTRA_LINK_FLAGS="-lmingwex"
 fi
 
 # Install directory that the win32 build script populates via package-win-install.
@@ -72,7 +73,14 @@ for pair in "gcc:clang" "g++:clang++" "clang:clang" "clang++:clang++" ; do
   name="${pair%%:*}"; realt="${pair##*:}"
   cat > "${WRAP_DIR}/${ARCH}-w64-mingw32-${name}" <<EOF
 #!/bin/sh
-exec "${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-${realt}" ${LENIENT} "\$@"
+for arg in "\$@"; do
+  case "\$arg" in
+    -c|-E|-S)
+      exec "${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-${realt}" ${LENIENT} "\$@"
+      ;;
+  esac
+done
+exec "${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-${realt}" ${LENIENT} ${EXTRA_LINK_FLAGS} "\$@"
 EOF
   chmod +x "${WRAP_DIR}/${ARCH}-w64-mingw32-${name}"
 done
