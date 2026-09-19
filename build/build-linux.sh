@@ -40,10 +40,9 @@ mkdir -p "${CONTRIB_BUILD}"
   cd "${CONTRIB_BUILD}"
   HOST_ARG=""
   [ "${CROSS}" = "1" ] && HOST_ARG="--host=${TRIPLET}"
-  # --disable-gpl keeps GPL-only encoders out (LGPL redistribution). gnuv3 stays
-  # enabled so nettle/gnutls (LGPLv3) can build; gnutls is disabled outright since
-  # the tests only play local files and it pulls in the slow crypto chain.
-  ../bootstrap ${HOST_ARG} --disable-gpl --disable-gnutls
+  # VLC is a GPL project; allow GPL contribs (freetype2 et al. gate on it) but
+  # skip the slow encoders we never need for decode, and gnutls (local files only).
+  ../bootstrap ${HOST_ARG} --disable-gnutls --disable-x264 --disable-x265
   log "Fetching prebuilt contribs (fallback to source build)"
   if ! make prebuilt 2>/dev/null; then
     warn "Prebuilt contribs unavailable for ${TRIPLET}; building from source"

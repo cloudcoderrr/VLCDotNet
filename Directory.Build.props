@@ -25,7 +25,7 @@
     <PackageProjectUrl>https://github.com/cloudcoderrr/VLCDotNet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/cloudcoderrr/VLCDotNet.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageLicenseExpression>LGPL-2.1-or-later</PackageLicenseExpression>
+    <PackageLicenseExpression>GPL-2.0-or-later</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
   </PropertyGroup>
