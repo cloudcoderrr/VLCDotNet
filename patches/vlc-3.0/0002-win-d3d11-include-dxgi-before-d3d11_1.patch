@@ -1,16 +1,18 @@
 From: VLCDotNet CI <ci@vlcdotnet>
-Subject: [PATCH] win32: include dxgicommon/DXGI headers before d3d11_1.h
+Subject: [PATCH] win32: include dxgi1_2 and DXGI headers before d3d11_1.h
 
 The Windows x64 llvm-mingw toolchain fails to compile
-modules/video_output/win32/direct3d11.c because d3d11_1.h references
-DXGI_COLOR_SPACE_TYPE before dxgicommon.h has declared it, and the resulting
-header parse failure cascades into missing IDXGIResource1 declarations too:
+modules/video_output/win32/direct3d11.c because d3d11_1.h needs DXGI types to
+be available first. The include-order fix solved DXGI_COLOR_SPACE_TYPE, but the
+x64 contrib header set still leaves IDXGIResource1 and
+DXGI_SHARED_RESOURCE_READ/WRITE undeclared unless dxgi1_2.h is brought in
+explicitly before d3d11_1.h:
 
-  unknown type name 'DXGI_COLOR_SPACE_TYPE'
   unknown type name 'IDXGIResource1'
 
-Include dxgicommon.h explicitly and keep the DXGI headers before d3d11_1.h so
-the DXGI declarations are available first.
+Include dxgi1_2.h explicitly and keep the DXGI headers before d3d11_1.h so the
+needed DXGI declarations are available first without redefining the color-space
+enum from dxgi1_4.
 ---
  modules/video_output/win32/direct3d11.c | 5 +++--
  1 file changed, 3 insertions(+), 2 deletions(-)
@@ -24,7 +26,7 @@ index 1111111..2222222 100644
  #define COBJMACROS
  #include <initguid.h>
 -#include <d3d11_1.h>
-+#include <dxgicommon.h>
++#include <dxgi1_2.h>
  #ifdef HAVE_DXGI1_6_H
  # include <dxgi1_6.h>
  #else
