@@ -80,10 +80,16 @@ CONFIG_FLAGS=(
   --enable-shared --disable-static
 )
 
+# Android API 21 ships a sys/shm.h header stub, but the SysV shared-memory
+# functions (shmdt/shmctl/...) are only available on newer API levels. Force
+# VLC's configure probe down the non-shm path so block.c uses its existing
+# fallback implementation instead of compiling undeclared calls.
+CONFIG_ENV=("${CONTRIB_ENV[@]}" ac_cv_header_sys_shm_h=no)
+
 (
   cd "${BUILD_DIR}"
-  env "${CONTRIB_ENV[@]}" ../configure "${CONFIG_FLAGS[@]}"
-  env "${CONTRIB_ENV[@]}" make -j"$(jobs)"
+  env "${CONFIG_ENV[@]}" ../configure "${CONFIG_FLAGS[@]}"
+  env "${CONFIG_ENV[@]}" make -j"$(jobs)"
   make install
 )
 
