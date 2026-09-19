@@ -109,6 +109,8 @@ jobs:
       - name: Install build tools
         run: |
           brew install automake libtool pkg-config nasm yasm meson ninja gettext bison flex gperf help2man || true
+          python3 -m pip install --user 'cmake<4'
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           echo "/opt/homebrew/opt/bison/bin:/opt/homebrew/opt/gettext/bin:/opt/homebrew/opt/flex/bin" >> "$GITHUB_PATH"
       - name: Build (${{ matrix.platform }}/${{ matrix.arch }})
         run: bash build/build-apple.sh ${{ matrix.platform }} ${{ matrix.arch }}
