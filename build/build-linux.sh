@@ -38,12 +38,11 @@ CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
 (
   cd "${CONTRIB_BUILD}"
-  BOOT_ARGS=(--disable-gnutls --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf)
+  BOOT_ARGS=(--disable-gnutls --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb)
   if [ "${CROSS}" = "1" ]; then
     # Explicit --build is required so autoconf treats this as a cross build and
-    # never tries to execute target binaries on the x86_64 runner. xcb is disabled
-    # because its X11 deps (xau/pthread-stubs) are not available for the target.
-    BOOT_ARGS+=(--host="${TRIPLET}" --build="x86_64-linux-gnu" --disable-xcb)
+    # never tries to execute target binaries on the x86_64 runner.
+    BOOT_ARGS+=(--host="${TRIPLET}" --build="x86_64-linux-gnu")
   fi
   # VLC is a GPL project; allow GPL contribs (freetype2 et al. gate on it) but
   # skip the slow encoders we never need for decode, and gnutls (local files only).
@@ -77,8 +76,9 @@ CONFIG_FLAGS=(
   --enable-dvbpsi
   --disable-vdpau
   --disable-mad
+  --disable-xcb          # headless: video verified via vmem callbacks, no X11
 )
-[ "${CROSS}" = "1" ] && CONFIG_FLAGS+=("--host=${TRIPLET}" "--build=x86_64-linux-gnu" --disable-xcb)
+[ "${CROSS}" = "1" ] && CONFIG_FLAGS+=("--host=${TRIPLET}" "--build=x86_64-linux-gnu")
 
 (
   cd "${BUILD_DIR}"
