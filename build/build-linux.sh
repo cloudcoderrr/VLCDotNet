@@ -79,6 +79,8 @@ CONFIG_FLAGS=(
   --disable-xcb          # headless: video verified via vmem callbacks, no X11
   --disable-alsa         # headless: audio verified via amem callbacks
   --disable-pulse
+  --disable-vnc          # not needed; avoids linking gnutls/nettle
+  --disable-gnutls       # local files only; no TLS module
 )
 [ "${CROSS}" = "1" ] && CONFIG_FLAGS+=("--host=${TRIPLET}" "--build=x86_64-linux-gnu")
 
