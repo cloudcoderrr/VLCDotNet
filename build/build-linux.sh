@@ -27,6 +27,7 @@ apply_patches "${VLC_SRC}"
 if [ "${CROSS}" = "1" ]; then
   export CC="${TRIPLET}-gcc"
   export CXX="${TRIPLET}-g++"
+  export LD="${TRIPLET}-gcc"
   export AR="${TRIPLET}-ar"
   export RANLIB="${TRIPLET}-ranlib"
   export STRIP="${TRIPLET}-strip"
@@ -39,6 +40,9 @@ mkdir -p "${CONTRIB_BUILD}"
 (
   cd "${CONTRIB_BUILD}"
   BOOT_ARGS=(--disable-gnutls --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-sidplay2)
+  if [ "${CROSS}" = "1" ]; then
+    BOOT_ARGS+=(--disable-SDL_image)
+  fi
   if [ "${ARCH}" = "armv7" ]; then
     # GCC 13 trips aom's ARM NEON contrib sources on this cross target; libvlc
     # still has AV1 decode coverage through --enable-avcodec.
@@ -91,6 +95,7 @@ CONFIG_FLAGS=(
   --enable-dvbpsi
   --disable-vdpau
   --disable-mad
+  --disable-sdl-image   # not needed for tests; avoids broken cross link paths
   --disable-xcb          # headless: video verified via vmem callbacks, no X11
   --disable-alsa         # headless: audio verified via amem callbacks
   --disable-pulse
