@@ -64,13 +64,15 @@ normalize_output() {
   log "Collecting ${rid} runtime from ${prefix}"
 
   # Shared libraries (search both lib/ and bin/ for cross layouts).
+  # -L dereferences the libvlc.so -> libvlc.so.5 -> libvlc.so.5.x symlink chains
+  # into real files, because CI artifact upload does not preserve symlinks.
   local f
   for f in \
     "${prefix}"/bin/libvlc*.dll "${prefix}"/bin/libvlccore*.dll \
     "${prefix}"/lib/libvlc*.so* "${prefix}"/lib/libvlccore*.so* \
     "${prefix}"/lib/libvlc*.dylib "${prefix}"/lib/libvlccore*.dylib \
     "${prefix}"/lib/libvlc*.a "${prefix}"/lib/libvlccore*.a ; do
-    [ -e "$f" ] && cp -a "$f" "${out}/" || true
+    [ -e "$f" ] && cp -aL "$f" "${out}/" || true
   done
 
   # Plugins tree (location differs per platform).
