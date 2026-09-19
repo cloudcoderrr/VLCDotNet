@@ -27,6 +27,8 @@ clone_vlc() {
     git clone --depth 1 --branch "${VLC_VERSION}" "${VLC_GIT}" "${dest}"
   else
     log "Reusing existing VLC checkout at ${dest}"
+    git -C "${dest}" reset --hard HEAD
+    git -C "${dest}" clean -fdx
   fi
 }
 

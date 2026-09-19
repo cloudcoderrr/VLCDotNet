@@ -76,6 +76,7 @@ CONFIG_FLAGS=(
   --disable-vlc --disable-qt --disable-skins2 --disable-nls
   --disable-lua --disable-a52
   --disable-xcb --disable-alsa --disable-pulse --disable-vdpau
+  --disable-v4l2 --disable-vnc --disable-gnutls --disable-srt
   --enable-avcodec --enable-swscale
   --enable-shared --disable-static
 )
@@ -85,6 +86,15 @@ CONFIG_FLAGS=(
 # VLC's configure probe down the non-shm path so block.c uses its existing
 # fallback implementation instead of compiling undeclared calls.
 CONFIG_ENV=("${CONTRIB_ENV[@]}" ac_cv_header_sys_shm_h=no)
+
+# Android only needs local-media playback for the current test suite. Removing
+# gnutls/srt from the contrib prefix keeps VLC from linking optional desktop/
+# network modules (notably VNC) against partial nettle backports on Android.
+CONTRIB_PREFIX_DIR="${VLC_SRC}/contrib/${TRIPLET}"
+rm -f "${CONTRIB_PREFIX_DIR}"/lib/libgnutls* \
+  "${CONTRIB_PREFIX_DIR}"/lib/pkgconfig/gnutls.pc \
+  "${CONTRIB_PREFIX_DIR}"/lib/libsrt* \
+  "${CONTRIB_PREFIX_DIR}"/lib/pkgconfig/srt.pc 2>/dev/null || true
 
 (
   cd "${BUILD_DIR}"
