@@ -38,11 +38,15 @@ CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
 (
   cd "${CONTRIB_BUILD}"
-  HOST_ARG=""
-  [ "${CROSS}" = "1" ] && HOST_ARG="--host=${TRIPLET}"
+  BOOT_ARGS=(--disable-gnutls --disable-x264 --disable-x265 --disable-mpg123)
+  if [ "${CROSS}" = "1" ]; then
+    # Explicit --build is required so autoconf treats this as a cross build and
+    # never tries to execute target binaries on the x86_64 runner.
+    BOOT_ARGS+=(--host="${TRIPLET}" --build="x86_64-linux-gnu")
+  fi
   # VLC is a GPL project; allow GPL contribs (freetype2 et al. gate on it) but
   # skip the slow encoders we never need for decode, and gnutls (local files only).
-  ../bootstrap ${HOST_ARG} --disable-gnutls --disable-x264 --disable-x265 --disable-mpg123
+  ../bootstrap "${BOOT_ARGS[@]}"
   log "Fetching prebuilt contribs (fallback to source build)"
   if ! make prebuilt 2>/dev/null; then
     warn "Prebuilt contribs unavailable for ${TRIPLET}; building from source"
@@ -73,7 +77,7 @@ CONFIG_FLAGS=(
   --disable-vdpau
   --disable-mad
 )
-[ "${CROSS}" = "1" ] && CONFIG_FLAGS+=("--host=${TRIPLET}")
+[ "${CROSS}" = "1" ] && CONFIG_FLAGS+=("--host=${TRIPLET}" "--build=x86_64-linux-gnu")
 
 (
   cd "${BUILD_DIR}"
