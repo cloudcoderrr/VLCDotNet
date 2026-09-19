@@ -1,0 +1,38 @@
+# Normalize text files to LF inside the repository by default.
+* text=auto eol=lf
+
+# Scripts executed by bash in CI must always be LF.
+*.sh   text eol=lf
+*.bash text eol=lf
+
+# Windows scripts must be CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# The media test pack is byte-exact; never apply EOL conversion.
+Tests/Data/** -text
+
+# Explicit binary types.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.mp4   binary
+*.mkv   binary
+*.webm  binary
+*.avi   binary
+*.mov   binary
+*.wav   binary
+*.mp3   binary
+*.flac  binary
+*.ogg   binary
+*.dll   binary
+*.so    binary
+*.dylib binary
+*.a     binary
+*.lib   binary
+*.aar   binary
+*.pdb   binary
+*.nupkg binary
+*.snupkg binary

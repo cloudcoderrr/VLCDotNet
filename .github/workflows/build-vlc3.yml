@@ -1,0 +1,146 @@
+name: build-vlc3
+
+# Builds libvlc 3.0.x from VideoLAN source for every supported platform and
+# uploads one artifact per RID. Trigger manually; use the "only" input to build
+# a single platform family while iterating.
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Platform family to build"
+        type: choice
+        default: all
+        options: [all, windows, linux, apple, android]
+  push:
+    branches: [main]
+    paths:
+      - "build/**"
+      - "patches/**"
+      - ".github/workflows/build-vlc3.yml"
+
+concurrency:
+  group: build-vlc3-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  VLC_VERSION: "3.0.23"
+
+jobs:
+  windows:
+    if: ${{ github.event_name == 'push' || inputs.only == 'all' || inputs.only == 'windows' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cross build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential automake autopoint libtool-bin pkg-config gettext \
+            git bison flex nasm yasm cmake ninja-build meson zip p7zip-full \
+            gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 mingw-w64-tools curl xz-utils
+      - name: Build (${{ matrix.arch }})
+        run: bash build/build-windows.sh ${{ matrix.arch }}
+      - name: Map arch to RID
+        id: rid
+        run: echo "rid=$([ '${{ matrix.arch }}' = 'x86_64' ] && echo win-x64 || echo win-arm64)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vlc3-${{ steps.rid.outputs.rid }}
+          path: artifacts/${{ steps.rid.outputs.rid }}
+          if-no-files-found: error
+
+  linux:
+    if: ${{ github.event_name == 'push' || inputs.only == 'all' || inputs.only == 'linux' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64,  rid: linux-x64 }
+          - { arch: armv7,   rid: linux-arm }
+          - { arch: aarch64, rid: linux-arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential automake autopoint libtool-bin pkg-config gettext \
+            git bison flex nasm yasm cmake ninja-build meson curl xz-utils \
+            gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+      - name: Build (${{ matrix.arch }})
+        run: bash build/build-linux.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vlc3-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error
+
+  apple:
+    if: ${{ github.event_name == 'push' || inputs.only == 'all' || inputs.only == 'apple' }}
+    runs-on: macos-14
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: macos,        arch: x86_64, rid: osx-x64 }
+          - { platform: macos,        arch: arm64,  rid: osx-arm64 }
+          - { platform: maccatalyst,  arch: x86_64, rid: maccatalyst-x64 }
+          - { platform: maccatalyst,  arch: arm64,  rid: maccatalyst-arm64 }
+          - { platform: ios,          arch: arm64,  rid: ios-arm64 }
+          - { platform: iossimulator, arch: x86_64, rid: iossimulator-x64 }
+          - { platform: iossimulator, arch: arm64,  rid: iossimulator-arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          brew install automake libtool pkg-config nasm yasm meson ninja gettext bison flex || true
+          echo "/opt/homebrew/opt/bison/bin:/opt/homebrew/opt/gettext/bin:/opt/homebrew/opt/flex/bin" >> "$GITHUB_PATH"
+      - name: Build (${{ matrix.platform }}/${{ matrix.arch }})
+        run: bash build/build-apple.sh ${{ matrix.platform }} ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vlc3-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error
+
+  android:
+    if: ${{ github.event_name == 'push' || inputs.only == 'all' || inputs.only == 'android' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: arm,    rid: android-arm }
+          - { arch: arm64,  rid: android-arm64 }
+          - { arch: x86_64, rid: android-x64 }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential automake autopoint libtool-bin pkg-config gettext \
+            git bison flex nasm yasm cmake ninja-build meson curl xz-utils unzip
+      - name: Resolve Android NDK
+        run: echo "ANDROID_NDK_HOME=${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}" >> "$GITHUB_ENV"
+      - name: Build (${{ matrix.arch }})
+        run: bash build/build-android.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vlc3-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error
