@@ -4,6 +4,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="Tests/VLCDotNet.Tests.Avalonia/VLCDotNet.Tests.Avalonia.csproj" />
+    <Project Path="Tests/VLCDotNet.Tests.Maui/VLCDotNet.Tests.Maui.csproj" />
     <Project Path="tests/VLCDotNet.Tests.Shared/VLCDotNet.Tests.Shared.csproj" />
   </Folder>
 </Solution>
