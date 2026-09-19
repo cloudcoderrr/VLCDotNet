@@ -109,7 +109,7 @@ jobs:
       - name: Install build tools
         run: |
           brew install automake libtool pkg-config nasm yasm meson ninja gettext bison flex gperf help2man || true
-          PY_USER_BIN="$(python3 -c \"import sysconfig; print(sysconfig.get_path('scripts', 'posix_user'))\")"
+          PY_USER_BIN="$(python3 -c 'import sysconfig; print(sysconfig.get_path("scripts", "posix_user"))')"
           python3 -m pip install --user --break-system-packages 'cmake<3.29'
           export PATH="$PY_USER_BIN:$PATH"
           cmake --version
