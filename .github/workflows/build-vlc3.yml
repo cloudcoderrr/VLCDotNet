@@ -72,7 +72,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential automake autopoint libtool-bin pkg-config gettext \
             git bison flex nasm yasm cmake ninja-build meson curl xz-utils \
-            gperf help2man \
+            gperf help2man libxau-dev libpthread-stubs0-dev \
             gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf \
             gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
       - name: Cache VLC source + contrib build

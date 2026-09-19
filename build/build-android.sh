@@ -49,7 +49,7 @@ CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-android-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
 (
   cd "${CONTRIB_BUILD}"
-  env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" --disable-disc --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf
+  env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" --disable-disc --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb
   if ! env "${CONTRIB_ENV[@]}" make prebuilt 2>/dev/null; then
     warn "Prebuilt contribs unavailable for ${TRIPLET}; building from source"
     env "${CONTRIB_ENV[@]}" make -j"$(jobs)" fetch
