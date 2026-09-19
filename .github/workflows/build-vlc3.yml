@@ -14,7 +14,7 @@ on:
         options: [all, windows, linux, apple, android]
 
 concurrency:
-  group: build-vlc3-${{ github.ref }}
+  group: build-vlc3-${{ github.ref }}-${{ inputs.only }}
   cancel-in-progress: false
 
 permissions:
