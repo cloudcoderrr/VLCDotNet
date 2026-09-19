@@ -1,0 +1,11 @@
+1
+00:00:00,500 --> 00:00:02,500
+VLC test subtitle: English SRT
+
+2
+00:00:03,000 --> 00:00:05,500
+Seeking, pause, and subtitle timing test.
+
+3
+00:00:06,000 --> 00:00:07,800
+End of short test clip.

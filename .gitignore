@@ -427,3 +427,26 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# ---------------------------------------------------------------------------
+# VLCDotNet
+# ---------------------------------------------------------------------------
+
+# Cloned / downloaded VLC source trees and contrib caches (CI working dirs)
+/build/_work/
+/build/vlc-src/
+/build/contrib-cache/
+vlc-*.tar.xz
+vlc-*.tar.gz
+
+# Native binaries downloaded from CI build artifacts and staged for packing
+/artifacts/
+/native/
+/nuget/**/runtimes/
+/nuget/**/native-staging/
+
+# Test output: VLC logs, snapshots, extracted audio, etc.
+/tests/**/logs/
+/tests/**/TestResults/
+**/vlc-log-*.txt
+**/snapshot-*.png

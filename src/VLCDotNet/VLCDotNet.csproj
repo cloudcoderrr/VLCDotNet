@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Managed libvlc P/Invoke bindings.
+
+    Target frameworks:
+      net8.0                 -> portable desktop asset (Windows/Linux/macOS, WinUI3, Win32, Avalonia).
+                                libvlc is resolved dynamically by name ("libvlc").
+      net10.0-android        -> Android head. libvlc.so resolved by name; packaged as AndroidNativeLibrary.
+      net10.0-ios            -> iOS head. libvlc is statically linked -> DllImport target "__Internal".
+      net10.0-maccatalyst    -> Mac Catalyst head. libvlc.dylib resolved by name.
+
+    Mobile heads are opt-in (VlcMobileTargets=true) so day-to-day `dotnet build`
+    on any OS stays fast and does not require the Apple SDK. CI packs on macOS
+    with VlcMobileTargets=true to include every head.
+  -->
+  <PropertyGroup>
+    <VlcMobileTargets Condition="'$(VlcMobileTargets)' == ''">false</VlcMobileTargets>
+
+    <TargetFrameworks>net8.0</TargetFrameworks>
+    <TargetFrameworks Condition="'$(VlcMobileTargets)' == 'true' and $([MSBuild]::IsOSPlatform('OSX'))">net8.0;net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+    <TargetFrameworks Condition="'$(VlcMobileTargets)' == 'true' and !$([MSBuild]::IsOSPlatform('OSX'))">net8.0;net10.0-android</TargetFrameworks>
+
+    <AssemblyName>VLCDotNet</AssemblyName>
+    <RootNamespace>VLCDotNet</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(TargetFramework.EndsWith('-ios'))">
+    <SupportedOSPlatformVersion>12.2</SupportedOSPlatformVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(TargetFramework.EndsWith('-maccatalyst'))">
+    <SupportedOSPlatformVersion>13.1</SupportedOSPlatformVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(TargetFramework.EndsWith('-android'))">
+    <SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+</Project>

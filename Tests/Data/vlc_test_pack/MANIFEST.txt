@@ -1,0 +1,146 @@
+VLC test pack - ffprobe manifest
+Generated: 2026-09-18T08:48:14Z
+
+=== video_h264_aac.mp4 ===
+index=0
+codec_name=h264
+profile=Constrained Baseline
+codec_type=video
+width=640
+height=360
+pix_fmt=yuv420p
+index=1
+codec_name=aac
+profile=LC
+codec_type=audio
+sample_rate=48000
+channels=2
+format_name=mov,mp4,m4a,3gp,3g2,mj2
+duration=8.000000
+
+=== video_vp9_opus.webm ===
+index=0
+codec_name=vp9
+profile=Profile 0
+codec_type=video
+width=640
+height=360
+pix_fmt=yuv420p
+index=1
+codec_name=opus
+profile=unknown
+codec_type=audio
+sample_rate=48000
+channels=2
+format_name=matroska,webm
+duration=8.008000
+
+=== video_mpeg4_mp3.avi ===
+index=0
+codec_name=mpeg4
+profile=Simple Profile
+codec_type=video
+width=640
+height=360
+pix_fmt=yuv420p
+index=1
+codec_name=mp3
+profile=unknown
+codec_type=audio
+sample_rate=44100
+channels=1
+format_name=avi
+duration=8.045714
+
+=== video_hevc_aac.mkv ===
+index=0
+codec_name=hevc
+profile=Main
+codec_type=video
+width=640
+height=360
+pix_fmt=yuv420p
+index=1
+codec_name=aac
+profile=LC
+codec_type=audio
+sample_rate=48000
+channels=1
+format_name=matroska,webm
+duration=6.021000
+
+=== multitrack_h264_audio_subs.mkv ===
+index=0
+codec_name=h264
+profile=Constrained Baseline
+codec_type=video
+width=640
+height=360
+pix_fmt=yuv420p
+index=1
+codec_name=aac
+profile=LC
+codec_type=audio
+sample_rate=48000
+channels=2
+index=2
+codec_name=opus
+profile=unknown
+codec_type=audio
+sample_rate=48000
+channels=2
+index=3
+codec_name=subrip
+profile=unknown
+codec_type=subtitle
+width=N/A
+height=N/A
+index=4
+codec_name=ass
+profile=unknown
+codec_type=subtitle
+width=N/A
+height=N/A
+format_name=matroska,webm
+duration=7.807000
+
+=== audio_pcm_stereo.wav ===
+index=0
+codec_name=pcm_s16le
+profile=unknown
+codec_type=audio
+sample_rate=48000
+channels=2
+format_name=wav
+duration=5.000000
+
+=== audio_mp3_stereo.mp3 ===
+index=0
+codec_name=mp3
+profile=unknown
+codec_type=audio
+sample_rate=44100
+channels=2
+format_name=mp3
+duration=5.041633
+
+=== audio_flac_stereo.flac ===
+index=0
+codec_name=flac
+profile=unknown
+codec_type=audio
+sample_rate=48000
+channels=2
+format_name=flac
+duration=5.000000
+
+=== audio_opus_stereo.ogg ===
+index=0
+codec_name=opus
+profile=unknown
+codec_type=audio
+sample_rate=48000
+channels=2
+format_name=ogg
+duration=5.006500
+

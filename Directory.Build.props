@@ -1,0 +1,33 @@
+<Project>
+
+  <PropertyGroup>
+    <!--
+      The libvlc version this repository targets for the VLCDotNet3 package.
+      Bump this to build a newer VLC 3.0.x release; the value flows into the
+      GitHub Actions build matrix and the NuGet package version.
+    -->
+    <VlcVersion>3.0.23</VlcVersion>
+
+    <!-- Common language / build settings -->
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <!-- Shared NuGet / assembly metadata -->
+    <Company>VLCDotNet</Company>
+    <Authors>VLCDotNet contributors</Authors>
+    <Product>VLCDotNet</Product>
+    <Copyright>Copyright (c) VLCDotNet contributors</Copyright>
+    <PackageProjectUrl>https://github.com/cloudcoderrr/VLCDotNet</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/cloudcoderrr/VLCDotNet.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>LGPL-2.1-or-later</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+  </PropertyGroup>
+
+</Project>
