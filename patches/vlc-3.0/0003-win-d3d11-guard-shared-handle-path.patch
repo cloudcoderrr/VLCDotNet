@@ -1,26 +1,11 @@
-From: VLCDotNet CI <ci@vlcdotnet>
-Subject: [PATCH] win32: guard D3D11 shared-handle path when IDXGIResource1 is unavailable
-
-Some Windows x64 mingw header sets do not expose IDXGIResource1,
-IID_IDXGIResource1 and the DXGI_SHARED_RESOURCE_* flags, even though the rest
-of the Direct3D11 stack is present. VLC 3.0.23 uses that API only for the
-cross-context shared-handle path in CreateStaging().
-
-Guard that block at compile time. If the declarations are unavailable, return
-VLC_EGENERIC from that optional path so the build succeeds and the runtime can
-fall back away from the shared-resource mode instead of failing compilation.
----
- modules/video_output/win32/direct3d11.c | 7 +++++++
- 1 file changed, 7 insertions(+)
-
 diff --git a/modules/video_output/win32/direct3d11.c b/modules/video_output/win32/direct3d11.c
-index 1111111..2222222 100644
+index de597e6..e966037 100644
 --- a/modules/video_output/win32/direct3d11.c
 +++ b/modules/video_output/win32/direct3d11.c
-@@ -1042,16 +1042,23 @@ static int CreateStaging(vout_display_t *vd, ID3D11DeviceContext *shared_context)
+@@ -1041,16 +1041,21 @@ static int CreateStaging(vout_display_t *vd, ID3D11DeviceContext *shared_context
      if (shared_context)
      {
-+#if defined(IID_IDXGIResource1) && defined(DXGI_SHARED_RESOURCE_READ) && defined(DXGI_SHARED_RESOURCE_WRITE)
++#if defined(IDXGIResource1_CreateSharedHandle) && defined(DXGI_SHARED_RESOURCE_READ) && defined(DXGI_SHARED_RESOURCE_WRITE)
          assert(sys->sharedHandle == INVALID_HANDLE_VALUE);
          HRESULT hr;
          IDXGIResource1* sharedResource = NULL;
@@ -32,13 +17,12 @@ index 1111111..2222222 100644
              msg_Err(vd, "Failed to get the shared handle");
              return VLC_EGENERIC;
          }
-
 +#else
-+        msg_Warn(vd,
-+                 "IDXGIResource1 shared handles are unavailable on this toolchain; "
-+                 "disabling the D3D11 shared-resource path");
++        msg_Warn(vd, "IDXGIResource1 shared handles are unavailable on this toolchain");
 +        return VLC_EGENERIC;
 +#endif
      }
+ 
+     return VLC_SUCCESS;
 
  
