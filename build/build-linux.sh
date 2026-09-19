@@ -38,7 +38,7 @@ CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
 (
   cd "${CONTRIB_BUILD}"
-  BOOT_ARGS=(--disable-gnutls --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb)
+  BOOT_ARGS=(--disable-gnutls --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-sidplay2)
   if [ "${ARCH}" = "armv7" ]; then
     # GCC 13 trips aom's ARM NEON contrib sources on this cross target; libvlc
     # still has AV1 decode coverage through --enable-avcodec.
@@ -85,6 +85,7 @@ CONFIG_FLAGS=(
   --disable-nls
   --disable-lua
   --disable-a52
+  --disable-sid
   --enable-avcodec       # FFmpeg-based decoders for the test media
   --enable-swscale
   --enable-dvbpsi

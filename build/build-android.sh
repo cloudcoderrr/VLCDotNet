@@ -55,7 +55,7 @@ CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-android-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
 (
   cd "${CONTRIB_BUILD}"
-  env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" --disable-disc --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-goom
+  env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" --disable-disc --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-goom --disable-sidplay2
   if ! env "${CONTRIB_ENV[@]}" make prebuilt 2>/dev/null; then
     warn "Prebuilt contribs unavailable for ${TRIPLET}; building from source"
     env "${CONTRIB_ENV[@]}" make -j"$(jobs)" fetch
@@ -74,7 +74,7 @@ CONFIG_FLAGS=(
   "--host=${TRIPLET}"
   "--with-contrib=${VLC_SRC}/contrib/${TRIPLET}"
   --disable-vlc --disable-qt --disable-skins2 --disable-nls
-  --disable-lua --disable-a52
+  --disable-lua --disable-a52 --disable-sid
   --disable-xcb --disable-alsa --disable-pulse --disable-vdpau
   --disable-v4l2 --disable-vnc --disable-gnutls --disable-srt
   --enable-avcodec --enable-swscale
