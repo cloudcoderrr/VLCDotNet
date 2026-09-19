@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <ApplicationTitle>VLCDotNet Tests</ApplicationTitle>
+    <ApplicationId>com.vlcdotnet.tests</ApplicationId>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+
+    <!-- Ensure referenced binding/shared projects expose the mobile heads. -->
+    <VlcMobileTargets>true</VlcMobileTargets>
+
+    <SupportedOSPlatformVersion Condition="'$(TargetFramework)' == 'net10.0-ios'">12.2</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="'$(TargetFramework)' == 'net10.0-maccatalyst'">13.1</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="'$(TargetFramework)' == 'net10.0-android'">21.0</SupportedOSPlatformVersion>
+    <!-- Android requires the native .so to be extractable for VLC plugin scanning. -->
+    <AndroidExtractNativeLibs Condition="'$(TargetFramework)' == 'net10.0-android'">true</AndroidExtractNativeLibs>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
+    <!-- Bundle the synthetic media pack so tests can stage it to app storage. -->
+    <MauiAsset Include="..\Data\vlc_test_pack\*.*" LogicalName="vlc_test_pack/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VLCDotNet.Tests.Shared\VLCDotNet.Tests.Shared.csproj" />
+  </ItemGroup>
+
+</Project>
