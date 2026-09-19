@@ -75,9 +75,18 @@ esac
 # ---- 1. contribs --------------------------------------------------------------
 CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-apple-${PLATFORM}-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
+BOOTSTRAP_FLAGS=(--disable-disc --disable-gettext --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-vpx)
+case "${PLATFORM}" in
+  ios|iossimulator)
+    # FriBidi's Meson generator still executes target binaries in these Apple
+    # mobile cross builds. Skip the libass text-shaping stack here so the
+    # native mobile artifacts can be built and validated independently.
+    BOOTSTRAP_FLAGS+=(--disable-fribidi --disable-harfbuzz --disable-ass)
+    ;;
+esac
 (
   cd "${CONTRIB_BUILD}"
-  env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" --disable-disc --disable-gettext --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-vpx
+  env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" "${BOOTSTRAP_FLAGS[@]}"
   if ! env "${CONTRIB_ENV[@]}" make prebuilt 2>/dev/null; then
     warn "Prebuilt contribs unavailable for ${TRIPLET}/${PLATFORM}; building from source"
     env "${CONTRIB_ENV[@]}" make -j"$(jobs)" fetch
@@ -99,6 +108,11 @@ CONFIG_FLAGS=(
   --disable-nls --disable-lua --disable-a52 --disable-sparkle --disable-vpx
   --enable-avcodec --enable-swscale
 )
+case "${PLATFORM}" in
+  ios|iossimulator)
+    CONFIG_FLAGS+=(--disable-fribidi --disable-harfbuzz --disable-libass)
+    ;;
+esac
 # Apple mobile / catalyst require static libvlc; macOS ships a dylib.
 case "${PLATFORM}" in
   ios|iossimulator|maccatalyst)
