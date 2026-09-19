@@ -22,23 +22,22 @@ mkdir -p "${WORK_DIR}"
 clone_vlc "${VLC_SRC}"
 apply_patches "${VLC_SRC}"
 
-BUILD_ARGS=(-r -z -p -a "${ARCH}")
-
-if [ "${ARCH}" = "aarch64" ]; then
-  # apt only ships x86_64/i686 mingw; aarch64 needs an llvm-mingw (UCRT) toolchain.
-  LLVM_MINGW_VER="${LLVM_MINGW_VER:-20240619}"
-  LLVM_MINGW_DIR="${LLVM_MINGW_DIR:-/opt/llvm-mingw}"
-  if [ ! -x "${LLVM_MINGW_DIR}/bin/aarch64-w64-mingw32-clang" ]; then
-    tarball="llvm-mingw-${LLVM_MINGW_VER}-ucrt-ubuntu-20.04-x86_64.tar.xz"
-    log "Installing llvm-mingw ${LLVM_MINGW_VER}"
-    curl -fSL "https://github.com/mstorsjo/llvm-mingw/releases/download/${LLVM_MINGW_VER}/${tarball}" -o /tmp/llvm-mingw.tar.xz
-    sudo mkdir -p "${LLVM_MINGW_DIR}"
-    sudo tar -xf /tmp/llvm-mingw.tar.xz -C "${LLVM_MINGW_DIR}" --strip-components=1
-  fi
-  export PATH="${LLVM_MINGW_DIR}/bin:${PATH}"
-  # llvm-mingw is UCRT-only.
-  BUILD_ARGS+=(-u)
+# Use llvm-mingw (UCRT, up-to-date Windows SDK headers) for every arch. The apt
+# mingw-w64 headers are too old for VLC's d3d11 output (missing newer DXGI types),
+# and only llvm-mingw provides an aarch64 target.
+LLVM_MINGW_VER="${LLVM_MINGW_VER:-20240619}"
+LLVM_MINGW_DIR="${LLVM_MINGW_DIR:-/opt/llvm-mingw}"
+if [ ! -x "${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-clang" ]; then
+  tarball="llvm-mingw-${LLVM_MINGW_VER}-ucrt-ubuntu-20.04-x86_64.tar.xz"
+  log "Installing llvm-mingw ${LLVM_MINGW_VER}"
+  curl -fSL "https://github.com/mstorsjo/llvm-mingw/releases/download/${LLVM_MINGW_VER}/${tarball}" -o /tmp/llvm-mingw.tar.xz
+  sudo mkdir -p "${LLVM_MINGW_DIR}"
+  sudo tar -xf /tmp/llvm-mingw.tar.xz -C "${LLVM_MINGW_DIR}" --strip-components=1
 fi
+export PATH="${LLVM_MINGW_DIR}/bin:${PATH}"
+
+# -u: llvm-mingw is UCRT-only.
+BUILD_ARGS=(-r -z -p -u -a "${ARCH}")
 
 # Install directory that the win32 build script populates via package-win-install.
 INSTALL_PREFIX="${WORK_DIR}/install-win-${ARCH}"
