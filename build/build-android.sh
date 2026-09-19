@@ -36,6 +36,10 @@ export LD="${NDK_TC}/bin/ld"
 export PATH="${NDK_TC}/bin:${PATH}"
 export ANDROID_NDK="${ANDROID_NDK_HOME}"
 export ANDROID_ABI="${ABI}"
+# Android's NDK clang treats several legacy-C constructs as errors; downgrade the
+# ones that are valid warnings under both gcc and clang.
+export CFLAGS="${CFLAGS:-} -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types -Wno-error=int-conversion"
+export CXXFLAGS="${CXXFLAGS:-} -Wno-error=incompatible-pointer-types"
 
 VLC_SRC="${WORK_DIR}/vlc-android-${ARCH}"
 INSTALL_PREFIX="${WORK_DIR}/install-android-${ARCH}"
@@ -51,7 +55,7 @@ CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-android-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
 (
   cd "${CONTRIB_BUILD}"
-  env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" --disable-disc --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb
+  env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" --disable-disc --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-goom
   if ! env "${CONTRIB_ENV[@]}" make prebuilt 2>/dev/null; then
     warn "Prebuilt contribs unavailable for ${TRIPLET}; building from source"
     env "${CONTRIB_ENV[@]}" make -j"$(jobs)" fetch
