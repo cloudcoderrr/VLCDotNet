@@ -73,6 +73,7 @@ for pair in "gcc:clang" "g++:clang++" "clang:clang" "clang++:clang++" ; do
   name="${pair%%:*}"; realt="${pair##*:}"
   cat > "${WRAP_DIR}/${ARCH}-w64-mingw32-${name}" <<EOF
 #!/bin/sh
+extra_link_flags=""
 for arg in "\$@"; do
   case "\$arg" in
     -c|-E|-S)
@@ -80,7 +81,21 @@ for arg in "\$@"; do
       ;;
   esac
 done
-exec "${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-${realt}" ${LENIENT} ${EXTRA_LINK_FLAGS} "\$@"
+if [ -n "${EXTRA_LINK_FLAGS}" ]; then
+  prev=""
+  for arg in "\$@"; do
+    if [ "\$prev" = "-o" ]; then
+      case "\$arg" in
+        *libsdl_image_plugin.la|*liblibass_plugin.la)
+          extra_link_flags="${EXTRA_LINK_FLAGS}"
+          break
+          ;;
+      esac
+    fi
+    prev="\$arg"
+  done
+fi
+exec "${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-${realt}" ${LENIENT} \$extra_link_flags "\$@"
 EOF
   chmod +x "${WRAP_DIR}/${ARCH}-w64-mingw32-${name}"
 done
