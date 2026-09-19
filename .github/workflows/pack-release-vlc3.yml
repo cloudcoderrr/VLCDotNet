@@ -1,0 +1,89 @@
+name: pack-release-vlc3
+
+# Downloads every native artifact from a build-vlc3 run, packs the VLCDotNet3
+# NuGet (managed bindings + all platform binaries) and publishes it to a GitHub
+# Release. Runs on macOS so the iOS/Mac Catalyst heads can be built.
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: "build-vlc3 run id to pull binaries from (blank = latest successful)"
+        required: false
+      publish_release:
+        description: "Create/update a GitHub Release with the package"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  pack:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install mobile workloads
+        run: dotnet workload install maui-android maui-ios maui-maccatalyst --version 10.0.100
+
+      - name: Read VlcVersion
+        id: ver
+        run: |
+          v=$(grep -oE '<VlcVersion>[^<]+' Directory.Build.props | sed 's/<VlcVersion>//')
+          echo "vlc=$v" >> "$GITHUB_OUTPUT"
+          echo "VLC version: $v"
+
+      - name: Resolve build run id
+        id: run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rid="${{ inputs.build_run_id }}"
+          [ -z "$rid" ] && rid=$(gh run list --workflow build-vlc3.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          echo "id=$rid" >> "$GITHUB_OUTPUT"
+          echo "Using build run $rid"
+
+      - name: Download all native artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download ${{ steps.run.outputs.id }} -D artifacts_dl
+
+      - name: Stage artifacts/<rid>
+        run: |
+          set -e
+          for d in artifacts_dl/vlc3-*; do
+            [ -d "$d" ] || continue
+            rid=$(basename "$d" | sed 's/^vlc3-//')
+            mkdir -p "artifacts/$rid"
+            cp -a "$d"/. "artifacts/$rid/"
+            echo "staged $rid"
+          done
+          ls -R artifacts | head -n 60
+
+      - name: Pack VLCDotNet3
+        run: dotnet pack src/VLCDotNet/VLCDotNet.csproj -c Release -p:VlcMobileTargets=true -o out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VLCDotNet3-nupkg
+          path: out/*.nupkg
+
+      - name: Publish GitHub Release
+        if: ${{ inputs.publish_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v${{ steps.ver.outputs.vlc }}"
+          title="VLCDotNet3 ${{ steps.ver.outputs.vlc }}"
+          notes="libvlc ${{ steps.ver.outputs.vlc }} P/Invoke bindings + native binaries. Built from build-vlc3 run ${{ steps.run.outputs.id }}."
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" out/*.nupkg --clobber
+          else
+            gh release create "$tag" out/*.nupkg --title "$title" --notes "$notes" --prerelease
+          fi
