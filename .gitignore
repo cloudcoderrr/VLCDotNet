@@ -441,6 +441,8 @@ vlc-*.tar.gz
 
 # Native binaries downloaded from CI build artifacts and staged for packing
 /artifacts/
+/artifacts-nupkg/
+/test-results/
 /native/
 Tests/**/native/
 /nuget/**/runtimes/
