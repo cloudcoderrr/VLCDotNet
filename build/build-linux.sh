@@ -91,6 +91,7 @@ CONFIG_FLAGS=(
   --disable-vnc          # not needed; avoids linking gnutls/nettle
   --disable-gnutls       # local files only; no TLS module
   --disable-srt          # not needed; avoids linking gnutls/nettle
+  --disable-chromaprint  # not needed; avoids non-PIC libavcodec FFT link error
 )
 [ "${CROSS}" = "1" ] && CONFIG_FLAGS+=("--host=${TRIPLET}" "--build=x86_64-linux-gnu")
 
