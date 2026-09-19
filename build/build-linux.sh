@@ -40,7 +40,10 @@ mkdir -p "${CONTRIB_BUILD}"
   cd "${CONTRIB_BUILD}"
   HOST_ARG=""
   [ "${CROSS}" = "1" ] && HOST_ARG="--host=${TRIPLET}"
-  ../bootstrap ${HOST_ARG} --disable-gpl --disable-gnuv3
+  # --disable-gpl keeps GPL-only encoders out (LGPL redistribution). gnuv3 stays
+  # enabled so nettle/gnutls (LGPLv3) can build; gnutls is disabled outright since
+  # the tests only play local files and it pulls in the slow crypto chain.
+  ../bootstrap ${HOST_ARG} --disable-gpl --disable-gnutls
   log "Fetching prebuilt contribs (fallback to source build)"
   if ! make prebuilt 2>/dev/null; then
     warn "Prebuilt contribs unavailable for ${TRIPLET}; building from source"

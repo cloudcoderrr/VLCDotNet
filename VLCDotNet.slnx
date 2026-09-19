@@ -2,4 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/VLCDotNet/VLCDotNet.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/VLCDotNet.Tests.Shared/VLCDotNet.Tests.Shared.csproj" />
+  </Folder>
 </Solution>

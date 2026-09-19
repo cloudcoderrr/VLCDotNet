@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    UI-agnostic test suite shared by the Avalonia (desktop) and MAUI (mobile)
+    test apps. Multi-targets to match the bindings so each platform binds the
+    correct native libvlc (notably "__Internal" on iOS).
+  -->
+  <PropertyGroup>
+    <VlcMobileTargets Condition="'$(VlcMobileTargets)' == ''">false</VlcMobileTargets>
+
+    <TargetFrameworks>net8.0</TargetFrameworks>
+    <TargetFrameworks Condition="'$(VlcMobileTargets)' == 'true' and $([MSBuild]::IsOSPlatform('OSX'))">net8.0;net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+    <TargetFrameworks Condition="'$(VlcMobileTargets)' == 'true' and !$([MSBuild]::IsOSPlatform('OSX'))">net8.0;net10.0-android</TargetFrameworks>
+
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(TargetFramework.EndsWith('-ios'))">
+    <SupportedOSPlatformVersion>12.2</SupportedOSPlatformVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(TargetFramework.EndsWith('-maccatalyst'))">
+    <SupportedOSPlatformVersion>13.1</SupportedOSPlatformVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(TargetFramework.EndsWith('-android'))">
+    <SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\VLCDotNet\VLCDotNet.csproj" />
+  </ItemGroup>
+
+</Project>

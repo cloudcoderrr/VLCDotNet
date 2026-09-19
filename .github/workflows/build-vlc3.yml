@@ -12,12 +12,6 @@ on:
         type: choice
         default: all
         options: [all, windows, linux, apple, android]
-  push:
-    branches: [main]
-    paths:
-      - "build/**"
-      - "patches/**"
-      - ".github/workflows/build-vlc3.yml"
 
 concurrency:
   group: build-vlc3-${{ github.ref }}
@@ -31,7 +25,7 @@ env:
 
 jobs:
   windows:
-    if: ${{ github.event_name == 'push' || inputs.only == 'all' || inputs.only == 'windows' }}
+    if: ${{ inputs.only == 'all' || inputs.only == 'windows' }}
     runs-on: ubuntu-latest
     timeout-minutes: 350
     strategy:
@@ -59,7 +53,7 @@ jobs:
           if-no-files-found: error
 
   linux:
-    if: ${{ github.event_name == 'push' || inputs.only == 'all' || inputs.only == 'linux' }}
+    if: ${{ inputs.only == 'all' || inputs.only == 'linux' }}
     runs-on: ubuntu-latest
     timeout-minutes: 350
     strategy:
@@ -88,7 +82,7 @@ jobs:
           if-no-files-found: error
 
   apple:
-    if: ${{ github.event_name == 'push' || inputs.only == 'all' || inputs.only == 'apple' }}
+    if: ${{ inputs.only == 'all' || inputs.only == 'apple' }}
     runs-on: macos-14
     timeout-minutes: 350
     strategy:
@@ -117,7 +111,7 @@ jobs:
           if-no-files-found: error
 
   android:
-    if: ${{ github.event_name == 'push' || inputs.only == 'all' || inputs.only == 'android' }}
+    if: ${{ inputs.only == 'all' || inputs.only == 'android' }}
     runs-on: ubuntu-latest
     timeout-minutes: 350
     strategy:

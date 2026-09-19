@@ -1,0 +1,52 @@
+<Project>
+  <!--
+    Wires the packaged native VLC binaries into a consuming application.
+
+    Desktop (win-*, linux-*, osx-*) relies entirely on the NuGet
+    runtimes/<rid>/native convention and needs nothing here.
+
+    Mobile targets are staged under this package's build/native/<rid> folder and
+    injected below.
+  -->
+
+  <PropertyGroup>
+    <_VlcNativeRoot>$(MSBuildThisFileDirectory)native</_VlcNativeRoot>
+  </PropertyGroup>
+
+  <!-- ===================== Android ===================== -->
+  <!-- Ship every libvlc/libvlccore/plugin .so into lib/<abi> of the APK. -->
+  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'android'">
+    <AndroidNativeLibrary Include="$(_VlcNativeRoot)/android-arm64/**/*.so">
+      <Abi>arm64-v8a</Abi>
+      <Link>lib/arm64-v8a/%(Filename)%(Extension)</Link>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="$(_VlcNativeRoot)/android-arm/**/*.so">
+      <Abi>armeabi-v7a</Abi>
+      <Link>lib/armeabi-v7a/%(Filename)%(Extension)</Link>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="$(_VlcNativeRoot)/android-x64/**/*.so">
+      <Abi>x86_64</Abi>
+      <Link>lib/x86_64/%(Filename)%(Extension)</Link>
+    </AndroidNativeLibrary>
+  </ItemGroup>
+
+  <!-- ===================== iOS / Mac Catalyst ===================== -->
+  <!--
+    libvlc is a static archive on these platforms and is resolved through the
+    "__Internal" DllImport target, so the static libs and their plugin archives
+    must be linked into the app. The exact NativeReference/xcframework wiring is
+    finalized once the Apple binaries are produced in CI.
+  -->
+  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'ios' and '$(RuntimeIdentifier)' == 'ios-arm64'">
+    <NativeReference Include="$(_VlcNativeRoot)/ios-arm64/libvlc.a" Condition="Exists('$(_VlcNativeRoot)/ios-arm64/libvlc.a')">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+    </NativeReference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'maccatalyst'">
+    <NativeReference Include="$(_VlcNativeRoot)/maccatalyst-arm64/libvlc.dylib" Condition="Exists('$(_VlcNativeRoot)/maccatalyst-arm64/libvlc.dylib')">
+      <Kind>Dynamic</Kind>
+    </NativeReference>
+  </ItemGroup>
+</Project>
