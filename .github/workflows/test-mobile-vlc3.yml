@@ -109,7 +109,7 @@ jobs:
       - name: Download native iossimulator-arm64
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run download ${{ steps.run.outputs.id }} -n vlc3-iossimulator-arm64 -D Tests/VLCDotNet.Tests.Maui/native/ios-arm64
+        run: gh run download ${{ steps.run.outputs.id }} -n vlc3-iossimulator-arm64 -D Tests/VLCDotNet.Tests.Maui/native/iossimulator-arm64
 
       - name: Build iOS simulator app (AUTORUN)
         run: >

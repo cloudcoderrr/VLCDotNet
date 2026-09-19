@@ -41,7 +41,7 @@
   <!--
     CI injects the built native libvlc here (Tests/.../native/<rid>) so the MAUI
     heads can be tested without first publishing the NuGet. Android .so files are
-    flattened into lib/<abi>; iOS/Catalyst link the static/dynamic libvlc.
+    flattened into lib/<abi>; iOS/Catalyst link the static libvlc archive.
   -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
     <AndroidNativeLibrary Include="$(MSBuildThisFileDirectory)native/android-arm64/**/*.so" Condition="Exists('$(MSBuildThisFileDirectory)native/android-arm64')">
@@ -55,8 +55,15 @@
     </AndroidNativeLibrary>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios' and Exists('$(MSBuildThisFileDirectory)native/ios-arm64/libvlc.a')">
-    <NativeReference Include="$(MSBuildThisFileDirectory)native/ios-arm64/libvlc.a">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios' and ('$(RuntimeIdentifier)' == 'ios-arm64' or '$(RuntimeIdentifier)' == 'iossimulator-arm64' or '$(RuntimeIdentifier)' == 'iossimulator-x64') and Exists('$(MSBuildThisFileDirectory)native/$(RuntimeIdentifier)/libvlc.a')">
+    <NativeReference Include="$(MSBuildThisFileDirectory)native/$(RuntimeIdentifier)/libvlc.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+    </NativeReference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-maccatalyst' and ('$(RuntimeIdentifier)' == 'maccatalyst-arm64' or '$(RuntimeIdentifier)' == 'maccatalyst-x64') and Exists('$(MSBuildThisFileDirectory)native/$(RuntimeIdentifier)/libvlc.a')">
+    <NativeReference Include="$(MSBuildThisFileDirectory)native/$(RuntimeIdentifier)/libvlc.a">
       <Kind>Static</Kind>
       <ForceLoad>true</ForceLoad>
     </NativeReference>

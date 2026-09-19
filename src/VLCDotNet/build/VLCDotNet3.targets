@@ -34,19 +34,19 @@
   <!--
     libvlc is a static archive on these platforms and is resolved through the
     "__Internal" DllImport target, so the static libs and their plugin archives
-    must be linked into the app. The exact NativeReference/xcframework wiring is
-    finalized once the Apple binaries are produced in CI.
+    must be linked into the app.
   -->
-  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'ios' and '$(RuntimeIdentifier)' == 'ios-arm64'">
-    <NativeReference Include="$(_VlcNativeRoot)/ios-arm64/libvlc.a" Condition="Exists('$(_VlcNativeRoot)/ios-arm64/libvlc.a')">
+  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'ios' and ('$(RuntimeIdentifier)' == 'ios-arm64' or '$(RuntimeIdentifier)' == 'iossimulator-arm64' or '$(RuntimeIdentifier)' == 'iossimulator-x64')">
+    <NativeReference Include="$(_VlcNativeRoot)/$(RuntimeIdentifier)/libvlc.a" Condition="Exists('$(_VlcNativeRoot)/$(RuntimeIdentifier)/libvlc.a')">
       <Kind>Static</Kind>
       <ForceLoad>true</ForceLoad>
     </NativeReference>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'maccatalyst'">
-    <NativeReference Include="$(_VlcNativeRoot)/maccatalyst-arm64/libvlc.dylib" Condition="Exists('$(_VlcNativeRoot)/maccatalyst-arm64/libvlc.dylib')">
-      <Kind>Dynamic</Kind>
+  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'maccatalyst' and ('$(RuntimeIdentifier)' == 'maccatalyst-arm64' or '$(RuntimeIdentifier)' == 'maccatalyst-x64')">
+    <NativeReference Include="$(_VlcNativeRoot)/$(RuntimeIdentifier)/libvlc.a" Condition="Exists('$(_VlcNativeRoot)/$(RuntimeIdentifier)/libvlc.a')">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
     </NativeReference>
   </ItemGroup>
 </Project>

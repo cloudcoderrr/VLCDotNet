@@ -16,7 +16,7 @@ namespace VLCDotNet
         /// dynamic library is resolved by the base name <c>libvlc</c>
         /// (libvlc.dll / libvlc.so / libvlc.dylib).
         /// </summary>
-#if IOS
+#if IOS || MACCATALYST
         internal const string Lib = "__Internal";
 #else
         internal const string Lib = "libvlc";
