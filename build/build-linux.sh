@@ -39,6 +39,11 @@ mkdir -p "${CONTRIB_BUILD}"
 (
   cd "${CONTRIB_BUILD}"
   BOOT_ARGS=(--disable-gnutls --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb)
+  if [ "${ARCH}" = "armv7" ]; then
+    # GCC 13 trips aom's ARM NEON contrib sources on this cross target; libvlc
+    # still has AV1 decode coverage through --enable-avcodec.
+    BOOT_ARGS+=(--disable-aom)
+  fi
   if [ "${CROSS}" = "1" ]; then
     # Explicit --build is required so autoconf treats this as a cross build and
     # never tries to execute target binaries on the x86_64 runner.
