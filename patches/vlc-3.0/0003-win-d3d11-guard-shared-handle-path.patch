@@ -10,32 +10,35 @@ Guard that block at compile time. If the declarations are unavailable, return
 VLC_EGENERIC from that optional path so the build succeeds and the runtime can
 fall back away from the shared-resource mode instead of failing compilation.
 ---
- modules/video_output/win32/direct3d11.c | 8 ++++++++
- 1 file changed, 8 insertions(+)
+ modules/video_output/win32/direct3d11.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
 
 diff --git a/modules/video_output/win32/direct3d11.c b/modules/video_output/win32/direct3d11.c
 index 1111111..2222222 100644
 --- a/modules/video_output/win32/direct3d11.c
 +++ b/modules/video_output/win32/direct3d11.c
-@@ -1038,6 +1038,7 @@ static int CreateStaging(vout_display_t *vd, ID3D11DeviceContext *shared_context)
- 
+@@ -1042,15 +1042,22 @@ static int CreateStaging(vout_display_t *vd, ID3D11DeviceContext *shared_context)
      if (shared_context)
      {
 +#if defined(IID_IDXGIResource1) && defined(DXGI_SHARED_RESOURCE_READ) && defined(DXGI_SHARED_RESOURCE_WRITE)
          assert(sys->sharedHandle == INVALID_HANDLE_VALUE);
          HRESULT hr;
          IDXGIResource1* sharedResource = NULL;
-@@ -1048,6 +1049,13 @@ static int CreateStaging(vout_display_t *vd, ID3D11DeviceContext *shared_context)
+         ID3D11Resource_QueryInterface(sys->stagingSys.resource[0], &IID_IDXGIResource1, (void**)&sharedResource);
+         hr = IDXGIResource1_CreateSharedHandle(sharedResource, NULL, DXGI_SHARED_RESOURCE_READ|DXGI_SHARED_RESOURCE_WRITE, NULL, &sys->sharedHandle);
+         IDXGIResource1_Release(sharedResource);
+         if (FAILED(hr))
+         {
              msg_Err(vd, "Failed to get the shared handle");
              return VLC_EGENERIC;
          }
+
 +#else
 +        msg_Warn(vd,
 +                 "IDXGIResource1 shared handles are unavailable on this toolchain; "
 +                 "disabling the D3D11 shared-resource path");
 +        return VLC_EGENERIC;
 +#endif
- 
      }
 
  
