@@ -38,4 +38,29 @@
     <ProjectReference Include="..\VLCDotNet.Tests.Shared\VLCDotNet.Tests.Shared.csproj" />
   </ItemGroup>
 
+  <!--
+    CI injects the built native libvlc here (Tests/.../native/<rid>) so the MAUI
+    heads can be tested without first publishing the NuGet. Android .so files are
+    flattened into lib/<abi>; iOS/Catalyst link the static/dynamic libvlc.
+  -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <AndroidNativeLibrary Include="$(MSBuildThisFileDirectory)native/android-arm64/**/*.so" Condition="Exists('$(MSBuildThisFileDirectory)native/android-arm64')">
+      <Abi>arm64-v8a</Abi>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="$(MSBuildThisFileDirectory)native/android-x64/**/*.so" Condition="Exists('$(MSBuildThisFileDirectory)native/android-x64')">
+      <Abi>x86_64</Abi>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="$(MSBuildThisFileDirectory)native/android-arm/**/*.so" Condition="Exists('$(MSBuildThisFileDirectory)native/android-arm')">
+      <Abi>armeabi-v7a</Abi>
+    </AndroidNativeLibrary>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios' and Exists('$(MSBuildThisFileDirectory)native/ios-arm64/libvlc.a')">
+    <NativeReference Include="$(MSBuildThisFileDirectory)native/ios-arm64/libvlc.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+    </NativeReference>
+  </ItemGroup>
+
+
 </Project>

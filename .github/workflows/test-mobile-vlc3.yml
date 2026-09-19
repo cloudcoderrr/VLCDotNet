@@ -1,0 +1,146 @@
+name: test-mobile-vlc3
+
+# Runs the shared test suite on an Android emulator and an iOS simulator via the
+# MAUI app's AUTORUN mode. Requires the corresponding native binaries from
+# build-vlc3 (android-*, iossimulator-*). This is finalized once those from-source
+# mobile builds are green.
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Mobile platform to test"
+        type: choice
+        default: all
+        options: [all, android, ios]
+      build_run_id:
+        description: "build-vlc3 run id to pull binaries from (blank = latest successful)"
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  android:
+    if: ${{ inputs.only == 'all' || inputs.only == 'android' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install MAUI Android workload
+        run: dotnet workload install maui-android --version 10.0.100
+
+      - name: Resolve build run id
+        id: run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rid="${{ inputs.build_run_id }}"
+          [ -z "$rid" ] && rid=$(gh run list --workflow build-vlc3.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          echo "id=$rid" >> "$GITHUB_OUTPUT"
+
+      - name: Download native android-x64
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download ${{ steps.run.outputs.id }} -n vlc3-android-x64 -D Tests/VLCDotNet.Tests.Maui/native/android-x64
+
+      - name: Build debug APK (AUTORUN)
+        run: >
+          dotnet build Tests/VLCDotNet.Tests.Maui/VLCDotNet.Tests.Maui.csproj
+          -f net10.0-android -c Debug
+          -p:DefineConstants=AUTORUN -p:VlcMobileTargets=true
+
+      - name: Run on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: |
+            set -x
+            apk=$(find Tests/VLCDotNet.Tests.Maui/bin/Debug/net10.0-android -name '*-Signed.apk' | head -1)
+            adb install -r "$apk"
+            adb shell monkey -p com.vlcdotnet.tests -c android.intent.category.LAUNCHER 1
+            for i in $(seq 1 90); do
+              if adb shell run-as com.vlcdotnet.tests cat files/test-output/DONE.txt 2>/dev/null; then done=1; break; fi
+              sleep 5
+            done
+            mkdir -p mobile-output/android
+            adb exec-out run-as com.vlcdotnet.tests tar c -C files test-output 2>/dev/null | tar x -C mobile-output/android || true
+            echo "---- vlc-log tail ----"; tail -n 40 mobile-output/android/test-output/vlc-log.txt || true
+            test -n "$done"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-output-android
+          path: mobile-output/android
+          if-no-files-found: warn
+
+  ios:
+    if: ${{ inputs.only == 'all' || inputs.only == 'ios' }}
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Install MAUI iOS workload
+        run: dotnet workload install maui-ios --version 10.0.100
+
+      - name: Resolve build run id
+        id: run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rid="${{ inputs.build_run_id }}"
+          [ -z "$rid" ] && rid=$(gh run list --workflow build-vlc3.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          echo "id=$rid" >> "$GITHUB_OUTPUT"
+
+      - name: Download native iossimulator-arm64
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download ${{ steps.run.outputs.id }} -n vlc3-iossimulator-arm64 -D Tests/VLCDotNet.Tests.Maui/native/ios-arm64
+
+      - name: Build iOS simulator app (AUTORUN)
+        run: >
+          dotnet build Tests/VLCDotNet.Tests.Maui/VLCDotNet.Tests.Maui.csproj
+          -f net10.0-ios -c Debug
+          -p:RuntimeIdentifier=iossimulator-arm64
+          -p:DefineConstants=AUTORUN -p:VlcMobileTargets=true
+
+      - name: Run on simulator
+        run: |
+          set -x
+          dev=$(xcrun simctl create vlctest com.apple.CoreSimulator.SimDeviceType.iPhone-15 || true)
+          udid=$(xcrun simctl list devices booted -j | python3 -c "import sys,json;d=json.load(sys.stdin);print(next((x['udid'] for v in d['devices'].values() for x in v if x['state']=='Booted'),''))" || true)
+          xcrun simctl boot vlctest || true
+          app=$(find Tests/VLCDotNet.Tests.Maui/bin/Debug/net10.0-ios -name '*.app' -maxdepth 2 | head -1)
+          xcrun simctl install booted "$app"
+          xcrun simctl launch booted com.vlcdotnet.tests
+          container=$(xcrun simctl get_app_container booted com.vlcdotnet.tests data)
+          for i in $(seq 1 90); do
+            [ -f "$container/Documents/../Library/test-output/DONE.txt" ] && break || true
+            [ -f "$container/Documents/test-output/DONE.txt" ] && break || true
+            sleep 5
+          done
+          mkdir -p mobile-output/ios
+          cp -R "$container"/Documents/test-output mobile-output/ios/ 2>/dev/null || \
+            cp -R "$container"/Library/test-output mobile-output/ios/ 2>/dev/null || true
+          tail -n 40 mobile-output/ios/test-output/vlc-log.txt || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-output-ios
+          path: mobile-output/ios
+          if-no-files-found: warn
