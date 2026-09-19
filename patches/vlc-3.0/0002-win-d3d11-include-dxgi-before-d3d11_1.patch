@@ -1,29 +1,30 @@
 From: VLCDotNet CI <ci@vlcdotnet>
-Subject: [PATCH] win32: include DXGI headers before d3d11_1.h
+Subject: [PATCH] win32: include dxgicommon/DXGI headers before d3d11_1.h
 
 The Windows x64 llvm-mingw toolchain fails to compile
 modules/video_output/win32/direct3d11.c because d3d11_1.h references
-DXGI_COLOR_SPACE_TYPE and IDXGIResource1 before those DXGI declarations are in
-scope:
+DXGI_COLOR_SPACE_TYPE before dxgicommon.h has declared it, and the resulting
+header parse failure cascades into missing IDXGIResource1 declarations too:
 
   unknown type name 'DXGI_COLOR_SPACE_TYPE'
   unknown type name 'IDXGIResource1'
 
-The source currently includes d3d11_1.h before dxgi1_6.h/dxgi1_5.h. Reorder
-the headers so the DXGI declarations are available first.
+Include dxgicommon.h explicitly and keep the DXGI headers before d3d11_1.h so
+the DXGI declarations are available first.
 ---
- modules/video_output/win32/direct3d11.c | 4 ++--
- 1 file changed, 2 insertions(+), 2 deletions(-)
+ modules/video_output/win32/direct3d11.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
 
 diff --git a/modules/video_output/win32/direct3d11.c b/modules/video_output/win32/direct3d11.c
 index 1111111..2222222 100644
 --- a/modules/video_output/win32/direct3d11.c
 +++ b/modules/video_output/win32/direct3d11.c
-@@ -20,12 +20,12 @@
+@@ -20,12 +20,13 @@
  
  #define COBJMACROS
  #include <initguid.h>
 -#include <d3d11_1.h>
++#include <dxgicommon.h>
  #ifdef HAVE_DXGI1_6_H
  # include <dxgi1_6.h>
  #else
