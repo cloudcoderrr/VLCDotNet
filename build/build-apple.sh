@@ -77,7 +77,7 @@ CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-apple-${PLATFORM}-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
 (
   cd "${CONTRIB_BUILD}"
-  env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" --disable-disc --disable-gettext --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb
+  env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" --disable-disc --disable-gettext --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-vpx
   if ! env "${CONTRIB_ENV[@]}" make prebuilt 2>/dev/null; then
     warn "Prebuilt contribs unavailable for ${TRIPLET}/${PLATFORM}; building from source"
     env "${CONTRIB_ENV[@]}" make -j"$(jobs)" fetch
@@ -96,7 +96,7 @@ CONFIG_FLAGS=(
   "--host=${TRIPLET}"
   "--with-contrib=${VLC_SRC}/contrib/${TRIPLET}"
   --disable-vlc --disable-qt --disable-skins2 --disable-macosx
-  --disable-nls --disable-lua --disable-a52
+  --disable-nls --disable-lua --disable-a52 --disable-sparkle --disable-vpx
   --enable-avcodec --enable-swscale
 )
 # Apple mobile / catalyst require static libvlc; macOS ships a dylib.

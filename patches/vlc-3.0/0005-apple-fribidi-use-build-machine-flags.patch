@@ -1,0 +1,13 @@
+diff --git a/contrib/src/fribidi/rules.mak b/contrib/src/fribidi/rules.mak
+index 1d33cbd..5a45ca3 100644
+--- a/contrib/src/fribidi/rules.mak
++++ b/contrib/src/fribidi/rules.mak
+@@ -19,6 +19,7 @@ fribidi: fribidi-$(FRIBIDI_VERSION).tar.xz .sum-fribidi
+ # FIXME: DEPS_fribidi = iconv $(DEPS_iconv)
+ .fribidi: fribidi crossfile.meson
+ 	$(MESONCLEAN)
+-	$(MESON) -Ddocs=false -Dbin=false -Dtests=false
++	$(MESON) -Ddocs=false -Dbin=false -Dtests=false \
++		-Dbuild.c_args= -Dbuild.c_link_args=
+ 	+$(MESONBUILD)
+ 	touch $@
