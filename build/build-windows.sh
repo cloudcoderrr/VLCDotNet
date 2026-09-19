@@ -45,10 +45,23 @@ rm -rf "${INSTALL_PREFIX}"
 mkdir -p "${INSTALL_PREFIX}"
 BUILD_ARGS+=(-o "${INSTALL_PREFIX}")
 
-# VLC 3.0.23 C code trips several clang default-error diagnostics (e.g. the
-# obsolete crystalhd decoder); downgrade them so the build completes.
-export CFLAGS="${CFLAGS:-} -Wno-error=incompatible-function-pointer-types -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
-export CXXFLAGS="${CXXFLAGS:-} -Wno-error=incompatible-function-pointer-types -Wno-error=incompatible-pointer-types"
+# VLC 3.0.23 C code trips clang default-error diagnostics (e.g. the obsolete
+# crystalhd decoder). Wrap ONLY the cross compilers to downgrade them; exporting
+# CFLAGS globally would leak clang-only flags into build.sh's native tools (gcc)
+# build and break it ("C compiler cannot create executables").
+WRAP_DIR="${WORK_DIR}/xwrap-${ARCH}"
+mkdir -p "${WRAP_DIR}"
+LENIENT="-Wno-error=incompatible-function-pointer-types -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
+for t in gcc g++ clang clang++ ; do
+  real="${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-${t}"
+  [ -x "${real}" ] || continue
+  cat > "${WRAP_DIR}/${ARCH}-w64-mingw32-${t}" <<EOF
+#!/bin/sh
+exec "${real}" ${LENIENT} "\$@"
+EOF
+  chmod +x "${WRAP_DIR}/${ARCH}-w64-mingw32-${t}"
+done
+export PATH="${WRAP_DIR}:${PATH}"
 
 # We only need libvlc + plugins, not the NSIS installer. Provide a no-op makensis
 # so the win32 build script's package step completes without building an installer.

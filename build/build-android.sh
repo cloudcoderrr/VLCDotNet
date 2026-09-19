@@ -16,9 +16,9 @@ ARCH="${1:?arch required: arm|arm64|x86_64}"
 API="${ANDROID_API:-21}"
 
 case "${ARCH}" in
-  arm)    TARGET="armv7a-linux-androideabi"; TRIPLET="arm-linux-androideabi";  RID="android-arm"   ;;
-  arm64)  TARGET="aarch64-linux-android";    TRIPLET="aarch64-linux-android";  RID="android-arm64" ;;
-  x86_64) TARGET="x86_64-linux-android";     TRIPLET="x86_64-linux-android";   RID="android-x64"   ;;
+  arm)    TARGET="armv7a-linux-androideabi"; TRIPLET="arm-linux-androideabi";  RID="android-arm";   ABI="armeabi-v7a" ;;
+  arm64)  TARGET="aarch64-linux-android";    TRIPLET="aarch64-linux-android";  RID="android-arm64"; ABI="arm64-v8a" ;;
+  x86_64) TARGET="x86_64-linux-android";     TRIPLET="x86_64-linux-android";   RID="android-x64";   ABI="x86_64" ;;
   *) die "Unsupported Android arch: ${ARCH}" ;;
 esac
 
@@ -34,6 +34,8 @@ export STRIP="${NDK_TC}/bin/llvm-strip"
 export NM="${NDK_TC}/bin/llvm-nm"
 export LD="${NDK_TC}/bin/ld"
 export PATH="${NDK_TC}/bin:${PATH}"
+export ANDROID_NDK="${ANDROID_NDK_HOME}"
+export ANDROID_ABI="${ABI}"
 
 VLC_SRC="${WORK_DIR}/vlc-android-${ARCH}"
 INSTALL_PREFIX="${WORK_DIR}/install-android-${ARCH}"
@@ -42,7 +44,7 @@ mkdir -p "${WORK_DIR}"
 clone_vlc "${VLC_SRC}"
 apply_patches "${VLC_SRC}"
 
-CONTRIB_ENV=(HAVE_ANDROID=1 ANDROID_API="${API}")
+CONTRIB_ENV=(HAVE_ANDROID=1 ANDROID_API="${API}" ANDROID_ABI="${ABI}" ANDROID_NDK="${ANDROID_NDK_HOME}")
 
 # ---- 1. contribs --------------------------------------------------------------
 CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-android-${ARCH}"
