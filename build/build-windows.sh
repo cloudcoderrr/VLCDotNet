@@ -52,14 +52,16 @@ BUILD_ARGS+=(-o "${INSTALL_PREFIX}")
 WRAP_DIR="${WORK_DIR}/xwrap-${ARCH}"
 mkdir -p "${WRAP_DIR}"
 LENIENT="-Wno-error=incompatible-function-pointer-types -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
-for t in gcc g++ clang clang++ ; do
-  real="${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-${t}"
-  [ -x "${real}" ] || continue
-  cat > "${WRAP_DIR}/${ARCH}-w64-mingw32-${t}" <<EOF
+# Map the gcc/g++ names build.sh invokes to llvm-mingw clang/clang++ (current
+# Windows SDK headers) and add the leniency flags. Only the cross compilers are
+# affected; native gcc used for build.sh's tools is untouched.
+for pair in "gcc:clang" "g++:clang++" "clang:clang" "clang++:clang++" ; do
+  name="${pair%%:*}"; realt="${pair##*:}"
+  cat > "${WRAP_DIR}/${ARCH}-w64-mingw32-${name}" <<EOF
 #!/bin/sh
-exec "${real}" ${LENIENT} "\$@"
+exec "${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-${realt}" ${LENIENT} "\$@"
 EOF
-  chmod +x "${WRAP_DIR}/${ARCH}-w64-mingw32-${t}"
+  chmod +x "${WRAP_DIR}/${ARCH}-w64-mingw32-${name}"
 done
 export PATH="${WRAP_DIR}:${PATH}"
 

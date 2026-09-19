@@ -40,8 +40,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential automake autopoint libtool-bin pkg-config gettext \
             git bison flex nasm yasm cmake ninja-build meson zip p7zip-full \
-            gperf help2man nsis dos2unix \
-            gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 mingw-w64-tools curl xz-utils
+            gperf help2man nsis dos2unix curl xz-utils
       - name: Build (${{ matrix.arch }})
         run: bash build/build-windows.sh ${{ matrix.arch }}
       - name: Map arch to RID
