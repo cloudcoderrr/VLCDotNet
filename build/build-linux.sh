@@ -57,6 +57,15 @@ mkdir -p "${CONTRIB_BUILD}"
 )
 
 # ---- 2. bootstrap + configure -------------------------------------------------
+# gnutls in the 3.0 contrib links a bundled nettle backport that leaves undefined
+# symbols in dependent plugins (vnc/srt). We only play local files, so remove
+# gnutls/srt from the contrib prefix to keep those modules out of the build.
+CONTRIB_PREFIX_DIR="${VLC_SRC}/contrib/${TRIPLET}"
+rm -f "${CONTRIB_PREFIX_DIR}"/lib/libgnutls* \
+      "${CONTRIB_PREFIX_DIR}"/lib/pkgconfig/gnutls.pc \
+      "${CONTRIB_PREFIX_DIR}"/lib/libsrt* \
+      "${CONTRIB_PREFIX_DIR}"/lib/pkgconfig/srt.pc 2>/dev/null || true
+
 ( cd "${VLC_SRC}" && ./bootstrap )
 
 BUILD_DIR="${VLC_SRC}/build-${ARCH}"
@@ -81,6 +90,7 @@ CONFIG_FLAGS=(
   --disable-pulse
   --disable-vnc          # not needed; avoids linking gnutls/nettle
   --disable-gnutls       # local files only; no TLS module
+  --disable-srt          # not needed; avoids linking gnutls/nettle
 )
 [ "${CROSS}" = "1" ] && CONFIG_FLAGS+=("--host=${TRIPLET}" "--build=x86_64-linux-gnu")
 
