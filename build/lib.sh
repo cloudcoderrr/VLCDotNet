@@ -31,20 +31,20 @@ clone_vlc() {
 }
 
 # apply_patches <vlc-src>
-# Applies every patches/vlc-3.0/*.patch in lexical order (git apply, then patch -p1).
+# Applies every patches/vlc-3.0/*.patch in lexical order. Uses git apply
+# --recount (tolerant of hunk line-count/offset drift) with a patch -p1 fallback.
 apply_patches() {
   local src="$1"
   shopt -s nullglob
   local applied=0
   for p in "${PATCH_DIR}"/*.patch; do
     log "Applying patch $(basename "$p")"
-    if git -C "${src}" apply --check "$p" 2>/dev/null; then
-      git -C "${src}" apply --verbose "$p"
-    elif ( cd "${src}" && patch -p1 --forward --dry-run < "$p" >/dev/null 2>&1 ); then
-      ( cd "${src}" && patch -p1 --forward < "$p" )
+    if git -C "${src}" apply --recount --whitespace=nowarn "$p" 2>/dev/null; then
+      :
+    elif ( cd "${src}" && patch -p1 --forward --fuzz=3 --no-backup-if-mismatch < "$p" ); then
+      :
     else
-      warn "Patch $(basename "$p") does not apply cleanly; attempting 3-way merge"
-      git -C "${src}" apply --3way --verbose "$p"
+      die "Patch $(basename "$p") failed to apply"
     fi
     applied=$((applied + 1))
   done

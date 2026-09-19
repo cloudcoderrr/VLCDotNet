@@ -19,7 +19,7 @@ diff --git a/modules/codec/avcodec/avcommon_compat.h b/modules/codec/avcodec/avc
 index 1111111..2222222 100644
 --- a/modules/codec/avcodec/avcommon_compat.h
 +++ b/modules/codec/avcodec/avcommon_compat.h
-@@ -37,6 +37,17 @@
+@@ -37,5 +37,17 @@
  #ifdef HAVE_LIBAVCODEC_AVCODEC_H
  #include <libavcodec/avcodec.h>
  
