@@ -78,7 +78,7 @@ CONFIG_FLAGS=(
   --disable-lua --disable-a52 --disable-sid
   --disable-vpx --disable-sdl-image
   --disable-xcb --disable-alsa --disable-pulse --disable-vdpau
-  --disable-v4l2 --disable-vnc --disable-gnutls --disable-srt
+  --disable-v4l2 --disable-vnc --disable-gnutls --disable-srt --disable-ncurses
   --enable-avcodec --enable-swscale
   --enable-shared --disable-static
 )
