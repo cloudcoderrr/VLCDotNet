@@ -111,6 +111,19 @@ CONFIG_FLAGS=(
   # libtool has finalized it. Building compat + src first is deterministic.
   make -j"$(jobs)" -C compat
   make -j"$(jobs)" -C src
+  # The cross libtool defers the real libvlccore.so.N to install time (only the
+  # dangling dev symlinks appear in the build tree). Install src so the real
+  # shared object is produced under the prefix, then link it back into
+  # src/.libs so the plugins -- which reference ../src/.libs/libvlccore.so by
+  # path -- can resolve it. On native builds the real .so already exists and is
+  # left untouched.
+  make -C src install
+  for f in "${INSTALL_PREFIX}"/lib/libvlccore.so.[0-9]*; do
+    b="$(basename "$f")"
+    if [ -e "$f" ] && [ ! -e "src/.libs/${b}" ]; then
+      ln -sf "$f" "src/.libs/${b}"
+    fi
+  done
   # Diagnose the libvlccore artifacts the cross libtool actually produced; the
   # plugins later link ../src/.libs/libvlccore.so by path.
   log "libvlccore artifacts after building src:"
