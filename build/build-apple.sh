@@ -85,16 +85,16 @@ case "${PLATFORM}" in
   ios|iossimulator)
     # contrib/bootstrap's check_ios_sdk prefers VLCSDKROOT when populating
     # IOS_SDK, which FFmpeg later uses for its extra -isysroot flag.
-    CONTRIB_ENV=(HAVE_IOS=1 HAVE_DARWIN_OS=1 VLCSDKROOT="${SDKROOT}")
+    CONTRIB_ENV=(BUILDFORIOS=1 HAVE_IOS=1 HAVE_DARWIN_OS=1 VLCSDKROOT="${SDKROOT}")
     ;;
-  maccatalyst)      CONTRIB_ENV=(HAVE_MACCATALYST=1 HAVE_DARWIN_OS=1) ;;
+  maccatalyst)      CONTRIB_ENV=(BUILDFORIOS=1 HAVE_MACCATALYST=1 HAVE_DARWIN_OS=1 VLCSDKROOT="${SDKROOT}") ;;
   macos)            CONTRIB_ENV=(HAVE_MACOSX=1 HAVE_DARWIN_OS=1) ;;
 esac
 
 # ---- 1. contribs --------------------------------------------------------------
 CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-apple-${PLATFORM}-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
-BOOTSTRAP_FLAGS=(--disable-disc --disable-a52 --disable-dca --disable-gettext --disable-gnutls --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-vpx)
+BOOTSTRAP_FLAGS=(--disable-disc --disable-net --disable-a52 --disable-dca --disable-gettext --disable-gnutls --disable-goom --disable-asdcplib --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-vpx)
 case "${PLATFORM}" in
   ios|iossimulator)
     # FriBidi's Meson generator still executes target binaries in these Apple
