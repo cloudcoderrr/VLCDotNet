@@ -98,6 +98,11 @@ rm -f "${CONTRIB_PREFIX_DIR}"/lib/libgnutls* \
   "${CONTRIB_PREFIX_DIR}"/lib/libsrt* \
   "${CONTRIB_PREFIX_DIR}"/lib/pkgconfig/srt.pc 2>/dev/null || true
 
+# NDK r29 clang no longer implicitly links libm into the module plugins, so math
+# symbols (e.g. log10f in the audiotrack output) are unresolved. Bake -lm into
+# LDFLAGS before configure so every plugin link picks it up.
+export LDFLAGS="${LDFLAGS:-} -lm"
+
 (
   cd "${BUILD_DIR}"
   env "${CONFIG_ENV[@]}" ../configure "${CONFIG_FLAGS[@]}"
