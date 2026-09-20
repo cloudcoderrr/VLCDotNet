@@ -54,7 +54,15 @@ mkdir -p "${CONTRIB_BUILD}"
   ../bootstrap "${BOOT_ARGS[@]}"
   prefetch_contrib_tarballs "${VLC_SRC}/contrib/tarballs"
   make -j"$(jobs)" fetch
-  make -j"$(jobs)" || make -j1
+  if ! make -j"$(jobs)"; then
+    warn "Parallel contrib build failed; retrying serially for a clean error"
+    if ! make -j1; then
+      warn "Contrib build failed. Dumping ffmpeg config.log tails for diagnosis:"
+      find "${CONTRIB_BUILD}" -path '*ffmpeg*/config.log' \
+        -exec sh -c 'echo "----- $1 -----"; tail -n 80 "$1"' _ {} \; 2>/dev/null || true
+      exit 1
+    fi
+  fi
 )
 
 # ---- 2. bootstrap + configure -------------------------------------------------
@@ -110,6 +118,19 @@ CONFIG_FLAGS=(
   # toolchains, so a plugin can try to link ../src/.libs/libvlccore.so before
   # libtool has finalized it. Building compat + src first is deterministic.
   make -j"$(jobs)" -C compat
+  if [ "${CROSS}" = "1" ]; then
+    # The aarch64/armv7 cross libtool has been observed to emit only
+    # libvlccore.la + dangling dev symlinks, never the real libvlccore.so.N
+    # (make -C src install then fails: cannot stat .libs/libvlccore.so.9.0.1).
+    # Trace the actual libvlccore link so the real ld/libtool command is
+    # captured, then list what landed in src/.libs.
+    log "Cross build: tracing the libvlccore link (V=1) for diagnosis"
+    make -C src V=1 libvlccore.la 2>&1 | tee "${WORK_DIR}/libvlccore-${ARCH}.log" || true
+    log "libvlccore artifacts produced under src/.libs:"
+    ls -la src/.libs/ 2>/dev/null | grep -i vlccore || log "(no libvlccore.* in src/.libs)"
+    log "last 60 lines of the libvlccore link trace:"
+    tail -n 60 "${WORK_DIR}/libvlccore-${ARCH}.log" || true
+  fi
   make -j"$(jobs)" -C src
   make -j"$(jobs)"
   make install
