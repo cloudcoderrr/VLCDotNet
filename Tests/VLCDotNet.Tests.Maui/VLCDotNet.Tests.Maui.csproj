@@ -1,7 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+    <!--
+      iOS and Mac Catalyst can only be restored/built on macOS (they need the
+      Apple SDK workload packs). Restricting the TFM list by host OS lets the
+      Android head build on Linux CI without pulling the Microsoft.iOS.Sdk pack,
+      which restore would otherwise demand for every listed TFM.
+    -->
+    <TargetFrameworks>net10.0-android</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('OSX'))">net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <UseMaui>true</UseMaui>
     <SingleProject>true</SingleProject>
