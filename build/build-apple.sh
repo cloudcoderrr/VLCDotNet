@@ -110,7 +110,12 @@ CONFIG_FLAGS=(
 )
 case "${PLATFORM}" in
   ios|iossimulator)
-    CONFIG_FLAGS+=(--disable-fribidi --disable-harfbuzz --disable-libass)
+    CONFIG_FLAGS+=(--disable-fribidi --disable-harfbuzz --disable-libass --disable-macosx-avfoundation)
+    ;;
+  maccatalyst)
+    # We only need media playback on Catalyst. VLC's AVFoundation capture
+    # modules pull macCatalyst 14-only APIs and fail against our 13.1 target.
+    CONFIG_FLAGS+=(--disable-macosx-avfoundation)
     ;;
 esac
 # Apple mobile / catalyst require static libvlc; macOS ships a dylib.
