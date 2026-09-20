@@ -100,9 +100,14 @@ rm -f "${CONTRIB_PREFIX_DIR}"/lib/libgnutls* \
   "${CONTRIB_PREFIX_DIR}"/lib/pkgconfig/srt.pc 2>/dev/null || true
 
 # NDK r29 clang no longer implicitly links libm into the module plugins, so math
-# symbols (e.g. log10f in the audiotrack output) are unresolved. Bake -lm into
-# LDFLAGS before configure so every plugin link picks it up.
-export LDFLAGS="${LDFLAGS:-} -lm"
+# symbols (e.g. log10f in the audiotrack output) are unresolved. NDK r29 also
+# folds pthread into libc and ships no libpthread.a, yet some modules link
+# -lpthread explicitly (e.g. the adaptive demux). Provide -lm plus an empty
+# libpthread.a stub so both resolve for every plugin link.
+PTHREAD_STUB_DIR="${WORK_DIR}/pthread-stub-${ARCH}"
+mkdir -p "${PTHREAD_STUB_DIR}"
+"${AR}" rc "${PTHREAD_STUB_DIR}/libpthread.a"
+export LDFLAGS="${LDFLAGS:-} -L${PTHREAD_STUB_DIR} -lm"
 
 (
   cd "${BUILD_DIR}"
