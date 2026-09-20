@@ -83,6 +83,11 @@ APPLE_CFLAGS="-arch ${VLCARCH} -isysroot ${SDKROOT} ${MINVER} ${EXTRA_CFLAGS}"
 export CFLAGS="${APPLE_CFLAGS}"
 export CXXFLAGS="${APPLE_CFLAGS}"
 export OBJCFLAGS="${APPLE_CFLAGS}"
+# Put the arch/SDK/target flags in CPPFLAGS too so configure's preprocessor
+# probes (notably TARGET_OS_IPHONE, which drives HAVE_OSX) evaluate for the real
+# target. Without this a Mac Catalyst (macabi) build is misdetected as macOS and
+# pulls in macOS-only modules such as nsspeechsynthesizer.
+export CPPFLAGS="${APPLE_CFLAGS}"
 export LDFLAGS="-arch ${VLCARCH} -isysroot ${SDKROOT} ${MINVER} ${EXTRA_CFLAGS}"
 if [ "${ARCH}" = "x86_64" ]; then
   # Xcode 15's new linker errors on FFmpeg's x86_64 nasm objects that carry no
@@ -136,6 +141,7 @@ CONFIG_FLAGS=(
   --disable-bluray
   --disable-gnutls --disable-srt
   --disable-libxml2
+  --disable-screen --disable-vcd --disable-live555 --disable-realrtsp
   --enable-avcodec --enable-swscale
 )
 case "${PLATFORM}" in
@@ -160,7 +166,10 @@ esac
 # plugin needs UIKit, which is unavailable/broken under Mac Catalyst's macabi
 # target. We decode in software via avcodec, so force the probe to fail on the
 # non-macOS Apple targets.
-CONFIGURE_ENV=("${CONTRIB_ENV[@]}")
+# Isolate pkg-config to the contrib prefix so Homebrew's host-arch libraries
+# (openssl, libssh2, ...) do not leak into the cross build and enable modules
+# like sftp that then fail to link for the target architecture.
+CONFIGURE_ENV=("${CONTRIB_ENV[@]}" "PKG_CONFIG_LIBDIR=${VLC_SRC}/contrib/${TRIPLET}/lib/pkgconfig")
 case "${PLATFORM}" in
   ios|iossimulator|maccatalyst)
     CONFIGURE_ENV+=(ac_cv_header_VideoToolbox_VideoToolbox_h=no)

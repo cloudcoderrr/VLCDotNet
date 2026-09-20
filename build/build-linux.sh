@@ -102,6 +102,12 @@ CONFIG_FLAGS=(
 (
   cd "${BUILD_DIR}"
   ../configure "${CONFIG_FLAGS[@]}"
+  # Build the support lib and libvlccore before the plugins. Under a single
+  # "make -j" the recursive src/ and modules/ sub-makes overlap on the cross
+  # toolchains, so a plugin can try to link ../src/.libs/libvlccore.so before
+  # libtool has finalized it. Building compat + src first is deterministic.
+  make -j"$(jobs)" -C compat
+  make -j"$(jobs)" -C src
   make -j"$(jobs)"
   make install
 )

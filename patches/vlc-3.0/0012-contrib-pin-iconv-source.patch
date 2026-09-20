@@ -1,0 +1,25 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] contrib: pin libiconv to a reliable GNU mirror
+
+`$(GNU)` resolves to `ftpmirror.gnu.org`, a redirector that hands out a random
+(sometimes unreachable) mirror. One Android arm64 run failed with curl error 28
+fetching libiconv while the other arches succeeded in the same run, i.e. a flaky
+redirect target. Pin libiconv to `mirrors.kernel.org`, which serves the identical
+tarball (verified byte-for-byte against VLC 3.0.23's recorded SHA512), so the
+filename and checksum are unchanged.
+---
+ contrib/src/iconv/rules.mak | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/contrib/src/iconv/rules.mak b/contrib/src/iconv/rules.mak
+index 1111111..2222222 100644
+--- a/contrib/src/iconv/rules.mak
++++ b/contrib/src/iconv/rules.mak
+@@ -1,6 +1,6 @@
+ # libiconv
+ LIBICONV_VERSION := 1.17
+-LIBICONV_URL := $(GNU)/libiconv/libiconv-$(LIBICONV_VERSION).tar.gz
++LIBICONV_URL := https://mirrors.kernel.org/gnu/libiconv/libiconv-$(LIBICONV_VERSION).tar.gz
+ 
+ PKGS += iconv
+ # iconv cannot be detect with pkg-config, but it is mandated by POSIX.

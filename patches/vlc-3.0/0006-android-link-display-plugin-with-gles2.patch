@@ -10,8 +10,9 @@ ES symbols:
 
 `modules/video_output/android/display.c` includes `<GLES2/gl2.h>` and directly
 calls those functions when clearing the surface, yet its Automake rule only
-links `$(LIBDL)`. Link it with `$(GLES2_LIBS)` like VLC's other GLES2-backed
-video output modules.
+links `$(LIBDL)`. VLC's `GLES2_LIBS` is only populated when a GLES2 module is
+enabled by configure, so it is empty here; link the plugin against the NDK's
+`-lGLESv2` directly, which is always present on Android.
 ---
  modules/video_output/Makefile.am | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
@@ -25,7 +26,7 @@ index 6d75a1d..014fa42 100644
  	video_output/android/utils.c video_output/android/utils.h
  libandroid_display_plugin_la_CFLAGS = $(AM_CFLAGS)
 -libandroid_display_plugin_la_LIBADD = $(LIBDL)
-+libandroid_display_plugin_la_LIBADD = $(LIBDL) $(GLES2_LIBS)
++libandroid_display_plugin_la_LIBADD = $(LIBDL) -lGLESv2
  
  libglconv_android_plugin_la_SOURCES = video_output/opengl/converter_android.c \
  	video_output/opengl/converter.h
