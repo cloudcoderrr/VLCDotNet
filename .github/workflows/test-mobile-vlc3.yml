@@ -75,7 +75,11 @@ jobs:
             # Wait for full boot before touching the package manager.
             adb shell 'while [ "$(getprop sys.boot_completed 2>/dev/null)" != "1" ]; do sleep 2; done'
             adb logcat -c || true
-            apk=$(find Tests/VLCDotNet.Tests.Maui/bin/Debug/net10.0-android -name '*-Signed.apk' | head -1)
+            apk=$(find Tests/VLCDotNet.Tests.Maui/bin/Debug/net10.0-android -name '*-Signed.apk' 2>/dev/null | head -1)
+            [ -z "$apk" ] && apk=$(find Tests/VLCDotNet.Tests.Maui/bin -name '*.apk' 2>/dev/null | head -1)
+            echo "APK: '$apk'"
+            ls -la Tests/VLCDotNet.Tests.Maui/bin/Debug/net10.0-android/ 2>/dev/null || true
+            test -n "$apk"
             echo "Installing $apk"
             adb install -r "$apk"
             adb shell monkey -p com.vlcdotnet.tests -c android.intent.category.LAUNCHER 1

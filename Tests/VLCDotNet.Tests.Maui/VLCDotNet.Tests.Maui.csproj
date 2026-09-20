@@ -62,17 +62,55 @@
     </AndroidNativeLibrary>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios' and ('$(RuntimeIdentifier)' == 'ios-arm64' or '$(RuntimeIdentifier)' == 'iossimulator-arm64' or '$(RuntimeIdentifier)' == 'iossimulator-x64') and Exists('$(MSBuildThisFileDirectory)native/$(RuntimeIdentifier)/libvlc.a')">
-    <NativeReference Include="$(MSBuildThisFileDirectory)native/$(RuntimeIdentifier)/libvlc.a">
+  <!--
+    iOS / simulator / Mac Catalyst statically link libvlc. Link libvlc.a +
+    libvlccore.a + every plugin/contrib archive under static/, and force-load
+    libvlcstaticmodules.a (the generated vlc_static_modules[] table) so the
+    statically linked plugins get registered. The plugins pull the system
+    frameworks/libraries they reference.
+  -->
+  <PropertyGroup Condition="('$(TargetFramework)' == 'net10.0-ios' or '$(TargetFramework)' == 'net10.0-maccatalyst')">
+    <_VlcRidDir>$(MSBuildThisFileDirectory)native/$(RuntimeIdentifier)</_VlcRidDir>
+    <MtouchExtraArgs Condition="Exists('$(_VlcRidDir)/static')">$(MtouchExtraArgs) -gcc_flags "-lc++ -lbz2 -liconv -lz"</MtouchExtraArgs>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios' and Exists('$(_VlcRidDir)/static')">
+    <NativeReference Include="$(_VlcRidDir)/libvlc.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+      <Frameworks>Foundation CoreFoundation CFNetwork UIKit CoreGraphics CoreText QuartzCore CoreMedia CoreVideo CoreAudio AudioToolbox AVFoundation VideoToolbox OpenGLES Security SystemConfiguration</Frameworks>
+    </NativeReference>
+    <NativeReference Include="$(_VlcRidDir)/libvlccore.a">
       <Kind>Static</Kind>
       <ForceLoad>true</ForceLoad>
     </NativeReference>
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-maccatalyst' and ('$(RuntimeIdentifier)' == 'maccatalyst-arm64' or '$(RuntimeIdentifier)' == 'maccatalyst-x64') and Exists('$(MSBuildThisFileDirectory)native/$(RuntimeIdentifier)/libvlc.a')">
-    <NativeReference Include="$(MSBuildThisFileDirectory)native/$(RuntimeIdentifier)/libvlc.a">
+    <NativeReference Include="$(_VlcRidDir)/static/libvlcstaticmodules.a">
       <Kind>Static</Kind>
       <ForceLoad>true</ForceLoad>
+    </NativeReference>
+    <NativeReference Include="$(_VlcRidDir)/static/*.a" Exclude="$(_VlcRidDir)/static/libvlcstaticmodules.a">
+      <Kind>Static</Kind>
+      <ForceLoad>false</ForceLoad>
+    </NativeReference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-maccatalyst' and Exists('$(_VlcRidDir)/static')">
+    <NativeReference Include="$(_VlcRidDir)/libvlc.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+      <Frameworks>Foundation CoreFoundation CFNetwork AppKit CoreGraphics CoreText QuartzCore CoreMedia CoreVideo CoreAudio AudioToolbox AVFoundation VideoToolbox Security SystemConfiguration</Frameworks>
+    </NativeReference>
+    <NativeReference Include="$(_VlcRidDir)/libvlccore.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+    </NativeReference>
+    <NativeReference Include="$(_VlcRidDir)/static/libvlcstaticmodules.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+    </NativeReference>
+    <NativeReference Include="$(_VlcRidDir)/static/*.a" Exclude="$(_VlcRidDir)/static/libvlcstaticmodules.a">
+      <Kind>Static</Kind>
+      <ForceLoad>false</ForceLoad>
     </NativeReference>
   </ItemGroup>
 
