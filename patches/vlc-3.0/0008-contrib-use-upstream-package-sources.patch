@@ -1,0 +1,137 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] contrib: prefer upstream package sources over VideoLAN mirror
+
+Current GitHub-hosted builds can reach a number of upstream project archives but
+repeatedly time out against `downloads.videolan.org`, even after switching the
+mirror root from HTTP to HTTPS. This now blocks multiple platform families:
+
+  - Windows source-contrib builds fail on `a52dec`
+  - Android source-contrib builds fail on `libdca`, `libdvbpsi`, and `dav1d`
+
+Prefer the original package URL before the VideoLAN contrib mirror, then reroute
+the packages that only pointed at VideoLAN to stable upstream HTTPS archives.
+This preserves the affected codecs/demuxers instead of disabling them.
+---
+ contrib/src/a52/rules.mak    |  2 +-
+ contrib/src/dav1d/rules.mak  | 10 +++++-----
+ contrib/src/dca/rules.mak    |  8 ++++----
+ contrib/src/dvbpsi/rules.mak |  8 ++++----
+ contrib/src/main.mak         |  4 ++--
+ 5 files changed, 16 insertions(+), 16 deletions(-)
+
+diff --git a/contrib/src/a52/rules.mak b/contrib/src/a52/rules.mak
+index 906bfee..a89d08b 100644
+--- a/contrib/src/a52/rules.mak
++++ b/contrib/src/a52/rules.mak
+@@ -1,7 +1,7 @@
+ # liba52
+ 
+ A52DEC_VERSION := 0.7.4
+-A52DEC_URL := $(CONTRIB_VIDEOLAN)/a52/a52dec-$(A52DEC_VERSION).tar.gz
++A52DEC_URL := https://downloads.sourceforge.net/project/liba52/a52dec-$(A52DEC_VERSION).tar.gz
+ 
+ ifdef GPL
+ PKGS += a52
+diff --git a/contrib/src/dav1d/rules.mak b/contrib/src/dav1d/rules.mak
+index eed3d28..675d2a1 100644
+--- a/contrib/src/dav1d/rules.mak
++++ b/contrib/src/dav1d/rules.mak
+@@ -1,7 +1,7 @@
+ # libdav1d
+ 
+ DAV1D_VERSION := 1.5.1
+-DAV1D_URL := $(VIDEOLAN)/dav1d/$(DAV1D_VERSION)/dav1d-$(DAV1D_VERSION).tar.xz
++DAV1D_URL := https://code.videolan.org/videolan/dav1d/-/archive/$(DAV1D_VERSION)/dav1d-$(DAV1D_VERSION).tar.gz
+ 
+ PKGS += dav1d
+ ifeq ($(call need_pkg,"dav1d"),)
+@@ -10,13 +10,13 @@ endif
+ 
+ DAV1D_CONF = -D enable_tests=false -D enable_tools=false
+ 
+-$(TARBALLS)/dav1d-$(DAV1D_VERSION).tar.xz:
+-	$(call download_pkg,$(DAV1D_URL),dav1d)
++$(TARBALLS)/dav1d-$(DAV1D_VERSION).tar.gz:
++	$(call download,$(DAV1D_URL))
+ #	$(call download_git,$(DAV1D_GITURL),,$(DAV1D_HASH))
+ 
+-.sum-dav1d: dav1d-$(DAV1D_VERSION).tar.xz
++.sum-dav1d: dav1d-$(DAV1D_VERSION).tar.gz
+ 
+-dav1d: dav1d-$(DAV1D_VERSION).tar.xz .sum-dav1d
++dav1d: dav1d-$(DAV1D_VERSION).tar.gz .sum-dav1d
+ 	$(UNPACK)
+ 	$(MOVE)
+ 
+diff --git a/contrib/src/dca/rules.mak b/contrib/src/dca/rules.mak
+index 8e995a5..55bb213 100644
+--- a/contrib/src/dca/rules.mak
++++ b/contrib/src/dca/rules.mak
+@@ -1,7 +1,7 @@
+ # libdca
+ 
+ DCA_VERSION := 0.0.7
+-DCA_URL := $(VIDEOLAN)/libdca/$(DCA_VERSION)/libdca-$(DCA_VERSION).tar.bz2
++DCA_URL := https://code.videolan.org/videolan/libdca/-/archive/$(DCA_VERSION)/libdca-$(DCA_VERSION).tar.gz
+ 
+ ifdef HAVE_FPU
+ ifdef GPL
+@@ -12,12 +12,12 @@ ifeq ($(call need_pkg,"libdca"),)
+ PKGS_FOUND += dca
+ endif
+ 
+-$(TARBALLS)/libdca-$(DCA_VERSION).tar.bz2:
++$(TARBALLS)/libdca-$(DCA_VERSION).tar.gz:
+ 	$(call download,$(DCA_URL))
+ 
+-.sum-dca: libdca-$(DCA_VERSION).tar.bz2
++.sum-dca: libdca-$(DCA_VERSION).tar.gz
+ 
+-libdca: libdca-$(DCA_VERSION).tar.bz2 .sum-dca
++libdca: libdca-$(DCA_VERSION).tar.gz .sum-dca
+ 	$(UNPACK)
+ 	$(UPDATE_AUTOCONFIG) && cd $(UNPACK_DIR)
+ 	$(call pkg_static,"./libdca/libdca.pc.in")
+diff --git a/contrib/src/dvbpsi/rules.mak b/contrib/src/dvbpsi/rules.mak
+index 12efdd3..12a33e6 100644
+--- a/contrib/src/dvbpsi/rules.mak
++++ b/contrib/src/dvbpsi/rules.mak
+@@ -1,19 +1,19 @@
+ # dvbpsi
+ 
+ DVBPSI_VERSION := 1.3.3
+-DVBPSI_URL := $(VIDEOLAN)/libdvbpsi/$(DVBPSI_VERSION)/libdvbpsi-$(DVBPSI_VERSION).tar.bz2
++DVBPSI_URL := https://code.videolan.org/videolan/libdvbpsi/-/archive/$(DVBPSI_VERSION)/libdvbpsi-$(DVBPSI_VERSION).tar.gz
+ 
+ PKGS += dvbpsi
+ ifeq ($(call need_pkg,"libdvbpsi >= 1.2.0"),)
+ PKGS_FOUND += dvbpsi
+ endif
+ 
+-$(TARBALLS)/libdvbpsi-$(DVBPSI_VERSION).tar.bz2:
++$(TARBALLS)/libdvbpsi-$(DVBPSI_VERSION).tar.gz:
+ 	$(call download,$(DVBPSI_URL))
+ 
+-.sum-dvbpsi: libdvbpsi-$(DVBPSI_VERSION).tar.bz2
++.sum-dvbpsi: libdvbpsi-$(DVBPSI_VERSION).tar.gz
+ 
+-libdvbpsi: libdvbpsi-$(DVBPSI_VERSION).tar.bz2 .sum-dvbpsi
++libdvbpsi: libdvbpsi-$(DVBPSI_VERSION).tar.gz .sum-dvbpsi
+ 	$(UNPACK)
+ 	$(UPDATE_AUTOCONFIG) && cd $(UNPACK_DIR) && mv config.guess config.sub .auto
+ 	$(APPLY) $(SRC)/dvbpsi/dvbpsi-noexamples.patch
+diff --git a/contrib/src/main.mak b/contrib/src/main.mak
+index a4a930d..e7d50f3 100644
+--- a/contrib/src/main.mak
++++ b/contrib/src/main.mak
+@@ -269,8 +269,8 @@ else
+ download = $(error Neither curl nor wget found!)
+ endif
+ 
+-download_pkg = $(call download,$(CONTRIB_VIDEOLAN)/$(2)/$(lastword $(subst /, ,$(@)))) || \
+-	( $(call download,$(1)) && echo "Please upload this package $(lastword $(subst /, ,$(@))) to our FTP" )
++download_pkg = $(call download,$(1)) || \
++	$(call download,$(CONTRIB_VIDEOLAN)/$(2)/$(lastword $(subst /, ,$(@))))
+ 
+ ifeq ($(shell which xz >/dev/null 2>&1 || echo FAIL),)
+ XZ = xz
