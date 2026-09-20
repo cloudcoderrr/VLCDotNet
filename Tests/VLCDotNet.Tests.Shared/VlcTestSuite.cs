@@ -216,8 +216,13 @@ namespace VLCDotNet.Tests.Shared
             }
             finally
             {
-                cap?.Dispose();
+                // Stop and release the player BEFORE freeing the capture buffer.
+                // Disposing first frees the single shared vmem buffer while the
+                // decoder/vout threads may still be running, so a late lock/write
+                // hits freed memory -- an intermittent use-after-free that
+                // surfaced as a SIGSEGV on Linux (win/osx merely got lucky).
                 Cleanup(mp, media);
+                cap?.Dispose();
                 Record(outcome, sw);
             }
         }
@@ -272,8 +277,10 @@ namespace VLCDotNet.Tests.Shared
             }
             finally
             {
-                probe?.Dispose();
+                // Stop/release the player before freeing the amem buffer (see the
+                // video test above -- avoids a use-after-free on the audio path).
                 Cleanup(mp, media);
+                probe?.Dispose();
                 Record(outcome, sw);
             }
         }
