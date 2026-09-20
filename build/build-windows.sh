@@ -111,6 +111,8 @@ exit 0
 EOF
 sudo chmod +x /usr/local/bin/makensis
 
+prefetch_contrib_tarballs "${VLC_SRC}/contrib/tarballs"
+
 log "Running extras/package/win32/build.sh ${BUILD_ARGS[*]}"
 (
   cd "${VLC_SRC}"

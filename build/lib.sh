@@ -110,3 +110,43 @@ normalize_output() {
 # jobs
 # Number of parallel make jobs.
 jobs() { getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2; }
+
+# prefetch_contrib_tarballs <tarballs-dir>
+# Best-effort pre-seed of the minimal contrib closure tarballs from reliable
+# mirrors into the contrib tarballs directory, so the VLC contrib `make fetch`
+# finds them already present and never depends on the unreachable
+# downloads.videolan.org fallback (nor on any single flaky primary host).
+# Each file is downloaded under the exact name VLC's rules.mak expects, from the
+# same upstream the patched rules use, so the recorded SHA512 still matches.
+# Failures are non-fatal: VLC's own rules.mak download runs as the fallback.
+prefetch_contrib_tarballs() {
+  local dir="$1"
+  mkdir -p "${dir}"
+  local pf_one
+  pf_one() {
+    local out="${dir}/$1"; local url="$2"
+    [ -s "${out}" ] && return 0
+    if curl -f -L --connect-timeout 25 --retry 5 --retry-delay 3 --retry-connrefused \
+         -o "${out}.tmp" "${url}"; then
+      mv -f "${out}.tmp" "${out}"
+    else
+      rm -f "${out}.tmp"
+      warn "prefetch failed for $1 (VLC rules.mak will retry)"
+    fi
+  }
+  log "Pre-seeding contrib tarballs into ${dir}"
+  pf_one ffmpeg-4.4.5.tar.xz      https://ffmpeg.org/releases/ffmpeg-4.4.5.tar.xz
+  pf_one opus-1.3.tar.gz          https://archive.mozilla.org/pub/opus/opus-1.3.tar.gz
+  pf_one libgsm_1.0.13.tar.gz     https://www.quut.com/gsm/gsm-1.0.13.tar.gz
+  pf_one freetype-2.13.1.tar.xz   https://download.savannah.gnu.org/releases/freetype/freetype-2.13.1.tar.xz
+  pf_one libebml-1.4.3.tar.xz     https://dl.matroska.org/downloads/libebml/libebml-1.4.3.tar.xz
+  pf_one libmatroska-1.7.0.tar.xz https://dl.matroska.org/downloads/libmatroska/libmatroska-1.7.0.tar.xz
+  pf_one libiconv-1.17.tar.gz     https://mirrors.kernel.org/gnu/libiconv/libiconv-1.17.tar.gz
+  pf_one fontconfig-2.12.3.tar.gz https://www.freedesktop.org/software/fontconfig/release/fontconfig-2.12.3.tar.gz
+  pf_one libxml2-2.9.14.tar.xz    https://download.gnome.org/sources/libxml2/2.9/libxml2-2.9.14.tar.xz
+  pf_one openjpeg-2.5.0.tar.gz    https://github.com/uclouvain/openjpeg/archive/v2.5.0.tar.gz
+  pf_one zlib-1.3.1.tar.xz        https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.xz
+  pf_one fribidi-1.0.12.tar.xz    https://github.com/fribidi/fribidi/releases/download/v1.0.12/fribidi-1.0.12.tar.xz
+  pf_one harfbuzz-11.5.0.tar.xz   https://github.com/harfbuzz/harfbuzz/releases/download/11.5.0/harfbuzz-11.5.0.tar.xz
+  pf_one libass-0.17.3.tar.gz     https://github.com/libass/libass/releases/download/0.17.3/libass-0.17.3.tar.gz
+}

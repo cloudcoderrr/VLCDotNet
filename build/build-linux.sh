@@ -52,6 +52,7 @@ mkdir -p "${CONTRIB_BUILD}"
     BOOT_ARGS+=(--host="${TRIPLET}" --build="x86_64-linux-gnu")
   fi
   ../bootstrap "${BOOT_ARGS[@]}"
+  prefetch_contrib_tarballs "${VLC_SRC}/contrib/tarballs"
   make -j"$(jobs)" fetch
   make -j"$(jobs)" || make -j1
 )
