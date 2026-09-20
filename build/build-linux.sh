@@ -94,6 +94,8 @@ CONFIG_FLAGS=(
   --disable-gnutls       # local files only; no TLS module
   --disable-srt          # not needed; avoids linking gnutls/nettle
   --disable-chromaprint  # not needed; avoids non-PIC libavcodec FFT link error
+  --enable-shared        # build libvlccore.so; plugins link it by name (cross)
+  --disable-static
 )
 [ "${CROSS}" = "1" ] && CONFIG_FLAGS+=("--host=${TRIPLET}" "--build=x86_64-linux-gnu")
 

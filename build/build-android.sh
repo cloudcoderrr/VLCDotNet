@@ -78,6 +78,7 @@ CONFIG_FLAGS=(
   --disable-bluray
   --disable-xcb --disable-alsa --disable-pulse --disable-vdpau
   --disable-v4l2 --disable-vnc --disable-gnutls --disable-srt --disable-ncurses
+  --disable-libxml2
   --enable-avcodec --enable-swscale
   --enable-shared --disable-static
 )

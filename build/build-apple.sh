@@ -73,11 +73,22 @@ export CFLAGS_FOR_BUILD="${BUILD_CFLAGS}"
 export CXXFLAGS_FOR_BUILD="${BUILD_CFLAGS}"
 export LDFLAGS_FOR_BUILD="${BUILD_CFLAGS}"
 
+# VLC compiles host-side generators (e.g. src/misc/fourcc_gen) with $(BUILDCC).
+# We export the target SDKROOT for the cross compile and clang honours SDKROOT,
+# so BUILDCC must pin the macOS SDK explicitly; otherwise the helper is built
+# for iOS/simulator and killed when the build machine tries to run it.
+export BUILDCC="${BUILD_CLANG} -isysroot ${BUILD_SDKROOT}"
+
 APPLE_CFLAGS="-arch ${VLCARCH} -isysroot ${SDKROOT} ${MINVER} ${EXTRA_CFLAGS}"
 export CFLAGS="${APPLE_CFLAGS}"
 export CXXFLAGS="${APPLE_CFLAGS}"
 export OBJCFLAGS="${APPLE_CFLAGS}"
 export LDFLAGS="-arch ${VLCARCH} -isysroot ${SDKROOT} ${MINVER} ${EXTRA_CFLAGS}"
+if [ "${ARCH}" = "x86_64" ]; then
+  # Xcode 15's new linker errors on FFmpeg's x86_64 nasm objects that carry no
+  # platform load command; the classic linker links them without complaint.
+  export LDFLAGS="${LDFLAGS} -Wl,-ld_classic"
+fi
 
 # Contrib environment flags used by contrib/src/main.mak to select the platform.
 CONTRIB_ENV=()
@@ -124,6 +135,7 @@ CONFIG_FLAGS=(
   --disable-nls --disable-lua --disable-a52 --disable-sparkle --disable-vpx
   --disable-bluray
   --disable-gnutls --disable-srt
+  --disable-libxml2
   --enable-avcodec --enable-swscale
 )
 case "${PLATFORM}" in
@@ -144,10 +156,21 @@ case "${PLATFORM}" in
     CONFIG_FLAGS+=(--enable-shared --disable-static) ;;
 esac
 
+# videotoolbox is enabled purely by a header probe (no configure switch) and its
+# plugin needs UIKit, which is unavailable/broken under Mac Catalyst's macabi
+# target. We decode in software via avcodec, so force the probe to fail on the
+# non-macOS Apple targets.
+CONFIGURE_ENV=("${CONTRIB_ENV[@]}")
+case "${PLATFORM}" in
+  ios|iossimulator|maccatalyst)
+    CONFIGURE_ENV+=(ac_cv_header_VideoToolbox_VideoToolbox_h=no)
+    ;;
+esac
+
 (
   cd "${BUILD_DIR}"
-  env "${CONTRIB_ENV[@]}" ../configure "${CONFIG_FLAGS[@]}"
-  env "${CONTRIB_ENV[@]}" make -j"$(jobs)"
+  env "${CONFIGURE_ENV[@]}" ../configure "${CONFIG_FLAGS[@]}"
+  env "${CONFIGURE_ENV[@]}" make -j"$(jobs)"
   make install
 )
 
