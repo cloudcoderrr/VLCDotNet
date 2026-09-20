@@ -36,10 +36,11 @@ export LD="${NDK_TC}/bin/ld"
 export PATH="${NDK_TC}/bin:${PATH}"
 export ANDROID_NDK="${ANDROID_NDK_HOME}"
 export ANDROID_ABI="${ABI}"
-# Android's NDK clang treats several legacy-C constructs as errors; downgrade the
-# ones that are valid warnings under both gcc and clang.
+# Android's NDK clang treats several legacy C/C++ constructs in VLC 3's contrib
+# stack as errors; downgrade the ones that are valid warnings under both gcc and
+# clang so old third-party code still builds.
 export CFLAGS="${CFLAGS:-} -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types -Wno-error=int-conversion"
-export CXXFLAGS="${CXXFLAGS:-} -Wno-error=incompatible-pointer-types"
+export CXXFLAGS="${CXXFLAGS:-} -Wno-error=incompatible-pointer-types -Wno-c++11-narrowing"
 
 VLC_SRC="${WORK_DIR}/vlc-android-${ARCH}"
 INSTALL_PREFIX="${WORK_DIR}/install-android-${ARCH}"
