@@ -107,6 +107,75 @@ normalize_output() {
   ( cd "${out}" && find . -maxdepth 2 -type f | sort | head -n 40 )
 }
 
+# stage_static_vlc <rid> <install-prefix> <contrib-lib-dir> <target-cflags>
+# For the static Apple builds (iOS / iOS simulator / Mac Catalyst): collect every
+# static plugin archive and contrib archive, then synthesise and compile a
+# vlc_static_modules[] table (the weak symbol libvlccore uses to enumerate
+# statically linked plugins) into libvlcstaticmodules.a. The consuming app links
+# all of these; force-loading libvlcstaticmodules.a pulls in the table, whose
+# entries reference each plugin's vlc_entry__NAME and so drag in the plugin
+# objects and, transitively, the contrib code they need.
+stage_static_vlc() {
+  local rid="$1" prefix="$2" contriblib="$3" cflags="$4"
+  local out="${ARTIFACTS_DIR}/${rid}"
+  local sdir="${out}/static"
+  local nm="${NM:-nm}"
+  mkdir -p "${sdir}"
+
+  log "Staging static plugin + contrib archives for ${rid}"
+
+  local syms="" a
+  local plugdir="${prefix}/lib/vlc/plugins"
+  if [ -d "${plugdir}" ]; then
+    while IFS= read -r -d '' a; do
+      cp -a "$a" "${sdir}/"
+      syms="${syms}
+$("${nm}" "$a" 2>/dev/null | grep -oE 'vlc_entry__[A-Za-z0-9_]+' | sort -u)"
+    done < <(find "${plugdir}" -name '*.a' -print0)
+  fi
+
+  # libvlccore's static support archive.
+  [ -f "${prefix}/lib/vlc/libcompat.a" ] && cp -a "${prefix}/lib/vlc/libcompat.a" "${sdir}/"
+
+  # Contrib archives (ffmpeg, opus, ogg, matroska, ...).
+  if [ -d "${contriblib}" ]; then
+    for a in "${contriblib}"/*.a; do
+      [ -e "$a" ] && cp -a "$a" "${sdir}/"
+    done
+  fi
+
+  local uniq
+  uniq="$(printf '%s\n' ${syms} | grep -E '^vlc_entry__' | sort -u)"
+
+  local gen="${sdir}/vlc-static-plugins.c"
+  {
+    echo '/* Auto-generated: static libvlc plugin registration table. */'
+    echo 'typedef int (*vlc_set_cb)(void *, void *, int, ...);'
+    printf '%s\n' "${uniq}" | while read -r s; do
+      [ -n "$s" ] && echo "extern int ${s}(vlc_set_cb, void *);"
+    done
+    echo 'typedef int (*vlc_plugin_cb)(vlc_set_cb, void *);'
+    echo '__attribute__((visibility("default")))'
+    echo 'const vlc_plugin_cb vlc_static_modules[] = {'
+    printf '%s\n' "${uniq}" | while read -r s; do
+      [ -n "$s" ] && echo "    ${s},"
+    done
+    echo '    (vlc_plugin_cb)0'
+    echo '};'
+  } > "${gen}"
+
+  ( cd "${sdir}" \
+      && ${CC} ${cflags} -c -o vlc-static-plugins.o vlc-static-plugins.c \
+      && "${AR}" rc libvlcstaticmodules.a vlc-static-plugins.o \
+      && "${RANLIB:-ranlib}" libvlcstaticmodules.a \
+      && rm -f vlc-static-plugins.o )
+
+  local n
+  n="$(printf '%s\n' "${uniq}" | grep -c '^vlc_entry__' || true)"
+  log "Staged $(ls "${sdir}"/*.a 2>/dev/null | wc -l | tr -d ' ') archives; ${n} static modules registered for ${rid}"
+  ( cd "${sdir}" && ls -1 *.a | head -n 40 )
+}
+
 # jobs
 # Number of parallel make jobs.
 jobs() { getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2; }

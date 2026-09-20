@@ -192,5 +192,16 @@ esac
 )
 
 normalize_output "${RID}" "${INSTALL_PREFIX}"
+# iOS / simulator / Catalyst link libvlc statically, so also stage the plugin and
+# contrib archives plus a generated vlc_static_modules[] table for the app to
+# link and force-load.
+case "${PLATFORM}" in
+  ios|iossimulator|maccatalyst)
+    export NM="$(xcrun --sdk "${SDK}" --find nm)"
+    stage_static_vlc "${RID}" "${INSTALL_PREFIX}" \
+      "${VLC_SRC}/contrib/${TRIPLET}/lib" \
+      "${MINVER} -arch ${VLCARCH} -isysroot ${SDKROOT} ${EXTRA_CFLAGS}"
+    ;;
+esac
 cp -a "${VLC_SRC}/COPYING"     "${ARTIFACTS_DIR}/${RID}/" 2>/dev/null || true
 cp -a "${VLC_SRC}/COPYING.LIB" "${ARTIFACTS_DIR}/${RID}/" 2>/dev/null || true
