@@ -82,7 +82,11 @@ export LDFLAGS="-arch ${VLCARCH} -isysroot ${SDKROOT} ${MINVER} ${EXTRA_CFLAGS}"
 # Contrib environment flags used by contrib/src/main.mak to select the platform.
 CONTRIB_ENV=()
 case "${PLATFORM}" in
-  ios|iossimulator) CONTRIB_ENV=(HAVE_IOS=1 HAVE_DARWIN_OS=1) ;;
+  ios|iossimulator)
+    # contrib/bootstrap's check_ios_sdk prefers VLCSDKROOT when populating
+    # IOS_SDK, which FFmpeg later uses for its extra -isysroot flag.
+    CONTRIB_ENV=(HAVE_IOS=1 HAVE_DARWIN_OS=1 VLCSDKROOT="${SDKROOT}")
+    ;;
   maccatalyst)      CONTRIB_ENV=(HAVE_MACCATALYST=1 HAVE_DARWIN_OS=1) ;;
   macos)            CONTRIB_ENV=(HAVE_MACOSX=1 HAVE_DARWIN_OS=1) ;;
 esac
