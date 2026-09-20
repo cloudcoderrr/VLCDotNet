@@ -82,7 +82,7 @@ jobs:
         shell: bash
         run: |
           out="Tests/VLCDotNet.Tests.Avalonia/bin/Release/net8.0"
-          cp -av native/* "$out"/
+          cp -a native/* "$out"/
           export VLC_PLUGIN_PATH="$out/plugins"
           case "${{ runner.os }}" in
             Linux)   export LD_LIBRARY_PATH="$PWD/$out:${LD_LIBRARY_PATH:-}";;
@@ -91,6 +91,7 @@ jobs:
           if [ "${{ runner.os }}" = "Linux" ]; then
             # Capture a native backtrace if the app crashes (segfault) so the
             # faulting module/function is visible without another round-trip.
+            sudo apt-get update -qq >/dev/null 2>&1 || true
             sudo apt-get install -y gdb >/dev/null 2>&1 || true
             ulimit -c unlimited || true
             sudo sysctl -w kernel.core_pattern="$PWD/core.%p" >/dev/null 2>&1 || true
@@ -104,10 +105,11 @@ jobs:
           if [ "${{ runner.os }}" = "Linux" ] && [ "$code" -ge 128 ]; then
             echo "---- app exited with $code (native signal); capturing backtrace ----"
             core=$(ls -t core.* 2>/dev/null | head -1)
+            command -v gdb >/dev/null 2>&1 || { sudo apt-get update -qq >/dev/null 2>&1 || true; sudo apt-get install -y gdb >/dev/null 2>&1 || true; }
             if [ -n "$core" ] && command -v gdb >/dev/null 2>&1; then
               gdb -batch -ex "bt" -ex "thread apply all bt" -ex quit "$(command -v dotnet)" "$core" 2>&1 | tail -n 160
             else
-              echo "no core captured (core='$core'); core_pattern=$(cat /proc/sys/kernel/core_pattern 2>/dev/null)"
+              echo "no core captured (core='$core'); gdb=$(command -v gdb); core_pattern=$(cat /proc/sys/kernel/core_pattern 2>/dev/null)"
             fi
           fi
           echo "---- vlc-log.txt (tail) ----"
