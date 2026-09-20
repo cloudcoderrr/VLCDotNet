@@ -57,7 +57,7 @@ mkdir -p "${CONTRIB_BUILD}"
 (
   cd "${CONTRIB_BUILD}"
   # Minimal contrib closure for local-file playback of the test media.
-  env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" --disable-all --enable-ffmpeg --enable-opus --enable-ass --enable-matroska --disable-net --disable-sout --disable-disc
+  env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" --disable-all --enable-ffmpeg --enable-opus --enable-ogg --enable-ass --enable-matroska --disable-net --disable-sout --disable-disc
   prefetch_contrib_tarballs "${VLC_SRC}/contrib/tarballs"
   env "${CONTRIB_ENV[@]}" make -j"$(jobs)" fetch
   env "${CONTRIB_ENV[@]}" make -j"$(jobs)" || env "${CONTRIB_ENV[@]}" make -j1

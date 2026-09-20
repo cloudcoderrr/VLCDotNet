@@ -45,7 +45,7 @@ mkdir -p "${CONTRIB_BUILD}"
   # bootstrap resolves just these packages plus their dependencies, keeping every
   # download on a reachable upstream host instead of the unreliable VideoLAN
   # mirror.
-  BOOT_ARGS=(--disable-all --enable-ffmpeg --enable-opus --enable-ass --enable-matroska --disable-net --disable-sout --disable-disc)
+  BOOT_ARGS=(--disable-all --enable-ffmpeg --enable-opus --enable-ogg --enable-ass --enable-matroska --disable-net --disable-sout --disable-disc)
   if [ "${CROSS}" = "1" ]; then
     # Explicit --build is required so autoconf treats this as a cross build and
     # never tries to execute target binaries on the x86_64 runner.

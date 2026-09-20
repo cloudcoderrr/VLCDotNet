@@ -124,19 +124,24 @@ prefetch_contrib_tarballs() {
   mkdir -p "${dir}"
   local pf_one
   pf_one() {
-    local out="${dir}/$1"; local url="$2"
+    local name="$1"; shift
+    local out="${dir}/${name}"
     [ -s "${out}" ] && return 0
-    if curl -f -L --connect-timeout 25 --retry 5 --retry-delay 3 --retry-connrefused \
-         -o "${out}.tmp" "${url}"; then
-      mv -f "${out}.tmp" "${out}"
-    else
+    local url
+    for url in "$@"; do
+      if curl -f -L --connect-timeout 25 --retry 4 --retry-delay 3 --retry-connrefused \
+           -o "${out}.tmp" "${url}"; then
+        mv -f "${out}.tmp" "${out}"
+        return 0
+      fi
       rm -f "${out}.tmp"
-      warn "prefetch failed for $1 (VLC rules.mak will retry)"
-    fi
+    done
+    warn "prefetch failed for ${name} (VLC rules.mak will retry)"
   }
   log "Pre-seeding contrib tarballs into ${dir}"
   pf_one ffmpeg-4.4.5.tar.xz      https://ffmpeg.org/releases/ffmpeg-4.4.5.tar.xz
   pf_one opus-1.3.tar.gz          https://archive.mozilla.org/pub/opus/opus-1.3.tar.gz
+  pf_one libogg-1.3.6.tar.xz      https://ftp.osuosl.org/pub/xiph/releases/ogg/libogg-1.3.6.tar.xz https://github.com/xiph/ogg/releases/download/v1.3.6/libogg-1.3.6.tar.xz
   pf_one libgsm_1.0.13.tar.gz     https://www.quut.com/gsm/gsm-1.0.13.tar.gz
   pf_one freetype-2.13.1.tar.xz   https://download.savannah.gnu.org/releases/freetype/freetype-2.13.1.tar.xz
   pf_one libebml-1.4.3.tar.xz     https://dl.matroska.org/downloads/libebml/libebml-1.4.3.tar.xz

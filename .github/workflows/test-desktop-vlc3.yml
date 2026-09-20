@@ -88,11 +88,28 @@ jobs:
             Linux)   export LD_LIBRARY_PATH="$PWD/$out:${LD_LIBRARY_PATH:-}";;
             macOS)   export DYLD_LIBRARY_PATH="$PWD/$out:${DYLD_LIBRARY_PATH:-}";;
           esac
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            # Capture a native backtrace if the app crashes (segfault) so the
+            # faulting module/function is visible without another round-trip.
+            sudo apt-get install -y gdb >/dev/null 2>&1 || true
+            ulimit -c unlimited || true
+            sudo sysctl -w kernel.core_pattern="$PWD/core.%p" >/dev/null 2>&1 || true
+            export DOTNET_DbgEnableMiniDump=0
+          fi
           set +e
           dotnet "$out/VLCDotNet.Tests.Avalonia.dll" --autorun
           code=$?
           set -e
           echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "${{ runner.os }}" = "Linux" ] && [ "$code" -ge 128 ]; then
+            echo "---- app exited with $code (native signal); capturing backtrace ----"
+            core=$(ls -t core.* 2>/dev/null | head -1)
+            if [ -n "$core" ] && command -v gdb >/dev/null 2>&1; then
+              gdb -batch -ex "bt" -ex "thread apply all bt" -ex quit "$(command -v dotnet)" "$core" 2>&1 | tail -n 160
+            else
+              echo "no core captured (core='$core'); core_pattern=$(cat /proc/sys/kernel/core_pattern 2>/dev/null)"
+            fi
+          fi
           echo "---- vlc-log.txt (tail) ----"
           tail -n 40 "$out/test-output/vlc-log.txt" || true
 
