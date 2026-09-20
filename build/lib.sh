@@ -107,7 +107,7 @@ normalize_output() {
   ( cd "${out}" && find . -maxdepth 2 -type f | sort | head -n 40 )
 }
 
-# stage_static_vlc <rid> <install-prefix> <contrib-lib-dir> <target-cflags>
+# stage_static_vlc <rid> <install-prefix> <contrib-lib-dir> <target-cflags> <arch>
 # For the static Apple builds (iOS / iOS simulator / Mac Catalyst): collect every
 # static plugin archive and contrib archive, then synthesise and compile a
 # vlc_static_modules[] table (the weak symbol libvlccore uses to enumerate
@@ -115,22 +115,48 @@ normalize_output() {
 # all of these; force-loading libvlcstaticmodules.a pulls in the table, whose
 # entries reference each plugin's vlc_entry__NAME and so drag in the plugin
 # objects and, transitively, the contrib code they need.
+#
+# VLC compiles its plugins for *dynamic* loading, so each plugin exports many
+# non-static globals (e.g. the conventional ppsz_mode_descriptions / data_pointer)
+# that collide once several plugins are linked into one binary. To make the
+# archives statically linkable we partial-link (ld -r) each plugin down to a
+# single object that exports ONLY its vlc_entry__NAME, localising every other
+# symbol. Contrib archives already use clean prefixes and are copied as-is.
 stage_static_vlc() {
-  local rid="$1" prefix="$2" contriblib="$3" cflags="$4"
+  local rid="$1" prefix="$2" contriblib="$3" cflags="$4" arch="$5"
   local out="${ARTIFACTS_DIR}/${rid}"
   local sdir="${out}/static"
   local nm="${NM:-nm}"
+  local ld="${LD:-ld}"
   mkdir -p "${sdir}"
 
-  log "Staging static plugin + contrib archives for ${rid}"
+  log "Staging static plugin + contrib archives for ${rid} (localising plugin symbols)"
 
   local syms="" a
   local plugdir="${prefix}/lib/vlc/plugins"
   if [ -d "${plugdir}" ]; then
     while IFS= read -r -d '' a; do
-      cp -a "$a" "${sdir}/"
-      syms="${syms}
-$("${nm}" "$a" 2>/dev/null | grep -oE 'vlc_entry__[A-Za-z0-9_]+' | sort -u)"
+      local base entry tmp
+      base="$(basename "$a" .a)"
+      entry="$("${nm}" "$a" 2>/dev/null | grep -oE 'vlc_entry__[A-Za-z0-9_]+' | sort -u | head -1)"
+      if [ -z "${entry}" ]; then
+        cp -a "$a" "${sdir}/"
+        continue
+      fi
+      syms="${syms} ${entry}"
+      tmp="$(mktemp -d)"
+      ( cd "${tmp}" && "${AR}" x "$a" )
+      printf '_%s\n' "${entry}" > "${tmp}/export.sym"
+      if "${ld}" -r -arch "${arch}" "${tmp}"/*.o \
+            -exported_symbols_list "${tmp}/export.sym" \
+            -o "${sdir}/${base}.o" 2>/dev/null; then
+        "${AR}" rc "${sdir}/${base}.a" "${sdir}/${base}.o"
+        rm -f "${sdir}/${base}.o"
+      else
+        warn "localise failed for ${base}; linking archive as-is"
+        cp -a "$a" "${sdir}/"
+      fi
+      rm -rf "${tmp}"
     done < <(find "${plugdir}" -name '*.a' -print0)
   fi
 
@@ -142,6 +168,13 @@ $("${nm}" "$a" 2>/dev/null | grep -oE 'vlc_entry__[A-Za-z0-9_]+' | sort -u)"
     for a in "${contriblib}"/*.a; do
       [ -e "$a" ] && cp -a "$a" "${sdir}/"
     done
+  fi
+
+  # The VLC version strings (psz_vlc_changeset, ...) are compiled into BOTH
+  # libvlc.a and libvlccore.a; drop libvlccore's copy so the app links one.
+  if [ -f "${out}/libvlccore.a" ]; then
+    "${AR}" d "${out}/libvlccore.a" revision.o 2>/dev/null || true
+    "${RANLIB:-ranlib}" "${out}/libvlccore.a" 2>/dev/null || true
   fi
 
   local uniq
@@ -173,7 +206,6 @@ $("${nm}" "$a" 2>/dev/null | grep -oE 'vlc_entry__[A-Za-z0-9_]+' | sort -u)"
   local n
   n="$(printf '%s\n' "${uniq}" | grep -c '^vlc_entry__' || true)"
   log "Staged $(ls "${sdir}"/*.a 2>/dev/null | wc -l | tr -d ' ') archives; ${n} static modules registered for ${rid}"
-  ( cd "${sdir}" && ls -1 *.a | head -n 40 )
 }
 
 # jobs
