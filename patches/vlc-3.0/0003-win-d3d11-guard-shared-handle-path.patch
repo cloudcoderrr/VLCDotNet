@@ -1,8 +1,30 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] win32: guard IDXGIResource1 shared-handle staging path
+
+The Windows x64 llvm-mingw build still fails in direct3d11.c even after the
+header-order fix because some toolchain/header combinations expose d3d11_1.h
+without providing the newer IDXGIResource1 shared-handle declarations used by
+VLC's shared-context staging path:
+
+  unknown type name 'IDXGIResource1'
+
+Guard the shared-handle block on the actual CreateSharedHandle macro and the
+DXGI shared-access flags. Toolchains that provide the newer DXGI interface keep
+the existing behavior, while older or incomplete header sets build cleanly and
+return a clear runtime warning if that path is requested.
+---
+ modules/video_output/win32/direct3d11.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
 diff --git a/modules/video_output/win32/direct3d11.c b/modules/video_output/win32/direct3d11.c
 index de597e6..e966037 100644
 --- a/modules/video_output/win32/direct3d11.c
 +++ b/modules/video_output/win32/direct3d11.c
-@@ -1041,16 +1041,21 @@ static int CreateStaging(vout_display_t *vd, ID3D11DeviceContext *shared_context
+@@ -1038,20 +1038,25 @@ static int CreateStaging(vout_display_t *vd, ID3D11DeviceContext *shared_context
+     for (unsigned plane = 0; plane < D3D11_MAX_SHADER_VIEW; plane++)
+         sys->stagingSys.texture[plane] = textures[plane];
+ 
+ 
      if (shared_context)
      {
 +#if defined(IDXGIResource1_CreateSharedHandle) && defined(DXGI_SHARED_RESOURCE_READ) && defined(DXGI_SHARED_RESOURCE_WRITE)
@@ -24,5 +46,5 @@ index de597e6..e966037 100644
      }
  
      return VLC_SUCCESS;
-
+ }
  
