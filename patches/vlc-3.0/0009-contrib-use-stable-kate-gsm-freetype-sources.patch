@@ -1,0 +1,58 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] contrib: use stable kate, gsm and freetype sources
+
+Current Apple-family reruns moved past the earlier gmp/goom blockers and now
+fail fetching three older source archives:
+
+- `libkate` still points at the defunct Google Code file host
+- `libgsm` still points at an old sourcearchive mirror that now 404s
+- `freetype` still starts from a single SourceForge mirror before falling back
+  to VideoLAN's contrib mirror, which is intermittently unreachable in GitHub
+  Actions
+
+Replace those URLs with stable HTTPS sources that were locally verified against
+VLC 3.0.23's existing SHA512SUMS entries, so no checksum updates are needed.
+---
+ contrib/src/freetype2/rules.mak | 2 +-
+ contrib/src/gsm/rules.mak       | 2 +-
+ contrib/src/kate/rules.mak      | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/contrib/src/freetype2/rules.mak b/contrib/src/freetype2/rules.mak
+index 1fb3e42..eb301a2 100644
+--- a/contrib/src/freetype2/rules.mak
++++ b/contrib/src/freetype2/rules.mak
+@@ -1,7 +1,7 @@
+ # freetype2
+ 
+ FREETYPE2_VERSION := 2.13.1
+-FREETYPE2_URL := $(SF)/freetype/freetype2/$(FREETYPE2_VERSION)/freetype-$(FREETYPE2_VERSION).tar.xz
++FREETYPE2_URL := https://download.savannah.gnu.org/releases/freetype/freetype-$(FREETYPE2_VERSION).tar.xz
+ 
+ PKGS += freetype2
+ ifeq ($(call need_pkg,"freetype2"),)
+diff --git a/contrib/src/gsm/rules.mak b/contrib/src/gsm/rules.mak
+index d852ce5..a4cca8c 100644
+--- a/contrib/src/gsm/rules.mak
++++ b/contrib/src/gsm/rules.mak
+@@ -1,6 +1,6 @@
+ # GSM
+ GSM_VERSION := 1.0.13
+-GSM_URL := http://libgsm.sourcearchive.com/downloads/$(GSM_VERSION)/libgsm_$(GSM_VERSION).orig.tar.gz
++GSM_URL := https://www.quut.com/gsm/gsm-$(GSM_VERSION).tar.gz
+ 
+ $(TARBALLS)/libgsm_$(GSM_VERSION).tar.gz:
+ 	$(call download_pkg,$(GSM_URL),gsm)
+diff --git a/contrib/src/kate/rules.mak b/contrib/src/kate/rules.mak
+index 5a28f35..75a9af5 100644
+--- a/contrib/src/kate/rules.mak
++++ b/contrib/src/kate/rules.mak
+@@ -1,7 +1,7 @@
+ # Kate
+ 
+ KATE_VERSION := 0.4.1
+-KATE_URL := http://libkate.googlecode.com/files/libkate-$(KATE_VERSION).tar.gz
++KATE_URL := https://deb.debian.org/debian/pool/main/libk/libkate/libkate_$(KATE_VERSION).orig.tar.gz
+ 
+ PKGS += kate
+ ifeq ($(call need_pkg,"kate >= 0.1.5"),)
