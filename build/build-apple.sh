@@ -50,6 +50,9 @@ SDKROOT="$(xcrun --sdk "${SDK}" --show-sdk-path)"
 export SDKROOT
 CLANG="$(xcrun --sdk "${SDK}" --find clang)"
 CLANGXX="$(xcrun --sdk "${SDK}" --find clang++)"
+BUILD_SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+BUILD_CLANG="$(xcrun --sdk macosx --find clang)"
+BUILD_CLANGXX="$(xcrun --sdk macosx --find clang++)"
 export CC="${CLANG}"
 export CXX="${CLANGXX}"
 export OBJC="${CLANG}"
@@ -57,6 +60,18 @@ export AR="$(xcrun --sdk ${SDK} --find ar)"
 export RANLIB="$(xcrun --sdk ${SDK} --find ranlib)"
 export STRIP="$(xcrun --sdk ${SDK} --find strip)"
 export NM="$(xcrun --sdk ${SDK} --find nm)"
+
+# Some Apple contribs, notably GMP in iOS/mobile-style cross builds, must
+# build small helper binaries for the build machine. Provide explicit macOS
+# host compilers and keep their flags free of iOS/macabi target settings.
+BUILD_CFLAGS="-arch $(uname -m) -isysroot ${BUILD_SDKROOT}"
+export CC_FOR_BUILD="${BUILD_CLANG}"
+export CXX_FOR_BUILD="${BUILD_CLANGXX}"
+export OBJC_FOR_BUILD="${BUILD_CLANG}"
+export CPPFLAGS_FOR_BUILD=""
+export CFLAGS_FOR_BUILD="${BUILD_CFLAGS}"
+export CXXFLAGS_FOR_BUILD="${BUILD_CFLAGS}"
+export LDFLAGS_FOR_BUILD="${BUILD_CFLAGS}"
 
 APPLE_CFLAGS="-arch ${VLCARCH} -isysroot ${SDKROOT} ${MINVER} ${EXTRA_CFLAGS}"
 export CFLAGS="${APPLE_CFLAGS}"
