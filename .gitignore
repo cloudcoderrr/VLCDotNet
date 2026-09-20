@@ -443,6 +443,7 @@ vlc-*.tar.gz
 /artifacts/
 /artifacts-nupkg/
 /test-results/
+/LOCAL-HANDOFF-VLC3.txt
 /native/
 Tests/**/native/
 /nuget/**/runtimes/

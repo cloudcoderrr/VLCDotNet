@@ -39,31 +39,21 @@ CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
 (
   cd "${CONTRIB_BUILD}"
-  BOOT_ARGS=(--disable-net --disable-a52 --disable-dca --disable-disc --disable-cddb --disable-bluray --disable-gnutls --disable-goom --disable-asdcplib --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-sidplay2)
-  if [ "${CROSS}" = "1" ]; then
-    BOOT_ARGS+=(--disable-SDL_image)
-  fi
-  if [ "${ARCH}" = "armv7" ]; then
-    # GCC 13 trips aom's ARM NEON contrib sources on this cross target; libvlc
-    # still has AV1 decode coverage through --enable-avcodec.
-    BOOT_ARGS+=(--disable-aom)
-  fi
+  # Build only the contrib closure needed for local-file playback of the test
+  # media: ffmpeg decoders, Opus (ffmpeg's opus decoder is disabled), libass
+  # subtitles and Matroska. --disable-all empties the default ~80-package set so
+  # bootstrap resolves just these packages plus their dependencies, keeping every
+  # download on a reachable upstream host instead of the unreliable VideoLAN
+  # mirror.
+  BOOT_ARGS=(--disable-all --enable-ffmpeg --enable-opus --enable-ass --enable-matroska --disable-net --disable-sout --disable-disc)
   if [ "${CROSS}" = "1" ]; then
     # Explicit --build is required so autoconf treats this as a cross build and
     # never tries to execute target binaries on the x86_64 runner.
     BOOT_ARGS+=(--host="${TRIPLET}" --build="x86_64-linux-gnu")
   fi
-  # VLC is a GPL project; allow GPL contribs (freetype2 et al. gate on it) but
-  # skip optional disc/network stacks and slow encoders we do not exercise in
-  # the current local-file playback/test matrix.
   ../bootstrap "${BOOT_ARGS[@]}"
-  log "Fetching prebuilt contribs (fallback to source build)"
-  if ! make prebuilt 2>/dev/null; then
-    warn "Prebuilt contribs unavailable for ${TRIPLET}; building from source"
-    make -j"$(jobs)" fetch
-    make -j"$(jobs)" || make -j1
-  fi
-  make .luac || true
+  make -j"$(jobs)" fetch
+  make -j"$(jobs)" || make -j1
 )
 
 # ---- 2. bootstrap + configure -------------------------------------------------
@@ -93,7 +83,6 @@ CONFIG_FLAGS=(
   --disable-sid
   --enable-avcodec       # FFmpeg-based decoders for the test media
   --enable-swscale
-  --enable-dvbpsi
   --disable-vdpau
   --disable-mad
   --disable-sdl-image   # not needed for tests; avoids broken cross link paths

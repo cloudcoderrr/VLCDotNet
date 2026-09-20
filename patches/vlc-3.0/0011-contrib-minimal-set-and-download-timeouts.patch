@@ -1,0 +1,48 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] contrib: robust minimal-set selection and download timeouts
+
+The GitHub Actions runners cannot reach `downloads.videolan.org` (both the
+package host and the contrib mirror resolve there), and the default contrib set
+pulls ~80 optional third-party archives, many of which only exist on that dead
+host. Fetching the whole set therefore stalls for ~130s per unreachable package
+before failing.
+
+Two changes make the source-contrib build reliable:
+
+1. Select the build set with `--disable-all --enable-<pkg>`. The stock rule only
+   empties the package list when `PKGS_DISABLE` is exactly `all`, but VLC's own
+   `extras/package/win32/build.sh` appends extra `--disable-*` flags, so the
+   value is never exactly `all` on Windows. Trigger the empty-set path whenever
+   `all` appears anywhere in `PKGS_DISABLE`; no real package is named `all`, so
+   this is safe and keeps the documented behaviour for the exact-match case.
+
+2. Add `--connect-timeout`/`--retry-delay` to the curl downloader so any
+   residual unreachable host fails in seconds instead of stalling the job.
+
+Both hunks were verified to apply cleanly on top of a pristine VLC 3.0.23
+checkout after patches 0001-0010.
+---
+ contrib/src/main.mak | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/contrib/src/main.mak b/contrib/src/main.mak
+index 0000000..0000001 100644
+--- a/contrib/src/main.mak
++++ b/contrib/src/main.mak
+@@ -255,7 +255,7 @@ endif
+ 
+ ifeq ($(shell curl --version >/dev/null 2>&1 || echo FAIL),)
+-download = curl -f -L --retry 3 --output "$@" -- "$(1)"
++download = curl -f -L --connect-timeout 30 --retry 3 --retry-delay 3 --output "$@" -- "$(1)"
+ else ifeq ($(shell wget --version >/dev/null 2>&1 || echo FAIL),)
+ download = (rm -f $@.tmp && \
+ 	wget --passive -c -p -O $@.tmp "$(1)" && \
+@@ -521,7 +521,7 @@ REQUIRE_GNUV3 = \
+ PKGS_FOUND :=
+ include $(SRC)/*/rules.mak
+ 
+-ifeq ($(PKGS_DISABLE), all)
++ifneq ($(filter all,$(PKGS_DISABLE)),)
+ PKGS :=
+ endif
+ #

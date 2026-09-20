@@ -94,23 +94,20 @@ esac
 # ---- 1. contribs --------------------------------------------------------------
 CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-apple-${PLATFORM}-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
-BOOTSTRAP_FLAGS=(--disable-disc --disable-net --disable-a52 --disable-dca --disable-bluray --disable-gettext --disable-gnutls --disable-goom --disable-asdcplib --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-vpx)
+# Minimal contrib closure for local-file playback of the test media. libass
+# (subtitle rendering) is desktop-only: FriBidi's Meson generator executes
+# target binaries, which the iOS cross toolchains cannot run.
+BOOTSTRAP_FLAGS=(--disable-all --enable-ffmpeg --enable-opus --enable-matroska --disable-net --disable-sout --disable-disc)
 case "${PLATFORM}" in
-  ios|iossimulator)
-    # FriBidi's Meson generator still executes target binaries in these Apple
-    # mobile cross builds. Skip the libass text-shaping stack here so the
-    # native mobile artifacts can be built and validated independently.
-    BOOTSTRAP_FLAGS+=(--disable-fribidi --disable-harfbuzz --disable-ass)
+  macos|maccatalyst)
+    BOOTSTRAP_FLAGS+=(--enable-ass)
     ;;
 esac
 (
   cd "${CONTRIB_BUILD}"
   env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" "${BOOTSTRAP_FLAGS[@]}"
-  if ! env "${CONTRIB_ENV[@]}" make prebuilt 2>/dev/null; then
-    warn "Prebuilt contribs unavailable for ${TRIPLET}/${PLATFORM}; building from source"
-    env "${CONTRIB_ENV[@]}" make -j"$(jobs)" fetch
-    env "${CONTRIB_ENV[@]}" make -j"$(jobs)" || env "${CONTRIB_ENV[@]}" make -j1
-  fi
+  env "${CONTRIB_ENV[@]}" make -j"$(jobs)" fetch
+  env "${CONTRIB_ENV[@]}" make -j"$(jobs)" || env "${CONTRIB_ENV[@]}" make -j1
 )
 
 # ---- 2. bootstrap + configure -------------------------------------------------

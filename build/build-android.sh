@@ -56,12 +56,10 @@ CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-android-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
 (
   cd "${CONTRIB_BUILD}"
-  env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" --disable-net --disable-disc --disable-a52 --disable-dca --disable-bluray --disable-gnutls --disable-goom --disable-asdcplib --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-sidplay2 --disable-vpx --disable-SDL_image
-  if ! env "${CONTRIB_ENV[@]}" make prebuilt 2>/dev/null; then
-    warn "Prebuilt contribs unavailable for ${TRIPLET}; building from source"
-    env "${CONTRIB_ENV[@]}" make -j"$(jobs)" fetch
-    env "${CONTRIB_ENV[@]}" make -j"$(jobs)" || env "${CONTRIB_ENV[@]}" make -j1
-  fi
+  # Minimal contrib closure for local-file playback of the test media.
+  env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" --disable-all --enable-ffmpeg --enable-opus --enable-ass --enable-matroska --disable-net --disable-sout --disable-disc
+  env "${CONTRIB_ENV[@]}" make -j"$(jobs)" fetch
+  env "${CONTRIB_ENV[@]}" make -j"$(jobs)" || env "${CONTRIB_ENV[@]}" make -j1
 )
 
 # ---- 2. bootstrap + configure -------------------------------------------------
