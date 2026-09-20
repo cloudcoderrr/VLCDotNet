@@ -39,7 +39,7 @@ CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
 (
   cd "${CONTRIB_BUILD}"
-  BOOT_ARGS=(--disable-a52 --disable-dca --disable-disc --disable-cddb --disable-gnutls --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-sidplay2)
+  BOOT_ARGS=(--disable-net --disable-a52 --disable-dca --disable-disc --disable-cddb --disable-gnutls --disable-goom --disable-asdcplib --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-sidplay2)
   if [ "${CROSS}" = "1" ]; then
     BOOT_ARGS+=(--disable-SDL_image)
   fi
