@@ -108,6 +108,13 @@ CONFIG_FLAGS=(
   # libtool has finalized it. Building compat + src first is deterministic.
   make -j"$(jobs)" -C compat
   make -j"$(jobs)" -C src
+  # The cross libtool builds libvlccore.so.N but can omit the unversioned dev
+  # symlink the plugins link by path (../src/.libs/libvlccore.so); create it.
+  if [ ! -e src/.libs/libvlccore.so ]; then
+    real="$(ls -1 src/.libs/libvlccore.so.* 2>/dev/null | sort | tail -1)"
+    [ -n "${real}" ] && ln -sf "$(basename "${real}")" src/.libs/libvlccore.so || true
+  fi
+  ls -la src/.libs/libvlccore* 2>/dev/null || true
   make -j"$(jobs)"
   make install
 )
