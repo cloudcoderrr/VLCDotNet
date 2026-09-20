@@ -79,6 +79,13 @@ export LDFLAGS_FOR_BUILD="${BUILD_CFLAGS}"
 # for iOS/simulator and killed when the build machine tries to run it.
 export BUILDCC="${BUILD_CLANG} -isysroot ${BUILD_SDKROOT}"
 
+# Mac Catalyst (macabi) resolves iOS frameworks/headers under the macOS SDK's
+# iOSSupport tree; add those search paths so UIKit-based modules (e.g.
+# video_output/ios.m) can find <UIKit/UIKit.h>.
+if [ "${PLATFORM}" = "maccatalyst" ]; then
+  EXTRA_CFLAGS="${EXTRA_CFLAGS} -iframework ${SDKROOT}/System/iOSSupport/System/Library/Frameworks -isystem ${SDKROOT}/System/iOSSupport/usr/include"
+fi
+
 APPLE_CFLAGS="-arch ${VLCARCH} -isysroot ${SDKROOT} ${MINVER} ${EXTRA_CFLAGS}"
 export CFLAGS="${APPLE_CFLAGS}"
 export CXXFLAGS="${APPLE_CFLAGS}"
