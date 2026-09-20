@@ -109,9 +109,13 @@ jobs:
       - name: Select Xcode 26.0
         run: |
           echo "Available Xcodes:"; ls -d /Applications/Xcode*.app 2>/dev/null || true
-          # .NET 10 for iOS (Microsoft.iOS.Sdk 26.0.x) pins to Xcode 26.0.
-          for x in /Applications/Xcode_26.0.app /Applications/Xcode_26.0.1.app /Applications/Xcode_26.app; do
-            if [ -d "$x" ]; then sudo xcode-select -s "$x/Contents/Developer"; break; fi
+          # .NET 10 for iOS (Microsoft.iOS.Sdk 26.0.x) pins to Xcode 26.0.x. Some
+          # runner images ship a stub Xcode_26.0.app missing the macOS SDK, so pick
+          # the first 26.0.x whose macOS SDK actually exists.
+          for x in /Applications/Xcode_26.0.1.app /Applications/Xcode_26.0.app /Applications/Xcode_26.app; do
+            if [ -d "$x/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" ]; then
+              sudo xcode-select -s "$x/Contents/Developer"; echo "Selected $x"; break
+            fi
           done
           xcodebuild -version
       - uses: actions/setup-dotnet@v4
