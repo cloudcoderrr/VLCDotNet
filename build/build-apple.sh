@@ -94,7 +94,7 @@ esac
 # ---- 1. contribs --------------------------------------------------------------
 CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-apple-${PLATFORM}-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
-BOOTSTRAP_FLAGS=(--disable-disc --disable-net --disable-a52 --disable-dca --disable-gettext --disable-gnutls --disable-goom --disable-asdcplib --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-vpx)
+BOOTSTRAP_FLAGS=(--disable-disc --disable-net --disable-a52 --disable-dca --disable-bluray --disable-gettext --disable-gnutls --disable-goom --disable-asdcplib --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-vpx)
 case "${PLATFORM}" in
   ios|iossimulator)
     # FriBidi's Meson generator still executes target binaries in these Apple
@@ -125,6 +125,7 @@ CONFIG_FLAGS=(
   "--with-contrib=${VLC_SRC}/contrib/${TRIPLET}"
   --disable-vlc --disable-qt --disable-skins2 --disable-macosx
   --disable-nls --disable-lua --disable-a52 --disable-sparkle --disable-vpx
+  --disable-bluray
   --disable-gnutls --disable-srt
   --enable-avcodec --enable-swscale
 )

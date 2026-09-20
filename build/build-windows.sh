@@ -50,7 +50,7 @@ BUILD_ARGS=(-r -z -u -S 0x0A000000 -a "${ARCH}")
 # surface. Keep them out of the Windows source-contrib graph so the build does
 # not depend on flaky VideoLAN-hosted tarballs or the x86_64 bluray link path.
 export CONFIGFLAGS="${CONFIGFLAGS:-} --disable-bluray --disable-gnutls --disable-srt --disable-aribcam"
-export CONTRIBFLAGS="${CONTRIBFLAGS:-} --disable-net --disable-a52 --disable-dca --disable-disc --disable-cddb --disable-gnutls --disable-goom --disable-asdcplib --disable-aribb25"
+export CONTRIBFLAGS="${CONTRIBFLAGS:-} --disable-net --disable-a52 --disable-dca --disable-disc --disable-cddb --disable-bluray --disable-gnutls --disable-goom --disable-asdcplib --disable-aribb25"
 EXTRA_LINK_FLAGS=""
 if [ "${ARCH}" = "x86_64" ]; then
   # x86_64 UCRT contribs such as freetype and SDL_image emit references to

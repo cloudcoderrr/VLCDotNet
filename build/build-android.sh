@@ -56,7 +56,7 @@ CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-android-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
 (
   cd "${CONTRIB_BUILD}"
-  env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" --disable-net --disable-disc --disable-a52 --disable-dca --disable-gnutls --disable-goom --disable-asdcplib --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-sidplay2 --disable-vpx --disable-SDL_image
+  env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" --disable-net --disable-disc --disable-a52 --disable-dca --disable-bluray --disable-gnutls --disable-goom --disable-asdcplib --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-sidplay2 --disable-vpx --disable-SDL_image
   if ! env "${CONTRIB_ENV[@]}" make prebuilt 2>/dev/null; then
     warn "Prebuilt contribs unavailable for ${TRIPLET}; building from source"
     env "${CONTRIB_ENV[@]}" make -j"$(jobs)" fetch
@@ -77,6 +77,7 @@ CONFIG_FLAGS=(
   --disable-vlc --disable-qt --disable-skins2 --disable-nls
   --disable-lua --disable-a52 --disable-sid
   --disable-vpx --disable-sdl-image
+  --disable-bluray
   --disable-xcb --disable-alsa --disable-pulse --disable-vdpau
   --disable-v4l2 --disable-vnc --disable-gnutls --disable-srt --disable-ncurses
   --enable-avcodec --enable-swscale
