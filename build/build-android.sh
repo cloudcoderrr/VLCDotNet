@@ -109,6 +109,15 @@ mkdir -p "${PTHREAD_STUB_DIR}"
 "${AR}" rc "${PTHREAD_STUB_DIR}/libpthread.a"
 export LDFLAGS="${LDFLAGS:-} -L${PTHREAD_STUB_DIR} -lm"
 
+if [ "${ARCH}" = "arm" ]; then
+  # armv7 C++ modules (e.g. libmatroska in the mkv demux) reference the
+  # compiler-rt builtins for 64-bit int<->float conversions (__aeabi_l2d,
+  # __aeabi_f2lz). The libtool C++ link does not pull them in implicitly on this
+  # arch, so append the compiler-rt builtins archive explicitly.
+  RT_BUILTINS="$(${CC} --print-libgcc-file-name 2>/dev/null || true)"
+  [ -f "${RT_BUILTINS}" ] && export LDFLAGS="${LDFLAGS} ${RT_BUILTINS}"
+fi
+
 (
   cd "${BUILD_DIR}"
   env "${CONFIG_ENV[@]}" ../configure "${CONFIG_FLAGS[@]}"
