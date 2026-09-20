@@ -108,65 +108,48 @@ normalize_output() {
 }
 
 # stage_static_vlc <rid> <install-prefix> <contrib-lib-dir> <target-cflags> <arch>
-# For the static Apple builds (iOS / iOS simulator / Mac Catalyst): collect every
-# static plugin archive and contrib archive, then synthesise and compile a
-# vlc_static_modules[] table (the weak symbol libvlccore uses to enumerate
-# statically linked plugins) into libvlcstaticmodules.a. The consuming app links
-# all of these; force-loading libvlcstaticmodules.a pulls in the table, whose
-# entries reference each plugin's vlc_entry__NAME and so drag in the plugin
-# objects and, transitively, the contrib code they need.
+# For the static Apple builds (iOS / iOS simulator / Mac Catalyst): collect the
+# static plugin archives needed for local-file playback plus every contrib
+# archive, then synthesise and compile a vlc_static_modules[] table (the weak
+# symbol libvlccore uses to enumerate statically linked plugins) into
+# libvlcstaticmodules.a. The consuming app links all of these; force-loading
+# libvlcstaticmodules.a pulls in the table, whose entries reference each
+# plugin's vlc_entry__NAME and so drag in the plugin objects and, transitively,
+# the contrib code they need.
 #
-# VLC compiles its plugins for *dynamic* loading, so each plugin exports many
-# non-static globals (e.g. the conventional ppsz_mode_descriptions / data_pointer)
-# that collide once several plugins are linked into one binary. To make the
-# archives statically linkable we partial-link (ld -r) each plugin down to a
-# single object that exports ONLY its vlc_entry__NAME, localising every other
-# symbol. Contrib archives already use clean prefixes and are copied as-is.
+# VLC compiles plugins for *dynamic* loading, so many define conventional
+# non-static globals (ppsz_mode_descriptions, data_pointer, ...) that collide
+# once linked into one binary. `ld -r` cannot make those truly local (only
+# hidden, which still collides), so instead we link only the plugin *categories*
+# required for playback -- which excludes the collision-prone extras (video
+# filters, addons, services, controls, ...) entirely.
 stage_static_vlc() {
   local rid="$1" prefix="$2" contriblib="$3" cflags="$4" arch="$5"
   local out="${ARTIFACTS_DIR}/${rid}"
   local sdir="${out}/static"
   local nm="${NM:-nm}"
-  local ld="${LD:-ld}"
   mkdir -p "${sdir}"
 
-  log "Staging static plugin + contrib archives for ${rid} (localising plugin symbols)"
+  log "Staging static plugin + contrib archives for ${rid}"
 
   local syms="" a
   local plugdir="${prefix}/lib/vlc/plugins"
   if [ -d "${plugdir}" ]; then
     while IFS= read -r -d '' a; do
-      local base entry tmp cat
-      # Skip plugin categories that are never used for local-file playback and
-      # are common static-link symbol-collision sources.
+      local base cat
+      # Only the plugin categories used for local-file decode/playback. Other
+      # categories (video_filter, misc/addons, services_discovery, control,
+      # gui, visualization, lua, mux, stream_out, access_output, ...) are not
+      # needed and are the source of static-link symbol collisions.
       cat="$(basename "$(dirname "$a")")"
       case "${cat}" in
-        access_output|stream_out|services_discovery|control|gui|visualization|lua)
-          continue ;;
+        access|audio_filter|audio_output|codec|demux|packetizer|spu|text_renderer|video_chroma|video_output) : ;;
+        *) continue ;;
       esac
       base="$(basename "$a" .a)"
-      case "${base}" in
-        libaddons*_plugin|libpuzzle_plugin|libmosaic_plugin) continue ;;
-      esac
-      entry="$("${nm}" "$a" 2>/dev/null | grep -oE 'vlc_entry__[A-Za-z0-9_]+' | sort -u | head -1)"
-      if [ -z "${entry}" ]; then
-        cp -a "$a" "${sdir}/"
-        continue
-      fi
-      syms="${syms} ${entry}"
-      tmp="$(mktemp -d)"
-      ( cd "${tmp}" && "${AR}" x "$a" )
-      printf '_%s\n' "${entry}" > "${tmp}/export.sym"
-      if "${ld}" -r -arch "${arch}" "${tmp}"/*.o \
-            -exported_symbols_list "${tmp}/export.sym" \
-            -o "${sdir}/${base}.o"; then
-        "${AR}" rc "${sdir}/${base}.a" "${sdir}/${base}.o"
-        rm -f "${sdir}/${base}.o"
-      else
-        warn "localise failed for ${base}; linking archive as-is"
-        cp -a "$a" "${sdir}/"
-      fi
-      rm -rf "${tmp}"
+      cp -a "$a" "${sdir}/"
+      syms="${syms}
+$("${nm}" "$a" 2>/dev/null | grep -oE 'vlc_entry__[A-Za-z0-9_]+' | sort -u)"
     done < <(find "${plugdir}" -name '*.a' -print0)
   fi
 
