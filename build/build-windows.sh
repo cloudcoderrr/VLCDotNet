@@ -46,12 +46,11 @@ BUILD_ARGS=(-r -z -u -S 0x0A000000 -a "${ARCH}")
 # inputs are consistent and all package fetches go through our patched source
 # URLs instead of the prebuilt archive host.
 
-# libbluray is optional for our package and currently fails to link on the
-# x86_64 llvm-mingw UCRT path because the contrib freetype archive pulls an
-# unresolved _setjmp into liblibbluray_plugin.la. Disable the VLC bluray module
-# at configure time so both Windows arches build a consistent plugin set.
-export CONFIGFLAGS="${CONFIGFLAGS:-} --disable-bluray"
-export CONTRIBFLAGS="${CONTRIBFLAGS:-} --disable-a52 --disable-dca"
+# libbluray, gnutls/srt and ARIB B25 are outside the current file-playback test
+# surface. Keep them out of the Windows source-contrib graph so the build does
+# not depend on flaky VideoLAN-hosted tarballs or the x86_64 bluray link path.
+export CONFIGFLAGS="${CONFIGFLAGS:-} --disable-bluray --disable-gnutls --disable-srt --disable-aribcam"
+export CONTRIBFLAGS="${CONTRIBFLAGS:-} --disable-a52 --disable-dca --disable-disc --disable-cddb --disable-gnutls --disable-aribb25"
 EXTRA_LINK_FLAGS=""
 if [ "${ARCH}" = "x86_64" ]; then
   # x86_64 UCRT contribs such as freetype and SDL_image emit references to

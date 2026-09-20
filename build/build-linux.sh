@@ -39,7 +39,7 @@ CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
 (
   cd "${CONTRIB_BUILD}"
-  BOOT_ARGS=(--disable-a52 --disable-dca --disable-gnutls --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-sidplay2)
+  BOOT_ARGS=(--disable-a52 --disable-dca --disable-disc --disable-cddb --disable-gnutls --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-sidplay2)
   if [ "${CROSS}" = "1" ]; then
     BOOT_ARGS+=(--disable-SDL_image)
   fi
@@ -54,7 +54,8 @@ mkdir -p "${CONTRIB_BUILD}"
     BOOT_ARGS+=(--host="${TRIPLET}" --build="x86_64-linux-gnu")
   fi
   # VLC is a GPL project; allow GPL contribs (freetype2 et al. gate on it) but
-  # skip the slow encoders we never need for decode, and gnutls (local files only).
+  # skip optional disc/network stacks and slow encoders we do not exercise in
+  # the current local-file playback/test matrix.
   ../bootstrap "${BOOT_ARGS[@]}"
   log "Fetching prebuilt contribs (fallback to source build)"
   if ! make prebuilt 2>/dev/null; then
