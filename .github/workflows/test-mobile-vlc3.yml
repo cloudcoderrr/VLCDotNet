@@ -109,8 +109,10 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - name: Install MAUI iOS workload
-        run: dotnet workload install maui-ios --version 10.0.100
+      - name: Install MAUI workloads
+        # macOS builds every mobile head (android+ios+maccatalyst) during restore,
+        # so all three workloads are required even though we only build the iOS TFM.
+        run: dotnet workload install maui --version 10.0.100
 
       - name: Resolve build run id
         id: run
