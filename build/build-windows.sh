@@ -38,7 +38,17 @@ export PATH="${LLVM_MINGW_DIR}/bin:${PATH}"
 
 # -u: llvm-mingw is UCRT-only. -S 0x0A000000: target the Windows 10 API level so
 # VLC's d3d11 output can use Win8+ DXGI types (IID_IDXGIResource1, etc.).
-BUILD_ARGS=(-r -z -p -u -S 0x0A000000 -a "${ARCH}")
+BUILD_ARGS=(-r -z -u -S 0x0A000000 -a "${ARCH}")
+
+# The upstream prebuilt x86_64 contrib bundle is published for the non-UCRT
+# triplet and is then renamed into our UCRT prefix by VideoLAN's build script.
+# That bundle links fine far enough to compile VLC, but it leaves _setjmp
+# unresolved when clang/lld link plugins against static SDL_image/freetype.
+# Building x86_64 contribs from source keeps them ABI-aligned with the UCRT
+# llvm-mingw toolchain, while aarch64 can keep using the prebuilt path.
+if [ "${ARCH}" = "aarch64" ]; then
+  BUILD_ARGS+=(-p)
+fi
 
 # libbluray is optional for our package and currently fails to link on the
 # x86_64 llvm-mingw UCRT path because the contrib freetype archive pulls an

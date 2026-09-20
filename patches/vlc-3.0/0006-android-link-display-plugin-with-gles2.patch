@@ -1,0 +1,31 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] android: link the display vout plugin with GLES2
+
+Our Android CI builds now reach the native VLC module link stage on all three
+architectures, but `libandroid_display_plugin.la` fails with unresolved OpenGL
+ES symbols:
+
+  undefined symbol: glClearColor
+  undefined symbol: glClear
+
+`modules/video_output/android/display.c` includes `<GLES2/gl2.h>` and directly
+calls those functions when clearing the surface, yet its Automake rule only
+links `$(LIBDL)`. Link it with `$(GLES2_LIBS)` like VLC's other GLES2-backed
+video output modules.
+---
+ modules/video_output/Makefile.am | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/modules/video_output/Makefile.am b/modules/video_output/Makefile.am
+index 6d75a1d..014fa42 100644
+--- a/modules/video_output/Makefile.am
++++ b/modules/video_output/Makefile.am
+@@ -406,8 +406,8 @@ libandroid_display_plugin_la_SOURCES = video_output/android/display.c \
+ 	video_output/android/display.h \
+ 	video_output/android/utils.c video_output/android/utils.h
+ libandroid_display_plugin_la_CFLAGS = $(AM_CFLAGS)
+-libandroid_display_plugin_la_LIBADD = $(LIBDL)
++libandroid_display_plugin_la_LIBADD = $(LIBDL) $(GLES2_LIBS)
+ 
+ libglconv_android_plugin_la_SOURCES = video_output/opengl/converter_android.c \
+ 	video_output/opengl/converter.h
