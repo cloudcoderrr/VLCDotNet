@@ -136,8 +136,18 @@ stage_static_vlc() {
   local plugdir="${prefix}/lib/vlc/plugins"
   if [ -d "${plugdir}" ]; then
     while IFS= read -r -d '' a; do
-      local base entry tmp
+      local base entry tmp cat
+      # Skip plugin categories that are never used for local-file playback and
+      # are common static-link symbol-collision sources.
+      cat="$(basename "$(dirname "$a")")"
+      case "${cat}" in
+        access_output|stream_out|services_discovery|control|gui|visualization|lua)
+          continue ;;
+      esac
       base="$(basename "$a" .a)"
+      case "${base}" in
+        libaddons*_plugin|libpuzzle_plugin|libmosaic_plugin) continue ;;
+      esac
       entry="$("${nm}" "$a" 2>/dev/null | grep -oE 'vlc_entry__[A-Za-z0-9_]+' | sort -u | head -1)"
       if [ -z "${entry}" ]; then
         cp -a "$a" "${sdir}/"
@@ -149,7 +159,7 @@ stage_static_vlc() {
       printf '_%s\n' "${entry}" > "${tmp}/export.sym"
       if "${ld}" -r -arch "${arch}" "${tmp}"/*.o \
             -exported_symbols_list "${tmp}/export.sym" \
-            -o "${sdir}/${base}.o" 2>/dev/null; then
+            -o "${sdir}/${base}.o"; then
         "${AR}" rc "${sdir}/${base}.a" "${sdir}/${base}.o"
         rm -f "${sdir}/${base}.o"
       else

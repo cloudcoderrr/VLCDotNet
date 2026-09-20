@@ -198,7 +198,9 @@ normalize_output "${RID}" "${INSTALL_PREFIX}"
 case "${PLATFORM}" in
   ios|iossimulator|maccatalyst)
     export NM="$(xcrun --sdk "${SDK}" --find nm)"
-    export LD="$(xcrun --sdk "${SDK}" --find ld)"
+    # The classic linker supports `ld -r -exported_symbols_list` (ld-prime does
+    # not), which stage_static_vlc uses to localise plugin symbols.
+    export LD="$(xcrun --sdk "${SDK}" --find ld-classic 2>/dev/null || xcrun --sdk "${SDK}" --find ld)"
     stage_static_vlc "${RID}" "${INSTALL_PREFIX}" \
       "${VLC_SRC}/contrib/${TRIPLET}/lib" \
       "${MINVER} -arch ${VLCARCH} -isysroot ${SDKROOT} ${EXTRA_CFLAGS}" \
