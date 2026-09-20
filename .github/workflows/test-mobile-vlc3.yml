@@ -103,9 +103,15 @@ jobs:
 
   ios:
     if: ${{ inputs.only == 'all' || inputs.only == 'ios' }}
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Select newest Xcode
+        run: |
+          latest=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          echo "Available Xcodes:"; ls -d /Applications/Xcode*.app 2>/dev/null || true
+          if [ -n "$latest" ]; then sudo xcode-select -s "$latest/Contents/Developer"; fi
+          xcodebuild -version
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
