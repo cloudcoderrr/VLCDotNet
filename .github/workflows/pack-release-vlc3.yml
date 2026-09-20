@@ -21,9 +21,20 @@ permissions:
 
 jobs:
   pack:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+
+      - name: Select Xcode 26.0
+        run: |
+          # net10 iOS/Catalyst (Microsoft.iOS.Sdk 26.0.x) pins to Xcode 26.0.x;
+          # pick the first whose macOS SDK actually exists (a stub 26.0 lacks it).
+          for x in /Applications/Xcode_26.0.1.app /Applications/Xcode_26.0.app /Applications/Xcode_26.app; do
+            if [ -d "$x/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" ]; then
+              sudo xcode-select -s "$x/Contents/Developer"; echo "Selected $x"; break
+            fi
+          done
+          xcodebuild -version
 
       - uses: actions/setup-dotnet@v4
         with:
