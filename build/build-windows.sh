@@ -53,7 +53,7 @@ BUILD_ARGS=(-r -z -u -S 0x0A000000 -a "${ARCH}")
 # goom, mpc, schroedinger, shout, theora, zvbi, live555, ...). We only build the
 # minimal contrib closure, so override each with a trailing --disable-* (autoconf
 # takes the last flag) and also drop the default-required optical-disc modules.
-export CONFIGFLAGS="${CONFIGFLAGS:-} --disable-lua --disable-live555 --disable-realrtsp --disable-faad --disable-flac --disable-goom --disable-libcddb --disable-mpc --disable-schroedinger --disable-shout --disable-theora --disable-zvbi --disable-dvdread --disable-dvdnav --disable-nls --disable-update --disable-bluray --disable-gnutls --disable-srt --disable-aribcam"
+export CONFIGFLAGS="${CONFIGFLAGS:-} --disable-lua --disable-live555 --disable-realrtsp --disable-faad --disable-flac --disable-goom --disable-libcddb --disable-mpc --disable-schroedinger --disable-shout --disable-theora --disable-zvbi --disable-dvdread --disable-dvdnav --disable-nls --disable-update-check --disable-bluray --disable-gnutls --disable-srt --disable-aribcam"
 export CONTRIBFLAGS="${CONTRIBFLAGS:-} --disable-all --enable-ffmpeg --enable-opus --enable-ass --enable-matroska --disable-net --disable-sout --disable-disc"
 EXTRA_LINK_FLAGS=""
 if [ "${ARCH}" = "x86_64" ]; then
