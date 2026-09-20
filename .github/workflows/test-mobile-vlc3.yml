@@ -106,11 +106,13 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-      - name: Select newest Xcode
+      - name: Select Xcode 26.0
         run: |
-          latest=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
           echo "Available Xcodes:"; ls -d /Applications/Xcode*.app 2>/dev/null || true
-          if [ -n "$latest" ]; then sudo xcode-select -s "$latest/Contents/Developer"; fi
+          # .NET 10 for iOS (Microsoft.iOS.Sdk 26.0.x) pins to Xcode 26.0.
+          for x in /Applications/Xcode_26.0.app /Applications/Xcode_26.0.1.app /Applications/Xcode_26.app; do
+            if [ -d "$x" ]; then sudo xcode-select -s "$x/Contents/Developer"; break; fi
+          done
           xcodebuild -version
       - uses: actions/setup-dotnet@v4
         with:
