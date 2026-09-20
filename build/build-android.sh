@@ -115,7 +115,9 @@ if [ "${ARCH}" = "arm" ]; then
   # __aeabi_f2lz). The libtool C++ link does not pull them in implicitly on this
   # arch, so append the compiler-rt builtins archive explicitly.
   RT_BUILTINS="$(${CC} --print-libgcc-file-name 2>/dev/null || true)"
-  [ -f "${RT_BUILTINS}" ] && export LDFLAGS="${LDFLAGS} ${RT_BUILTINS}"
+  if [ -f "${RT_BUILTINS}" ]; then
+    export LDFLAGS="${LDFLAGS} -L$(dirname "${RT_BUILTINS}") -l:$(basename "${RT_BUILTINS}")"
+  fi
 fi
 
 (

@@ -98,6 +98,7 @@ CONFIG_FLAGS=(
   --disable-chromaprint  # not needed; avoids non-PIC libavcodec FFT link error
   --enable-shared        # build libvlccore.so; plugins link it by name (cross)
   --disable-static
+  --disable-fast-install # cross libtool otherwise defers the real libvlccore.so
 )
 [ "${CROSS}" = "1" ] && CONFIG_FLAGS+=("--host=${TRIPLET}" "--build=x86_64-linux-gnu")
 
