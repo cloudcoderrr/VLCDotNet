@@ -1,0 +1,58 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] contrib: use stable lame, mad and libmpeg2 sources
+
+After the previous Apple-family rerun moved past kate, gsm and freetype, the
+next failing contrib downloads were three more legacy source locations:
+
+- `lame` still starts from a single SourceForge mirror path
+- `libmad` still depends on the VideoLAN contrib mirror
+- `libmpeg2` still depends on the VideoLAN contrib mirror
+
+Replace them with stable HTTPS sources whose tarballs were locally validated
+against VLC 3.0.23's existing SHA512SUMS entries, so no checksum updates are
+required.
+---
+ contrib/src/lame/rules.mak    | 2 +-
+ contrib/src/libmpeg2/rules.mak | 2 +-
+ contrib/src/mad/rules.mak     | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/contrib/src/lame/rules.mak b/contrib/src/lame/rules.mak
+index 7e703da..32abcdd 100644
+--- a/contrib/src/lame/rules.mak
++++ b/contrib/src/lame/rules.mak
+@@ -1,7 +1,7 @@
+ # lame
+ 
+ LAME_VERSION := 3.100
+-LAME_URL := $(SF)/lame/lame-$(LAME_VERSION).tar.gz
++LAME_URL := https://deb.debian.org/debian/pool/main/l/lame/lame_$(LAME_VERSION).orig.tar.gz
+ LAME_CFLAGS := $(CFLAGS)
+ 
+ $(TARBALLS)/lame-$(LAME_VERSION).tar.gz:
+diff --git a/contrib/src/libmpeg2/rules.mak b/contrib/src/libmpeg2/rules.mak
+index 5476ecd..029f6b2 100644
+--- a/contrib/src/libmpeg2/rules.mak
++++ b/contrib/src/libmpeg2/rules.mak
+@@ -1,7 +1,7 @@
+ # libmpeg2
+ 
+ LIBMPEG2_VERSION := 0.5.1
+-LIBMPEG2_URL := $(CONTRIB_VIDEOLAN)/libmpeg2/libmpeg2-$(LIBMPEG2_VERSION).tar.gz
++LIBMPEG2_URL := https://ftp.osuosl.org/pub/blfs/conglomeration/libmpeg2/libmpeg2-$(LIBMPEG2_VERSION).tar.gz
+ 
+ ifdef GPL
+ PKGS += libmpeg2
+diff --git a/contrib/src/mad/rules.mak b/contrib/src/mad/rules.mak
+index 31ee1d1..3e0c1b3 100644
+--- a/contrib/src/mad/rules.mak
++++ b/contrib/src/mad/rules.mak
+@@ -1,7 +1,7 @@
+ # mad
+ 
+ MAD_VERSION := 0.15.1b
+-MAD_URL := $(CONTRIB_VIDEOLAN)/mad/libmad-$(MAD_VERSION).tar.gz
++MAD_URL := https://deb.debian.org/debian/pool/main/libm/libmad/libmad_$(MAD_VERSION).orig.tar.gz
+ 
+ ifdef GPL
+ PKGS += mad
