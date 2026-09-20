@@ -51,6 +51,7 @@ BUILD_ARGS=(-r -z -u -S 0x0A000000 -a "${ARCH}")
 # unresolved _setjmp into liblibbluray_plugin.la. Disable the VLC bluray module
 # at configure time so both Windows arches build a consistent plugin set.
 export CONFIGFLAGS="${CONFIGFLAGS:-} --disable-bluray"
+export CONTRIBFLAGS="${CONTRIBFLAGS:-} --disable-a52 --disable-dca"
 EXTRA_LINK_FLAGS=""
 if [ "${ARCH}" = "x86_64" ]; then
   # x86_64 UCRT contribs such as freetype and SDL_image emit references to

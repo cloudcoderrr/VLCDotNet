@@ -90,7 +90,7 @@ esac
 # ---- 1. contribs --------------------------------------------------------------
 CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-apple-${PLATFORM}-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
-BOOTSTRAP_FLAGS=(--disable-disc --disable-gettext --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-vpx)
+BOOTSTRAP_FLAGS=(--disable-disc --disable-a52 --disable-dca --disable-gettext --disable-x264 --disable-x265 --disable-mpg123 --disable-protobuf --disable-xcb --disable-vpx)
 case "${PLATFORM}" in
   ios|iossimulator)
     # FriBidi's Meson generator still executes target binaries in these Apple

@@ -3,35 +3,18 @@ Subject: [PATCH] contrib: prefer upstream package sources over VideoLAN mirror
 
 Current GitHub-hosted builds can reach a number of upstream project archives but
 repeatedly time out against `downloads.videolan.org`, even after switching the
-mirror root from HTTP to HTTPS. This now blocks multiple platform families:
-
-  - Windows source-contrib builds fail on `a52dec`
-  - Android source-contrib builds fail on `libdca`, `libdvbpsi`, and `dav1d`
+mirror root from HTTP to HTTPS. After disabling the unused optional `a52` and
+`dca` contribs at the build-script level, the remaining fetch blockers are the
+packages that still rely on VideoLAN-only or mirror-first download rules.
 
 Prefer the original package URL before the VideoLAN contrib mirror, then reroute
-the packages that only pointed at VideoLAN to stable upstream HTTPS archives.
-This preserves the affected codecs/demuxers instead of disabling them.
+the remaining required VideoLAN-only packages to stable upstream HTTPS archives.
 ---
- contrib/src/a52/rules.mak    |  2 +-
  contrib/src/dav1d/rules.mak  | 10 +++++-----
- contrib/src/dca/rules.mak    |  8 ++++----
  contrib/src/dvbpsi/rules.mak |  8 ++++----
  contrib/src/main.mak         |  4 ++--
- 5 files changed, 16 insertions(+), 16 deletions(-)
+ 3 files changed, 11 insertions(+), 11 deletions(-)
 
-diff --git a/contrib/src/a52/rules.mak b/contrib/src/a52/rules.mak
-index 906bfee..a89d08b 100644
---- a/contrib/src/a52/rules.mak
-+++ b/contrib/src/a52/rules.mak
-@@ -1,7 +1,7 @@
- # liba52
- 
- A52DEC_VERSION := 0.7.4
--A52DEC_URL := $(CONTRIB_VIDEOLAN)/a52/a52dec-$(A52DEC_VERSION).tar.gz
-+A52DEC_URL := https://downloads.sourceforge.net/project/liba52/a52dec-$(A52DEC_VERSION).tar.gz
- 
- ifdef GPL
- PKGS += a52
 diff --git a/contrib/src/dav1d/rules.mak b/contrib/src/dav1d/rules.mak
 index eed3d28..675d2a1 100644
 --- a/contrib/src/dav1d/rules.mak
@@ -63,35 +46,6 @@ index eed3d28..675d2a1 100644
  	$(UNPACK)
  	$(MOVE)
  
-diff --git a/contrib/src/dca/rules.mak b/contrib/src/dca/rules.mak
-index 8e995a5..55bb213 100644
---- a/contrib/src/dca/rules.mak
-+++ b/contrib/src/dca/rules.mak
-@@ -1,7 +1,7 @@
- # libdca
- 
- DCA_VERSION := 0.0.7
--DCA_URL := $(VIDEOLAN)/libdca/$(DCA_VERSION)/libdca-$(DCA_VERSION).tar.bz2
-+DCA_URL := https://code.videolan.org/videolan/libdca/-/archive/$(DCA_VERSION)/libdca-$(DCA_VERSION).tar.gz
- 
- ifdef HAVE_FPU
- ifdef GPL
-@@ -12,12 +12,12 @@ ifeq ($(call need_pkg,"libdca"),)
- PKGS_FOUND += dca
- endif
- 
--$(TARBALLS)/libdca-$(DCA_VERSION).tar.bz2:
-+$(TARBALLS)/libdca-$(DCA_VERSION).tar.gz:
- 	$(call download,$(DCA_URL))
- 
--.sum-dca: libdca-$(DCA_VERSION).tar.bz2
-+.sum-dca: libdca-$(DCA_VERSION).tar.gz
- 
--libdca: libdca-$(DCA_VERSION).tar.bz2 .sum-dca
-+libdca: libdca-$(DCA_VERSION).tar.gz .sum-dca
- 	$(UNPACK)
- 	$(UPDATE_AUTOCONFIG) && cd $(UNPACK_DIR)
- 	$(call pkg_static,"./libdca/libdca.pc.in")
 diff --git a/contrib/src/dvbpsi/rules.mak b/contrib/src/dvbpsi/rules.mak
 index 12efdd3..12a33e6 100644
 --- a/contrib/src/dvbpsi/rules.mak
