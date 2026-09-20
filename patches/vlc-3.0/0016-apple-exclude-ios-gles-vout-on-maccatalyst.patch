@@ -62,3 +62,18 @@ index 3333333..4444444 100644
  endif
  if HAVE_TVOS
  vout_LTLIBRARIES += libvout_ios_plugin.la libglconv_cvpx_plugin.la
+diff --git a/modules/video_filter/Makefile.am b/modules/video_filter/Makefile.am
+index 5555555..6666666 100644
+--- a/modules/video_filter/Makefile.am
++++ b/modules/video_filter/Makefile.am
+@@ -116,7 +116,9 @@ if HAVE_OSX
+ video_filter_LTLIBRARIES += libci_filters_plugin.la
+ endif
+ 
+ if HAVE_IOS
++if !HAVE_MACCATALYST
+ video_filter_LTLIBRARIES += libci_filters_plugin.la
++endif
+ endif
+ 
+ libdeinterlace_common_la_SOURCES = video_filter/deinterlace/common.c video_filter/deinterlace/common.h
