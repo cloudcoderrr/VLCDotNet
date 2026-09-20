@@ -87,7 +87,7 @@ if [ -n "${EXTRA_LINK_FLAGS}" ]; then
   # step so libtool output naming does not decide whether _setjmp resolves.
   extra_link_flags="${EXTRA_LINK_FLAGS}"
 fi
-exec "${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-${realt}" ${LENIENT} \$extra_link_flags "\$@"
+exec "${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-${realt}" ${LENIENT} "\$@" \$extra_link_flags
 EOF
   chmod +x "${WRAP_DIR}/${ARCH}-w64-mingw32-${name}"
 done
