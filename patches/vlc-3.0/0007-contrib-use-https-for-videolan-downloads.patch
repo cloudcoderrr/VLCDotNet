@@ -1,0 +1,31 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] contrib: use HTTPS for VideoLAN download mirrors
+
+Current GitHub-hosted builds repeatedly fail while fetching contrib tarballs
+from `downloads.videolan.org` over plain HTTP:
+
+  curl: (28) Failed to connect to downloads.videolan.org port 80
+
+This now affects multiple platform families once they source-build contribs
+(Android after the GLES2 link fix, Windows x86_64 after disabling the mismatched
+prebuilt bundle). Switch VLC's built-in VideoLAN archive roots to HTTPS so the
+same fetch rules continue to work without relying on port 80.
+---
+ contrib/src/main.mak | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/contrib/src/main.mak b/contrib/src/main.mak
+index a4a930d..a3be5c0 100644
+--- a/contrib/src/main.mak
++++ b/contrib/src/main.mak
+@@ -20,8 +20,8 @@ VPATH := $(TARBALLS)
+ # Common download locations
+ GNU ?= http://ftpmirror.gnu.org/gnu
+ SF := https://netcologne.dl.sourceforge.net/
+-VIDEOLAN := http://downloads.videolan.org/pub/videolan
+-CONTRIB_VIDEOLAN := http://downloads.videolan.org/pub/contrib
++VIDEOLAN := https://downloads.videolan.org/pub/videolan
++CONTRIB_VIDEOLAN := https://downloads.videolan.org/pub/contrib
+ GITHUB := https://github.com/
+ GNUGPG := https://www.gnupg.org/ftp/gcrypt
+ XIPH := https://ftp.osuosl.org/pub/xiph/releases
