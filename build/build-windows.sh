@@ -82,18 +82,10 @@ for arg in "\$@"; do
   esac
 done
 if [ -n "${EXTRA_LINK_FLAGS}" ]; then
-  prev=""
-  for arg in "\$@"; do
-    if [ "\$prev" = "-o" ]; then
-      case "\$arg" in
-        *libsdl_image_plugin.la|*liblibass_plugin.la)
-          extra_link_flags="${EXTRA_LINK_FLAGS}"
-          break
-          ;;
-      esac
-    fi
-    prev="\$arg"
-  done
+  # Only x86_64 uses EXTRA_LINK_FLAGS, and these wrappers are only used for
+  # target cross-compiler invocations. Apply the support library on every link
+  # step so libtool output naming does not decide whether _setjmp resolves.
+  extra_link_flags="${EXTRA_LINK_FLAGS}"
 fi
 exec "${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-${realt}" ${LENIENT} \$extra_link_flags "\$@"
 EOF
