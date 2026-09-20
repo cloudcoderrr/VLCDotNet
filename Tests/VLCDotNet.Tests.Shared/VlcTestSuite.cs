@@ -103,6 +103,13 @@ namespace VLCDotNet.Tests.Shared
                 {
                     "--intf=dummy",
                     "--no-video-title-show",
+                    // Headless frame capture uses a single shared vmem buffer. With
+                    // avcodec direct rendering the frame-threaded decoder pulls
+                    // multiple in-flight pictures through that one buffer, which
+                    // races (observed as intermittent 'thread_get_buffer() failed'
+                    // and a SIGSEGV on Linux). Disabling DR makes the decoder use
+                    // its own buffer pool and lets the vout copy frames serially.
+                    "--no-avcodec-dr",
                     "--verbose=2",
                 };
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
