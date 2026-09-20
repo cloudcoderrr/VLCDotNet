@@ -36,6 +36,10 @@ namespace VLCDotNet
             string baseDir = baseDirectory ?? AppContext.BaseDirectory ?? Directory.GetCurrentDirectory();
             NativePath = baseDir;
 
+            // The Linux build links the contrib fontconfig, whose baked default
+            // config path points at the (absent) build-time contrib prefix.
+            EnsureLinuxFontconfig();
+
             string candidate = Path.Combine(baseDir, "plugins");
             if (Directory.Exists(candidate))
             {
@@ -56,6 +60,63 @@ namespace VLCDotNet
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Ensures the Linux fontconfig backend used by libvlc's text renderer has
+        /// a readable configuration. The from-source Linux build statically links
+        /// the contrib fontconfig, whose compiled-in default config path is the
+        /// build machine's contrib prefix, which does not exist on the target. With
+        /// no config, fontconfig logs "Cannot load default config file" and the
+        /// freetype renderer can dereference the resulting NULL config and crash.
+        /// If the host application has not configured fontconfig itself, write a
+        /// minimal, version-agnostic config that points at the usual system font
+        /// directories with a writable cache, so font lookup degrades gracefully
+        /// instead of crashing. No-op on non-Linux platforms (Windows uses
+        /// DirectWrite and Apple uses CoreText, so fontconfig is not linked).
+        /// </summary>
+        private static void EnsureLinuxFontconfig()
+        {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                return;
+            }
+
+            // Respect any fontconfig setup the host has already provided.
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FONTCONFIG_PATH")) ||
+                !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FONTCONFIG_FILE")))
+            {
+                return;
+            }
+
+            try
+            {
+                string dir = Path.Combine(Path.GetTempPath(), "vlcdotnet-fontconfig");
+                string cache = Path.Combine(dir, "cache");
+                Directory.CreateDirectory(cache);
+
+                string conf = Path.Combine(dir, "fonts.conf");
+                if (!File.Exists(conf))
+                {
+                    File.WriteAllText(
+                        conf,
+                        "<?xml version=\"1.0\"?>\n" +
+                        "<!DOCTYPE fontconfig SYSTEM \"fonts.dtd\">\n" +
+                        "<fontconfig>\n" +
+                        "  <dir>/usr/share/fonts</dir>\n" +
+                        "  <dir>/usr/local/share/fonts</dir>\n" +
+                        "  <dir>~/.fonts</dir>\n" +
+                        "  <cachedir>" + cache + "</cachedir>\n" +
+                        "</fontconfig>\n");
+                }
+
+                Environment.SetEnvironmentVariable("FONTCONFIG_PATH", dir);
+            }
+            catch
+            {
+                // Best effort only: if we cannot write the config, leave the
+                // environment untouched.
+            }
         }
     }
 }
