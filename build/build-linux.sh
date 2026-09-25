@@ -41,18 +41,30 @@ fi
 
 manual_link_libvlccore() {
   local arch="$1" log_file="$2"
-  local cmd line out soname
+  local cmd out soname
 
   cmd="$(grep '^../doltlibtool .* -o libvlccore\.la ' "$log_file" | tail -n 1 || true)"
   [ -n "$cmd" ] || { warn "manual link: could not find libvlccore link command in $log_file"; return 1; }
 
   log "Cross build: attempting manual libvlccore shared link fallback"
-  line="${cmd#../doltlibtool --tag=CC --mode=link }"
 
   local compiler=""
-  local -a tokens pre_flags objs libs manual
+  local -a pre_flags objs libs manual
   # shellcheck disable=SC2086
-  eval "set -- $line"
+  eval "set -- $cmd"
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      */doltlibtool|doltlibtool|*/libtool|libtool|--tag=*|--mode=*|--silent|--quiet)
+        shift
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  [ $# -gt 0 ] || { warn "manual link: could not identify compiler from $log_file"; return 1; }
   compiler="$1"
   shift
 
