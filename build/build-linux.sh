@@ -39,14 +39,27 @@ if [ "${CROSS}" = "1" ]; then
   export PKG_CONFIG_LIBDIR="/usr/lib/${TRIPLET}/pkgconfig:/usr/${TRIPLET}/lib/pkgconfig"
 fi
 
-manual_link_libvlccore() {
-  local arch="$1" log_file="$2"
-  local cmd out soname
+manual_link_shared_lib() {
+  local lib_name="$1" log_file="$2"
+  local cmd out soname devel_name
+  local lai_file=".libs/${lib_name}.lai"
+  local library_names="" versioned_name=""
 
-  cmd="$(grep '^../doltlibtool .* -o libvlccore\.la ' "$log_file" | tail -n 1 || true)"
-  [ -n "$cmd" ] || { warn "manual link: could not find libvlccore link command in $log_file"; return 1; }
+  cmd="$(grep "^../doltlibtool .* -o ${lib_name}\\.la " "$log_file" | tail -n 1 || true)"
+  [ -n "$cmd" ] || { warn "manual link: could not find ${lib_name} link command in $log_file"; return 1; }
 
-  log "Cross build: attempting manual libvlccore shared link fallback"
+  log "Cross build: attempting manual ${lib_name} shared link fallback"
+
+  if [ -f "$lai_file" ]; then
+    library_names="$(sed -n "s/^library_names='\(.*\)'$/\1/p" "$lai_file" | tail -n 1)"
+  fi
+  [ -n "$library_names" ] || { warn "manual link: could not read library_names from $lai_file"; return 1; }
+  # shellcheck disable=SC2086
+  set -- $library_names
+  versioned_name="${1:-}"
+  soname="${2:-${1:-}}"
+  devel_name="${3:-${2:-${1:-}}}"
+  [ -n "$versioned_name" ] || { warn "manual link: could not determine output name for $lib_name from $lai_file"; return 1; }
 
   local compiler=""
   local -a pre_flags objs libs manual
@@ -98,8 +111,7 @@ manual_link_libvlccore() {
     esac
   done
 
-  out=".libs/libvlccore.so.9.0.1"
-  soname="libvlccore.so.9"
+  out=".libs/${versioned_name}"
   manual=("$compiler" -shared -Wl,-soname,"$soname")
   manual+=("${pre_flags[@]}")
 
@@ -121,10 +133,10 @@ manual_link_libvlccore() {
       *.la)
         libdir="$(dirname "$lib")"
         libbase="$(basename "$lib" .la)"
-        if [ -f "${libdir}/.libs/${libbase}.a" ]; then
-          resolved="${libdir}/.libs/${libbase}.a"
-        elif [ -f "${libdir}/.libs/${libbase}.so" ]; then
+        if [ -f "${libdir}/.libs/${libbase}.so" ]; then
           resolved="${libdir}/.libs/${libbase}.so"
+        elif [ -f "${libdir}/.libs/${libbase}.a" ]; then
+          resolved="${libdir}/.libs/${libbase}.a"
         else
           resolved="$lib"
         fi
@@ -138,8 +150,12 @@ manual_link_libvlccore() {
 
   manual+=(-o "$out")
   "${manual[@]}"
-  ln -sf "$(basename "$out")" ".libs/${soname}"
-  ln -sf "$soname" .libs/libvlccore.so
+  if [ "$soname" != "$versioned_name" ]; then
+    ln -sf "$versioned_name" ".libs/${soname}"
+  fi
+  if [ "$devel_name" != "$soname" ]; then
+    ln -sf "$soname" ".libs/${devel_name}"
+  fi
 }
 
 # ---- 1. contribs --------------------------------------------------------------
@@ -257,7 +273,7 @@ CONFIG_FLAGS=(
       core_real=(src/.libs/libvlccore.so.*.*.*)
       shopt -u nullglob
       if [ ${#core_real[@]} -eq 0 ]; then
-        ( cd src && manual_link_libvlccore "${ARCH}" "${WORK_DIR}/libvlccore-relink-${ARCH}.log" ) || true
+        ( cd src && manual_link_shared_lib libvlccore "${WORK_DIR}/libvlccore-relink-${ARCH}.log" ) || true
         shopt -s nullglob
         core_real=(src/.libs/libvlccore.so.*.*.*)
         shopt -u nullglob
@@ -278,6 +294,34 @@ CONFIG_FLAGS=(
       log "last 80 lines of the forced relink trace:"
       tail -n 80 "${WORK_DIR}/libvlccore-relink-${ARCH}.log" 2>/dev/null || true
       ls -la src/.libs/ 2>/dev/null | grep -i vlccore || true
+      exit 1
+    fi
+    make -j"$(jobs)" -C lib
+    shopt -s nullglob
+    libvlc_real=(lib/.libs/libvlc.so.*.*.*)
+    shopt -u nullglob
+    if [ ${#libvlc_real[@]} -eq 0 ]; then
+      warn "Cross build did not emit a versioned libvlc shared object after make -C lib; forcing a serial relink"
+      log "evaluated libtool shared-library mode before libvlc relink:"
+      ./libtool --config 2>/dev/null | grep -E '^(build_libtool_libs|build_old_libs)=' || true
+      make -C lib V=1 -B libvlc.la 2>&1 | tee "${WORK_DIR}/libvlc-relink-${ARCH}.log" || true
+      shopt -s nullglob
+      libvlc_real=(lib/.libs/libvlc.so.*.*.*)
+      shopt -u nullglob
+      if [ ${#libvlc_real[@]} -eq 0 ]; then
+        ( cd lib && manual_link_shared_lib libvlc "${WORK_DIR}/libvlc-relink-${ARCH}.log" ) || true
+        shopt -s nullglob
+        libvlc_real=(lib/.libs/libvlc.so.*.*.*)
+        shopt -u nullglob
+      fi
+    fi
+    if [ ${#libvlc_real[@]} -eq 0 ]; then
+      warn "Cross build still has no versioned libvlc shared object under lib/.libs after forced relink"
+      log "lib/.libs/libvlc.lai contents:"
+      sed -n '1,160p' lib/.libs/libvlc.lai 2>/dev/null || true
+      log "last 80 lines of the libvlc forced relink trace:"
+      tail -n 80 "${WORK_DIR}/libvlc-relink-${ARCH}.log" 2>/dev/null || true
+      ls -la lib/.libs/ 2>/dev/null | grep -i libvlc || true
       exit 1
     fi
   fi
