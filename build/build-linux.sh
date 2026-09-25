@@ -26,7 +26,7 @@ apply_patches "${VLC_SRC}"
 
 if [ "${CROSS}" = "1" ]; then
   log "Cross build: relaxing libvlccore link flags in src/Makefile.am before bootstrap"
-  perl -0pi -e 's/\n\t-no-undefined//; s/\n\t-export-symbols \$\(srcdir\)\/libvlccore\.sym//' "${VLC_SRC}/src/Makefile.am"
+  perl -0pi -e 's{libvlccore_la_LDFLAGS = \\\R\h*\$\(LDFLAGS_libvlccore\) \\\R\h*-no-undefined \\\R\h*-export-symbols \$\(srcdir\)/libvlccore\.sym \\\R\h*-version-info 9:1:0}{libvlccore_la_LDFLAGS = \\\n\t\$(LDFLAGS_libvlccore) \\\n\t-version-info 9:1:0}ms' "${VLC_SRC}/src/Makefile.am"
 fi
 
 if [ "${CROSS}" = "1" ]; then
