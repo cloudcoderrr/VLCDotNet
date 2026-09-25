@@ -132,6 +132,24 @@ CONFIG_FLAGS=(
     tail -n 60 "${WORK_DIR}/libvlccore-${ARCH}.log" || true
   fi
   make -j"$(jobs)" -C src
+  if [ "${CROSS}" = "1" ]; then
+    shopt -s nullglob
+    core_real=(src/.libs/libvlccore.so.*.*.*)
+    shopt -u nullglob
+    if [ ! -e src/.libs/libvlccore.so ]; then
+      if [ ${#core_real[@]} -gt 0 ]; then
+        core_base="$(basename "${core_real[0]}")"
+        core_soname="${core_base%.*}"
+        ln -sf "${core_base}" "src/.libs/${core_soname}"
+        ln -sf "${core_soname}" src/.libs/libvlccore.so
+        log "Synthesized cross-build libvlccore symlinks: libvlccore.so -> ${core_soname} -> ${core_base}"
+      else
+        warn "Cross build did not emit a versioned libvlccore shared object under src/.libs"
+        ls -la src/.libs/ 2>/dev/null | grep -i vlccore || true
+        exit 1
+      fi
+    fi
+  fi
   make -j"$(jobs)"
   make install
 )
