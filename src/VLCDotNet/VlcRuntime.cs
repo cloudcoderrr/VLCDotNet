@@ -36,11 +36,17 @@ namespace VLCDotNet
             string baseDir = baseDirectory ?? AppContext.BaseDirectory ?? Directory.GetCurrentDirectory();
             NativePath = baseDir;
 
+            string? configured = Environment.GetEnvironmentVariable("VLC_PLUGIN_PATH");
+            if (!string.IsNullOrWhiteSpace(configured) && Directory.Exists(configured))
+            {
+                ApplyPluginPath(configured, baseDir);
+                return true;
+            }
+
             string candidate = Path.Combine(baseDir, "plugins");
             if (Directory.Exists(candidate))
             {
-                PluginPath = candidate;
-                Environment.SetEnvironmentVariable("VLC_PLUGIN_PATH", candidate);
+                ApplyPluginPath(candidate, baseDir);
                 return true;
             }
 
@@ -49,13 +55,65 @@ namespace VLCDotNet
             string ridCandidate = Path.Combine(baseDir, "runtimes", rid, "native", "plugins");
             if (Directory.Exists(ridCandidate))
             {
-                PluginPath = ridCandidate;
-                NativePath = Path.Combine(baseDir, "runtimes", rid, "native");
-                Environment.SetEnvironmentVariable("VLC_PLUGIN_PATH", ridCandidate);
+                ApplyPluginPath(ridCandidate, Path.Combine(baseDir, "runtimes", rid, "native"));
+                return true;
+            }
+
+            if (LooksLikeFlattenedPluginDirectory(baseDir))
+            {
+                ApplyPluginPath(baseDir, baseDir);
                 return true;
             }
 
             return false;
         }
+
+        private static bool LooksLikeFlattenedPluginDirectory(string directory)
+        {
+            try
+            {
+                foreach (string _ in Directory.EnumerateFiles(directory, "lib*_plugin.*", SearchOption.TopDirectoryOnly))
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            return false;
+        }
+
+        private static void ApplyPluginPath(string pluginPath, string nativePath)
+        {
+            PluginPath = pluginPath;
+            NativePath = nativePath;
+
+            Environment.SetEnvironmentVariable("VLC_PLUGIN_PATH", pluginPath);
+            TrySetNativeEnvironmentVariable("VLC_PLUGIN_PATH", pluginPath);
+        }
+
+        private static void TrySetNativeEnvironmentVariable(string name, string value)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return;
+            }
+
+            try
+            {
+                NativeSetEnv(name, value, 1);
+            }
+            catch (DllNotFoundException)
+            {
+            }
+            catch (EntryPointNotFoundException)
+            {
+            }
+        }
+
+        [DllImport("libc", EntryPoint = "setenv", SetLastError = true)]
+        private static extern int NativeSetEnv(string name, string value, int overwrite);
     }
 }
