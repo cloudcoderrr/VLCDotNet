@@ -47,6 +47,7 @@ namespace VLCDotNet.Tests.Shared
 
             if (!InitializeInstance())
             {
+                WriteReport();
                 return _results;
             }
 
