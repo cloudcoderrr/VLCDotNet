@@ -69,30 +69,7 @@ jobs:
           disable-animations: true
           emulator-boot-timeout: 900
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 3072
-          script: |
-            set -x
-            adb wait-for-device
-            # Wait for full boot before touching the package manager.
-            adb shell 'while [ "$(getprop sys.boot_completed 2>/dev/null)" != "1" ]; do sleep 2; done'
-            adb logcat -c || true
-            apk=$(find Tests/VLCDotNet.Tests.Maui/bin/Debug/net10.0-android -name '*-Signed.apk' 2>/dev/null | head -1)
-            [ -z "$apk" ] && apk=$(find Tests/VLCDotNet.Tests.Maui/bin -name '*.apk' 2>/dev/null | head -1)
-            echo "APK: '$apk'"
-            ls -la Tests/VLCDotNet.Tests.Maui/bin/Debug/net10.0-android/ 2>/dev/null || true
-            test -n "$apk"
-            echo "Installing $apk"
-            adb install -r "$apk"
-            adb shell monkey -p com.vlcdotnet.tests -c android.intent.category.LAUNCHER 1
-            done=""
-            for i in $(seq 1 120); do
-              if adb shell run-as com.vlcdotnet.tests cat files/test-output/DONE.txt 2>/dev/null; then done=1; break; fi
-              sleep 5
-            done
-            mkdir -p mobile-output/android
-            adb exec-out run-as com.vlcdotnet.tests tar c -C files test-output 2>/dev/null | tar x -C mobile-output/android || true
-            echo "---- vlc-log tail ----"; tail -n 60 mobile-output/android/test-output/vlc-log.txt || true
-            echo "---- logcat (vlc/mono/crash) ----"; adb logcat -d 2>/dev/null | grep -iE 'vlcdotnet|libvlc|mono-rt|AndroidRuntime|FATAL|DOTNET' | tail -n 80 || true
-            test -n "$done"
+          script: bash .github/scripts/run-android-maui-tests.sh
 
       - uses: actions/upload-artifact@v4
         if: always()
