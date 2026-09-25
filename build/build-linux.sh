@@ -189,6 +189,56 @@ link_shared_soname_chain() {
   fi
 }
 
+stage_cross_linux_prefix() {
+  local build_dir="$1" prefix="$2" contrib_prefix="$3"
+  local plugins_root="${prefix}/lib/vlc/plugins"
+  local libs_root="${prefix}/lib"
+  local f
+
+  rm -rf "${prefix}"
+  mkdir -p "${plugins_root}" "${libs_root}"
+
+  for f in \
+    "${build_dir}/lib/.libs"/libvlc*.so* \
+    "${build_dir}/src/.libs"/libvlccore*.so*; do
+    [ -e "$f" ] && cp -aL "$f" "${libs_root}/" || true
+  done
+
+  if [ -d "${contrib_prefix}/lib" ]; then
+    ( cd "${contrib_prefix}/lib" && find . -maxdepth 1 -type f \( -name '*.so' -o -name '*.so.*' \) -print0 \
+        | while IFS= read -r -d '' m; do
+            cp -aL "$m" "${libs_root}/"
+          done )
+  fi
+
+  local install_plan line dest plugin_so plugin_src idx
+  install_plan="$(make -C modules -n install 2>/dev/null | grep -- '--mode=install /usr/bin/install -c .*plugins/' || true)"
+  [ -n "${install_plan}" ] || die "Could not derive cross Linux plugin install plan from modules/Makefile"
+
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    local -a args
+    eval "args=( $line )"
+    dest="${args[${#args[@]}-1]}"
+    mkdir -p "$dest"
+    for (( idx = 0; idx < ${#args[@]} - 1; idx++ )); do
+      if [ "${args[$idx]}" = "-c" ]; then
+        for (( idx = idx + 1; idx < ${#args[@]} - 1; idx++ )); do
+          case "${args[$idx]}" in
+            *.la)
+              plugin_so="${args[$idx]%.la}.so"
+              plugin_src="${build_dir}/modules/.libs/${plugin_so}"
+              [ -f "${plugin_src}" ] || die "Expected built plugin ${plugin_src} was not found"
+              cp -aL "${plugin_src}" "${dest}/"
+              ;;
+          esac
+        done
+        break
+      fi
+    done
+  done <<< "${install_plan}"
+}
+
 # ---- 1. contribs --------------------------------------------------------------
 CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
@@ -366,7 +416,11 @@ CONFIG_FLAGS=(
     fi
   fi
   make -j"$(jobs)"
-  make install
+  if [ "${CROSS}" = "1" ]; then
+    stage_cross_linux_prefix "$(pwd)" "${INSTALL_PREFIX}" "${VLC_SRC}/contrib/${TRIPLET}"
+  else
+    make install
+  fi
 )
 
 normalize_output "${RID}" "${INSTALL_PREFIX}"
