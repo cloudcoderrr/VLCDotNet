@@ -39,6 +39,97 @@ if [ "${CROSS}" = "1" ]; then
   export PKG_CONFIG_LIBDIR="/usr/lib/${TRIPLET}/pkgconfig:/usr/${TRIPLET}/lib/pkgconfig"
 fi
 
+manual_link_libvlccore() {
+  local arch="$1" log_file="$2"
+  local cmd line out soname
+
+  cmd="$(grep '^../doltlibtool .* -o libvlccore\.la ' "$log_file" | tail -n 1 || true)"
+  [ -n "$cmd" ] || { warn "manual link: could not find libvlccore link command in $log_file"; return 1; }
+
+  log "Cross build: attempting manual libvlccore shared link fallback"
+  line="${cmd#../doltlibtool --tag=CC --mode=link }"
+
+  local compiler=""
+  local -a tokens pre_flags objs libs manual
+  # shellcheck disable=SC2086
+  eval "set -- $line"
+  compiler="$1"
+  shift
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -o)
+        shift 2
+        ;;
+      -rpath)
+        shift 2
+        ;;
+      -version-info)
+        shift 2
+        ;;
+      *.lo)
+        objs+=("$1")
+        shift
+        ;;
+      *.la)
+        libs+=("$1")
+        shift
+        ;;
+      -l*|-L*|-Wl,*|-pthread)
+        libs+=("$1")
+        shift
+        ;;
+      *)
+        pre_flags+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  out=".libs/libvlccore.so.9.0.1"
+  soname="libvlccore.so.9"
+  manual=("$compiler" -shared -Wl,-soname,"$soname")
+  manual+=("${pre_flags[@]}")
+
+  local obj dir base real
+  for obj in "${objs[@]}"; do
+    dir="$(dirname "$obj")"
+    base="$(basename "$obj" .lo)"
+    if [ "$dir" = "." ]; then
+      real=".libs/${base}.o"
+    else
+      real="${dir}/.libs/${base}.o"
+    fi
+    manual+=("$real")
+  done
+
+  local lib libdir libbase resolved
+  for lib in "${libs[@]}"; do
+    case "$lib" in
+      *.la)
+        libdir="$(dirname "$lib")"
+        libbase="$(basename "$lib" .la)"
+        if [ -f "${libdir}/.libs/${libbase}.a" ]; then
+          resolved="${libdir}/.libs/${libbase}.a"
+        elif [ -f "${libdir}/.libs/${libbase}.so" ]; then
+          resolved="${libdir}/.libs/${libbase}.so"
+        else
+          resolved="$lib"
+        fi
+        manual+=("$resolved")
+        ;;
+      *)
+        manual+=("$lib")
+        ;;
+    esac
+  done
+
+  manual+=(-o "$out")
+  "${manual[@]}"
+  ln -sf "$(basename "$out")" ".libs/${soname}"
+  ln -sf "$soname" .libs/libvlccore.so
+}
+
 # ---- 1. contribs --------------------------------------------------------------
 CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
@@ -153,6 +244,12 @@ CONFIG_FLAGS=(
       shopt -s nullglob
       core_real=(src/.libs/libvlccore.so.*.*.*)
       shopt -u nullglob
+      if [ ${#core_real[@]} -eq 0 ]; then
+        ( cd src && manual_link_libvlccore "${ARCH}" "${WORK_DIR}/libvlccore-relink-${ARCH}.log" ) || true
+        shopt -s nullglob
+        core_real=(src/.libs/libvlccore.so.*.*.*)
+        shopt -u nullglob
+      fi
     fi
     if [ ${#core_real[@]} -gt 0 ]; then
       core_base="$(basename "${core_real[0]}")"
