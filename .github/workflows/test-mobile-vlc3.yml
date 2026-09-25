@@ -61,6 +61,9 @@ jobs:
           dotnet build Tests/VLCDotNet.Tests.Maui/VLCDotNet.Tests.Maui.csproj
           -f net10.0-android -c Debug
           -p:DefineConstants=AUTORUN -p:VlcMobileTargets=true
+          -p:AndroidFastDeploymentType=None
+          -p:EmbedAssembliesIntoApk=true
+          -p:AndroidUseSharedRuntime=false
 
       - name: Run on emulator
         uses: reactivecircus/android-emulator-runner@v2
