@@ -268,6 +268,13 @@ CONFIG_FLAGS=(
 (
   cd "${BUILD_DIR}"
   ../configure "${CONFIG_FLAGS[@]}"
+  if [ "${CROSS}" = "1" ]; then
+    # Later cross-linked helpers (for example bin/vlc-cache-gen) need to resolve
+    # DT_NEEDED edges from the manually materialized libvlc/libvlccore .so files.
+    # GNU ld does not search sibling .libs directories for those sonames unless
+    # we provide explicit rpath-link hints at link time.
+    export LDFLAGS="${LDFLAGS-} -Wl,-rpath-link,$(pwd)/src/.libs -Wl,-rpath-link,$(pwd)/lib/.libs"
+  fi
   # Build the support lib and libvlccore before the plugins. Under a single
   # "make -j" the recursive src/ and modules/ sub-makes overlap on the cross
   # toolchains, so a plugin can try to link ../src/.libs/libvlccore.so before
