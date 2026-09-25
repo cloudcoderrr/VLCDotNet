@@ -115,7 +115,7 @@ CONFIG_FLAGS=(
   ../configure "${CONFIG_FLAGS[@]}"
   if [ "${CROSS}" = "1" ]; then
     log "Cross build: relaxing libvlccore libtool flags in generated src/Makefile"
-    perl -0pi -e 's/\s-no-undefined\b//g; s/\s-export-symbols\s+\.\.\/\.\.\/src\/libvlccore\.sym//g' src/Makefile
+    perl -0pi -e 's/\s-no-undefined\b//g; s/\s-export-symbols\s+\S*libvlccore\.sym//g' src/Makefile
   fi
   # Build the support lib and libvlccore before the plugins. Under a single
   # "make -j" the recursive src/ and modules/ sub-makes overlap on the cross
