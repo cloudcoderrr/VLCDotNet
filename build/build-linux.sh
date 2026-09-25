@@ -164,6 +164,31 @@ manual_link_shared_lib() {
   fi
 }
 
+link_shared_soname_chain() {
+  local libs_dir="$1" lib_name="$2"
+  local lai_file="${libs_dir}/${lib_name}.lai"
+  local library_names="" versioned_name="" soname="" devel_name=""
+
+  if [ -f "$lai_file" ]; then
+    library_names="$(sed -n "s/^library_names='\(.*\)'$/\1/p" "$lai_file" | tail -n 1)"
+  fi
+  [ -n "$library_names" ] || { warn "could not read library_names from $lai_file"; return 1; }
+
+  # shellcheck disable=SC2086
+  set -- $library_names
+  versioned_name="${1:-}"
+  soname="${2:-${1:-}}"
+  devel_name="${3:-${2:-${1:-}}}"
+  [ -n "$versioned_name" ] || { warn "could not determine output name for $lib_name from $lai_file"; return 1; }
+
+  if [ "$soname" != "$versioned_name" ]; then
+    ln -sf "$versioned_name" "${libs_dir}/${soname}"
+  fi
+  if [ "$devel_name" != "$soname" ]; then
+    ln -sf "$soname" "${libs_dir}/${devel_name}"
+  fi
+}
+
 # ---- 1. contribs --------------------------------------------------------------
 CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
@@ -286,11 +311,15 @@ CONFIG_FLAGS=(
       fi
     fi
     if [ ${#core_real[@]} -gt 0 ]; then
-      core_base="$(basename "${core_real[0]}")"
-      core_soname="${core_base%.*}"
-      ln -sf "${core_base}" "src/.libs/${core_soname}"
-      ln -sf "${core_soname}" src/.libs/libvlccore.so
-      log "Synthesized cross-build libvlccore symlinks: libvlccore.so -> ${core_soname} -> ${core_base}"
+      if link_shared_soname_chain src/.libs libvlccore; then
+        core_base="$(basename "${core_real[0]}")"
+        core_chain="$(sed -n "s/^library_names='\(.*\)'$/\1/p" src/.libs/libvlccore.lai | tail -n 1)"
+        log "Synthesized cross-build libvlccore symlink chain: ${core_chain:-${core_base}}"
+      else
+        core_base="$(basename "${core_real[0]}")"
+        warn "Falling back to direct libvlccore symlink synthesis for ${core_base}"
+        ln -sf "${core_base}" src/.libs/libvlccore.so
+      fi
     else
       warn "Cross build still has no versioned libvlccore shared object under src/.libs after forced relink"
       log "evaluated libtool shared-library mode after forced relink:"
