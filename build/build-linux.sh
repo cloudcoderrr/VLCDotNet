@@ -138,6 +138,12 @@ CONFIG_FLAGS=(
     shopt -u nullglob
     if [ ${#core_real[@]} -eq 0 ]; then
       warn "Cross build did not emit a versioned libvlccore shared object after make -C src; forcing a serial relink"
+      if ./libtool --config 2>/dev/null | grep -q '^build_libtool_libs=no$'; then
+        warn "libtool reports build_libtool_libs=no for the cross build; forcing shared-library mode before relink"
+        perl -0pi -e 's/^build_libtool_libs=no$/build_libtool_libs=yes/m; s/^build_old_libs=yes$/build_old_libs=no/m' libtool
+      fi
+      log "evaluated libtool shared-library mode before relink:"
+      ./libtool --config 2>/dev/null | grep -E '^(build_libtool_libs|build_old_libs)=' || true
       make -C src V=1 -B libvlccore.la 2>&1 | tee "${WORK_DIR}/libvlccore-relink-${ARCH}.log" || true
       shopt -s nullglob
       core_real=(src/.libs/libvlccore.so.*.*.*)
@@ -151,8 +157,8 @@ CONFIG_FLAGS=(
       log "Synthesized cross-build libvlccore symlinks: libvlccore.so -> ${core_soname} -> ${core_base}"
     else
       warn "Cross build still has no versioned libvlccore shared object under src/.libs after forced relink"
-      log "libtool shared-library mode:"
-      grep -E '^(build_libtool_libs|build_old_libs)=' libtool || true
+      log "evaluated libtool shared-library mode after forced relink:"
+      ./libtool --config 2>/dev/null | grep -E '^(build_libtool_libs|build_old_libs)=' || true
       log "src/.libs/libvlccore.lai contents:"
       sed -n '1,160p' src/.libs/libvlccore.lai 2>/dev/null || true
       log "last 80 lines of the forced relink trace:"
