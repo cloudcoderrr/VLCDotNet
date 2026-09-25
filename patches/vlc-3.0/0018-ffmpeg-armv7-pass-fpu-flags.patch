@@ -8,25 +8,24 @@ compiler self-test fail with:
   cc1: error: '-mfloat-abi=hard': selected architecture lacks an FPU
 
 Plumb an explicit VFPv3-D16 target flag into ffmpeg's extra C flags for the
-Linux ARMv7 contrib build so the hard-float compiler test can succeed.
-This stays scoped to Linux armv7 and does not affect host tools or other
-platforms.
+Linux ARM contrib build so the hard-float compiler test can succeed.
+VLC's Linux arm cross path does not define `HAVE_ARMV7A` here, so gating this
+on `ARCH=arm` + `HAVE_LINUX` is the reliable condition. This stays scoped to
+Linux ARM builds and does not affect host tools or other platforms.
 ---
- contrib/src/ffmpeg/rules.mak | 5 +++++
- 1 file changed, 5 insertions(+)
+ contrib/src/ffmpeg/rules.mak | 3 +++
+ 1 file changed, 3 insertions(+)
 
 diff --git a/contrib/src/ffmpeg/rules.mak b/contrib/src/ffmpeg/rules.mak
-index 0fe31de..75706f8 100644
+index 0fe31de..5f0f415 100644
 --- a/contrib/src/ffmpeg/rules.mak
 +++ b/contrib/src/ffmpeg/rules.mak
-@@ -109,6 +109,11 @@ endif
+@@ -109,6 +109,9 @@ endif
  # ARM stuff
  ifeq ($(ARCH),arm)
  FFMPEGCONF += --arch=arm
 +ifdef HAVE_LINUX
-+ifdef HAVE_ARMV7A
 +FFMPEGCONF += --extra-cflags="$(CFLAGS) -mfpu=vfpv3-d16"
-+endif
 +endif
  ifdef HAVE_NEON
  FFMPEGCONF += --enable-neon
