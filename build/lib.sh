@@ -78,6 +78,21 @@ normalize_output() {
     [ -e "$f" ] && cp -aL "$f" "${out}/" || true
   done
 
+  # Android and other dynamic contrib builds can install additional dependency
+  # shared libraries (ffmpeg, ass, opus, ... ) directly under prefix/lib. If we
+  # omit them, libvlc_new can fail at runtime even though libvlc.so and the
+  # plugin tree are present. Copy every top-level shared library except the core
+  # libvlc pair already handled above.
+  if [ -d "${prefix}/lib" ]; then
+    ( cd "${prefix}/lib" && find . -maxdepth 1 -type f \( -name '*.so' -o -name '*.so.*' -o -name '*.dylib' -o -name '*.dll' \) -print0 \
+        | while IFS= read -r -d '' m; do
+            case "$(basename "$m")" in
+              libvlc*.so|libvlc*.so.*|libvlccore*.so|libvlccore*.so.*|libvlc*.dylib|libvlccore*.dylib) continue ;;
+            esac
+            cp -aL "$m" "${out}/"
+          done )
+  fi
+
   # Plugins tree (location differs per platform).
   local plugins=""
   for cand in \
