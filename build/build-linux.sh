@@ -211,31 +211,23 @@ stage_cross_linux_prefix() {
           done )
   fi
 
-  local install_plan line dest plugin_so plugin_src idx
+  local install_plan line dest plugin_so plugin_src plugin_la
   install_plan="$(make -C modules -n install 2>/dev/null | grep -- '--mode=install /usr/bin/install -c .*plugins/' || true)"
   [ -n "${install_plan}" ] || die "Could not derive cross Linux plugin install plan from modules/Makefile"
 
   while IFS= read -r line; do
     [ -n "$line" ] || continue
-    local -a args
-    eval "args=( $line )"
-    dest="${args[${#args[@]}-1]}"
+    dest="${line##* }"
+    dest="${dest#\'}"
+    dest="${dest%\'}"
     mkdir -p "$dest"
-    for (( idx = 0; idx < ${#args[@]} - 1; idx++ )); do
-      if [ "${args[$idx]}" = "-c" ]; then
-        for (( idx = idx + 1; idx < ${#args[@]} - 1; idx++ )); do
-          case "${args[$idx]}" in
-            *.la)
-              plugin_so="${args[$idx]%.la}.so"
-              plugin_src="${build_dir}/modules/.libs/${plugin_so}"
-              [ -f "${plugin_src}" ] || die "Expected built plugin ${plugin_src} was not found"
-              cp -aL "${plugin_src}" "${dest}/"
-              ;;
-          esac
-        done
-        break
-      fi
-    done
+    while IFS= read -r plugin_la; do
+      [ -n "${plugin_la}" ] || continue
+      plugin_so="${plugin_la%.la}.so"
+      plugin_src="${build_dir}/modules/.libs/${plugin_so}"
+      [ -f "${plugin_src}" ] || die "Expected built plugin ${plugin_src} was not found"
+      cp -aL "${plugin_src}" "${dest}/"
+    done < <(printf '%s\n' "$line" | grep -oE '[A-Za-z0-9_./-]+\.la' | grep -E '/|^lib')
   done <<< "${install_plan}"
 }
 
