@@ -25,6 +25,11 @@ clone_vlc "${VLC_SRC}"
 apply_patches "${VLC_SRC}"
 
 if [ "${CROSS}" = "1" ]; then
+  log "Cross build: relaxing libvlccore link flags in src/Makefile.am before bootstrap"
+  perl -0pi -e 's/\n\t-no-undefined//; s/\n\t-export-symbols \$\(srcdir\)\/libvlccore\.sym//' "${VLC_SRC}/src/Makefile.am"
+fi
+
+if [ "${CROSS}" = "1" ]; then
   export CC="${TRIPLET}-gcc"
   export CXX="${TRIPLET}-g++"
   export LD="${TRIPLET}-gcc"
@@ -113,13 +118,6 @@ CONFIG_FLAGS=(
 (
   cd "${BUILD_DIR}"
   ../configure "${CONFIG_FLAGS[@]}"
-  if [ "${CROSS}" = "1" ]; then
-    log "Cross build: relaxing libvlccore libtool flags in generated src/Makefile"
-    cat >> src/Makefile <<'EOF'
-
-override libvlccore_la_LDFLAGS := $(filter-out -no-undefined -export-symbols %libvlccore.sym,$(libvlccore_la_LDFLAGS))
-EOF
-  fi
   # Build the support lib and libvlccore before the plugins. Under a single
   # "make -j" the recursive src/ and modules/ sub-makes overlap on the cross
   # toolchains, so a plugin can try to link ../src/.libs/libvlccore.so before
