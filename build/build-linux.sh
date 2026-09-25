@@ -92,6 +92,12 @@ manual_link_shared_lib() {
       -version-info)
         shift 2
         ;;
+      -export-symbols|-export-symbols-regex|-release)
+        shift 2
+        ;;
+      -no-undefined|-avoid-version|-module)
+        shift
+        ;;
       *.lo)
         objs+=("$1")
         shift
