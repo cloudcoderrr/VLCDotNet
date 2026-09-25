@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text;
 using VLCDotNet;
 using VLCDotNet.Tests.Shared;
 
@@ -51,6 +52,29 @@ namespace VLCDotNet.Tests.Maui
             }
 #endif
             VlcRuntime.Configure();
+        }
+
+        public static void DumpNativeLayout(string outputDirectory)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"AppContext.BaseDirectory={AppContext.BaseDirectory}");
+            sb.AppendLine($"VLC_PLUGIN_PATH={Environment.GetEnvironmentVariable("VLC_PLUGIN_PATH")}");
+            sb.AppendLine($"VlcRuntime.PluginPath={VlcRuntime.PluginPath}");
+            sb.AppendLine($"VlcRuntime.NativePath={VlcRuntime.NativePath}");
+
+#if ANDROID
+            var info = Android.App.Application.Context.ApplicationInfo;
+            sb.AppendLine($"NativeLibraryDir={info?.NativeLibraryDir}");
+            if (!string.IsNullOrEmpty(info?.NativeLibraryDir) && Directory.Exists(info.NativeLibraryDir))
+            {
+                foreach (string file in Directory.EnumerateFiles(info.NativeLibraryDir).OrderBy(Path.GetFileName))
+                {
+                    sb.AppendLine(Path.GetFileName(file));
+                }
+            }
+#endif
+
+            File.WriteAllText(Path.Combine(outputDirectory, "native-layout.txt"), sb.ToString());
         }
 
         private static IEnumerable<string> AllMediaNames()
