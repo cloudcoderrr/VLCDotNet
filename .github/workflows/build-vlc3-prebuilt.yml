@@ -6,6 +6,13 @@ name: build-vlc3-prebuilt
 # manually; use "only" to build a single platform family while iterating.
 
 on:
+  # Auto-run while iterating on the feature branch (keeps main untouched, since
+  # workflow_dispatch requires the workflow to exist on the default branch).
+  push:
+    branches: [prebuilt-contribs]
+    paths:
+      - "prebuilt/**"
+      - ".github/workflows/build-vlc3-prebuilt.yml"
   workflow_dispatch:
     inputs:
       only:
@@ -15,7 +22,7 @@ on:
         options: [all, windows, linux, apple, android]
 
 concurrency:
-  group: build-vlc3-prebuilt-${{ github.ref }}-${{ inputs.only }}
+  group: build-vlc3-prebuilt-${{ github.ref }}-${{ inputs.only || 'push' }}
   cancel-in-progress: false
 
 permissions:
@@ -26,7 +33,7 @@ env:
 
 jobs:
   linux:
-    if: ${{ inputs.only == 'all' || inputs.only == 'linux' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.only == 'all' || inputs.only == 'linux' }}
     # 22.04 ships FFmpeg 4.4 (VLC 3.0.23 builds against it) and an older glibc,
     # so the bundled runtime stays portable to newer consumers.
     runs-on: ubuntu-22.04
