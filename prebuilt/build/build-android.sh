@@ -50,7 +50,17 @@ mkdir -p "${WORK_DIR}"
 clone_vlc "${VLC_SRC}"
 apply_patches "${VLC_SRC}"
 
-# ---- 1. contribs: prebuilt bundle (fallback: source, minimal proven set) -----
+# 32-bit ARM needs the armv7 ffmpeg FPU flags and the bionic sidplay2 fstream
+# compat fix for the source-built contribs (scoped so other arches are untouched).
+if [ "${ARCH}" = "arm" ]; then
+  shopt -s nullglob
+  for p in "${PATCH_DIR}"/android-arm/*.patch; do
+    log "Applying android-arm patch $(basename "$p")"
+    git -C "${VLC_SRC}" apply --recount --whitespace=nowarn "$p" 2>/dev/null \
+      || ( cd "${VLC_SRC}" && patch -p1 --forward --fuzz=3 --no-backup-if-mismatch < "$p" )
+  done
+  shopt -u nullglob
+fi
 # VideoLAN's artifacts.videolan.org bundles are rotated out for the pinned 3.0.x
 # contrib SHA, so this falls back to a from-source build. Constrain the fallback
 # to the test-required codec closure (the full default set pulls fragile

@@ -38,30 +38,34 @@ jobs:
       ${{ (github.event_name == 'workflow_dispatch' && (inputs.only == 'all' || inputs.only == 'linux'))
        || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[build:linux]') || contains(github.event.head_commit.message, '[build:all]'))) }}
     # 22.04 ships FFmpeg 4.4 (VLC 3.0.23 builds against it) and an older glibc,
-    # so the bundled runtime stays portable to newer consumers.
+    # so the bundled runtime stays portable to newer consumers. arm/arm64 build
+    # natively inside a QEMU-emulated ubuntu:22.04 container (same apt logic).
     runs-on: ubuntu-22.04
-    timeout-minutes: 180
+    timeout-minutes: 350
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { arch: x86_64, rid: linux-x64 }
+          - { arch: x86_64,  rid: linux-x64,   emulated: false, platform: "" }
+          - { arch: aarch64, rid: linux-arm64, emulated: true,  platform: "linux/arm64" }
+          - { arch: armv7,   rid: linux-arm,   emulated: true,  platform: "linux/arm/v7" }
     steps:
       - uses: actions/checkout@v5
-      - name: Install build + prebuilt distro dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential automake autoconf autopoint libtool-bin pkg-config gettext \
-            git bison flex nasm yasm cmake ninja-build meson curl xz-utils zstd \
-            gperf help2man patchelf \
-            libavcodec-dev libavformat-dev libavutil-dev libswscale-dev \
-            libfaad-dev libflac-dev libmad0-dev libmpcdec-dev libtheora-dev libvpx-dev \
-            libogg-dev libopus-dev libmatroska-dev libebml-dev libdvbpsi-dev \
-            libass-dev libfreetype6-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev \
-            liborc-0.4-dev libxml2-dev
-      - name: Build (${{ matrix.arch }})
+      - name: Install build + prebuilt distro dependencies (native)
+        if: ${{ !matrix.emulated }}
+        run: sudo bash prebuilt/build/deps-linux.sh
+      - name: Build (native ${{ matrix.arch }})
+        if: ${{ !matrix.emulated }}
         run: bash prebuilt/build/build-linux.sh ${{ matrix.arch }}
+      - name: Set up QEMU
+        if: ${{ matrix.emulated }}
+        uses: docker/setup-qemu-action@v3
+      - name: Build (emulated ${{ matrix.arch }})
+        if: ${{ matrix.emulated }}
+        run: |
+          docker run --rm --platform ${{ matrix.platform }} \
+            -v "$PWD:/work" -w /work ubuntu:22.04 \
+            bash -c 'set -e; bash prebuilt/build/deps-linux.sh && bash prebuilt/build/build-linux.sh ${{ matrix.arch }}'
       - uses: actions/upload-artifact@v6
         with:
           name: vlc3-prebuilt-${{ matrix.rid }}
@@ -78,7 +82,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { arch: x86_64, rid: win-x64 }
+          - { arch: x86_64,  rid: win-x64 }
+          - { arch: aarch64, rid: win-arm64 }
     steps:
       - uses: actions/checkout@v5
       - name: Install cross build dependencies
@@ -107,6 +112,8 @@ jobs:
       matrix:
         include:
           - { arch: x86_64, rid: android-x64 }
+          - { arch: arm64,  rid: android-arm64 }
+          - { arch: arm,    rid: android-arm }
     steps:
       - uses: actions/checkout@v5
       - name: Install build dependencies
@@ -136,8 +143,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - { platform: macos,        arch: x86_64, rid: osx-x64 }
           - { platform: macos,        arch: arm64,  rid: osx-arm64 }
-          - { platform: iossimulator,  arch: arm64,  rid: iossimulator-arm64 }
+          - { platform: maccatalyst,  arch: x86_64, rid: maccatalyst-x64 }
+          - { platform: maccatalyst,  arch: arm64,  rid: maccatalyst-arm64 }
+          - { platform: ios,          arch: arm64,  rid: ios-arm64 }
+          - { platform: iossimulator, arch: x86_64, rid: iossimulator-x64 }
+          - { platform: iossimulator, arch: arm64,  rid: iossimulator-arm64 }
     steps:
       - uses: actions/checkout@v5
       - name: Install build tools
