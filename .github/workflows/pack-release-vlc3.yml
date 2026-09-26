@@ -52,39 +52,46 @@ jobs:
           echo "vlc=$v" >> "$GITHUB_OUTPUT"
           echo "VLC version: $v"
 
-      - name: Resolve GitHub release version
-        if: ${{ inputs.publish_release }}
+      - name: Resolve package and release version
         id: rel
         run: |
           set -euo pipefail
 
+          publish_release="${{ inputs.publish_release }}"
           base="${{ steps.ver.outputs.vlc }}"
-          prefix="v${base}."
-
-          git fetch --force --tags origin
-
-          max_suffix=0
-          for tag in $(git tag -l "${prefix}*"); do
-            suffix="${tag#${prefix}}"
-            case "$suffix" in
-              ''|*[!0-9]*) continue ;;
-            esac
-
-            if [ "$suffix" -gt "$max_suffix" ]; then
-              max_suffix="$suffix"
-            fi
-          done
-
-          next_suffix=$((max_suffix + 1))
-          release_version="${base}.${next_suffix}"
-          release_tag="v${release_version}"
-          release_title="VLCDotNet3 ${release_version}"
-
           anchor_tag=""
-          if [ "$max_suffix" -gt 0 ]; then
-            anchor_tag="${prefix}${max_suffix}"
-          elif git rev-parse "refs/tags/v${base}" >/dev/null 2>&1; then
-            anchor_tag="v${base}"
+
+          if [ "$publish_release" = "true" ]; then
+            prefix="v${base}."
+
+            git fetch --force --tags origin
+
+            max_suffix=0
+            for tag in $(git tag -l "${prefix}*"); do
+              suffix="${tag#${prefix}}"
+              case "$suffix" in
+                ''|*[!0-9]*) continue ;;
+              esac
+
+              if [ "$suffix" -gt "$max_suffix" ]; then
+                max_suffix="$suffix"
+              fi
+            done
+
+            next_suffix=$((max_suffix + 1))
+            release_version="${base}.${next_suffix}"
+            release_tag="v${release_version}"
+            release_title="VLCDotNet3 ${release_version}"
+
+            if [ "$max_suffix" -gt 0 ]; then
+              anchor_tag="${prefix}${max_suffix}"
+            elif git rev-parse "refs/tags/v${base}" >/dev/null 2>&1; then
+              anchor_tag="v${base}"
+            fi
+          else
+            release_version="$base"
+            release_tag="v${base}"
+            release_title="VLCDotNet3 ${base}"
           fi
 
           echo "version=$release_version" >> "$GITHUB_OUTPUT"
@@ -144,7 +151,7 @@ jobs:
           ls -R artifacts | head -n 60
 
       - name: Pack VLCDotNet3
-        run: dotnet pack src/VLCDotNet/VLCDotNet.csproj -c Release -p:VlcMobileTargets=true -o out
+        run: dotnet pack src/VLCDotNet/VLCDotNet.csproj -c Release -p:VlcMobileTargets=true -p:PackageVersion=${{ steps.rel.outputs.version }} -o out
 
       - uses: actions/upload-artifact@v6
         with:
@@ -158,12 +165,12 @@ jobs:
           set -euo pipefail
 
           notes_file="$RUNNER_TEMP/vlc3-release-notes.md"
-          release_version="${{ steps.rel.outputs.version }}"
+          package_version="${{ steps.rel.outputs.version }}"
           vlc_version="${{ steps.ver.outputs.vlc }}"
           anchor_tag="${{ steps.rel.outputs.anchor }}"
 
           {
-            echo "# VLCDotNet3 ${release_version}"
+            echo "# VLCDotNet3 ${package_version}"
             echo
             echo "Prerelease refresh of the VLCDotNet3 package for libvlc ${vlc_version}."
             echo
@@ -178,7 +185,7 @@ jobs:
             echo
             echo "## Package"
             echo
-            echo "- NuGet package: VLCDotNet3 ${vlc_version}"
+            echo "- NuGet package: VLCDotNet3 ${package_version}"
             echo "- Native binaries: pulled from a successful build-vlc3 workflow artifact set"
             echo
             echo "## Changes"
