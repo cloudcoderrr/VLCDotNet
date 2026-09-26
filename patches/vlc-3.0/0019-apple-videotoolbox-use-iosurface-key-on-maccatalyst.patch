@@ -1,25 +1,10 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: GitHub Copilot <copilot@github.com>
-Date: Sat, 26 Sep 2026 14:00:00 +0000
-Subject: [PATCH] apple videotoolbox use iosurface key on maccatalyst
-
-Mac Catalyst does not expose the iOS-only
-`kCVPixelBufferOpenGLESCompatibilityKey`, but the VideoToolbox decoder can use
-the macOS IOSurface compatibility key instead. That is sufficient for the
-static Mac Catalyst builds used by VLCDotNet and lets the plugin compile while
-keeping iOS behavior unchanged.
----
- modules/codec/videotoolbox.m | 6 +++++-
- 1 file changed, 5 insertions(+), 1 deletion(-)
-
 diff --git a/modules/codec/videotoolbox.m b/modules/codec/videotoolbox.m
-index 6243f6d..a35d8ff 100644
 --- a/modules/codec/videotoolbox.m
 +++ b/modules/codec/videotoolbox.m
-@@
+@@ -38,6 +38,10 @@
  #import <Foundation/Foundation.h>
  #import <TargetConditionals.h>
-
+ 
 +#ifndef TARGET_OS_MACCATALYST
 +#define TARGET_OS_MACCATALYST 0
 +#endif
@@ -27,11 +12,12 @@ index 6243f6d..a35d8ff 100644
  #import <sys/types.h>
  #import <sys/sysctl.h>
  #import <mach/machine.h>
-@@
+@@ -1251,7 +1255,7 @@ static int StartVideoToolbox(decoder_t *p_dec)
+         return VLC_EGENERIC;
+     }
+ 
 -#if !TARGET_OS_IPHONE
 +#if !TARGET_OS_IPHONE || TARGET_OS_MACCATALYST
      CFDictionarySetValue(destinationPixelBufferAttributes,
                           kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey,
                           kCFBooleanTrue);
--- 
-2.47.0

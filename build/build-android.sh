@@ -43,47 +43,9 @@ export CFLAGS="${CFLAGS:-} -Wno-error=implicit-function-declaration -Wno-error=i
 export CXXFLAGS="${CXXFLAGS:-} -Wno-error=incompatible-pointer-types -Wno-c++11-narrowing"
 
 if [ "${ARCH}" = "arm" ]; then
-  # libvpx's armv7 build still invokes the removed arm-linux-androideabi-as
-  # binary with a small set of GNU as flags. Translate those invocations into
-  # an equivalent clang assembler-with-cpp command line for the NDK target.
-  ARM_AS_WRAP_DIR="${WORK_DIR}/android-arm-as-wrap"
-  mkdir -p "${ARM_AS_WRAP_DIR}"
-  cat > "${ARM_AS_WRAP_DIR}/arm-linux-androideabi-as" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-args=()
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    -arch)
-      shift 2
-      ;;
-    -march|-mfpu|-mfloat-abi)
-      opt="$1"
-      val="$2"
-      args+=("${opt}=${val}")
-      shift 2
-      ;;
-    arm|thumb)
-      shift
-      ;;
-    -I|-include|-o)
-      args+=("$1" "$2")
-      shift 2
-      ;;
-    -c|-D*|-I*|-Wa,*|-f*|-m*|-O*|-W*|--target=*|--sysroot=*)
-      args+=("$1")
-      shift
-      ;;
-    *)
-      args+=("$1")
-      shift
-      ;;
-  esac
-done
-exec "${CC}" -x assembler-with-cpp "${args[@]}"
-EOF
-  chmod +x "${ARM_AS_WRAP_DIR}/arm-linux-androideabi-as"
-  export PATH="${ARM_AS_WRAP_DIR}:${PATH}"
+  # NDK r29 removed arm-linux-androideabi-as; point libvpx at clang directly so
+  # its Android configure path adds the correct assembler-with-cpp flags.
+  export AS="${CC}"
 fi
 
 VLC_SRC="${WORK_DIR}/vlc-android-${ARCH}"
