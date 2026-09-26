@@ -1,0 +1,33 @@
+diff --git a/contrib/src/sidplay2/rules.mak b/contrib/src/sidplay2/rules.mak
+--- a/contrib/src/sidplay2/rules.mak
++++ b/contrib/src/sidplay2/rules.mak
+@@ -18,6 +18,7 @@ sidplay-libs: sidplay-libs-$(SID_VERSION).tar.gz .sum-sidplay2
+ 	$(UNPACK)
+ 	$(UPDATE_AUTOCONFIG)
+ 	$(APPLY) $(SRC)/sidplay2/sidplay2-openmode.patch
++	$(APPLY) $(SRC)/sidplay2/sidplay2-android-arm-fstream.patch
+ 	$(APPLY) $(SRC)/sidplay2/sidplay2-endian.patch
+ 	$(APPLY) $(SRC)/sidplay2/sidplay2-smartprt.patch
+ 	$(APPLY) $(SRC)/sidplay2/sidplay2-noutils.patch
+diff --git a/contrib/src/sidplay2/sidplay2-android-arm-fstream.patch b/contrib/src/sidplay2/sidplay2-android-arm-fstream.patch
+new file mode 100644
+--- /dev/null
++++ b/contrib/src/sidplay2/sidplay2-android-arm-fstream.patch
+@@ -0,0 +1,15 @@
++diff -ruN sidplay-libs-2.1.1/libsidplay/include/sidplay/SidTune.h sidplay-libs-2.1.1.new/libsidplay/include/sidplay/SidTune.h
++--- sidplay-libs-2.1.1/libsidplay/include/sidplay/SidTune.h	2004-06-14 22:07:58.000000000 +0200
+++++ sidplay-libs-2.1.1.new/libsidplay/include/sidplay/SidTune.h	2026-09-26 16:00:00.000000000 +0000
++@@ -22,7 +22,15 @@
++ #include "sidtypes.h"
++ #include "Buffer.h"
++ #include "SmartPtr.h"
++ 
+++#if defined(__ANDROID__) && defined(__arm__)
+++#define fseeko fseek
+++#define ftello ftell
+++#endif
++ #include <fstream>
+++#if defined(__ANDROID__) && defined(__arm__)
+++#undef fseeko
+++#undef ftello
+++#endif
