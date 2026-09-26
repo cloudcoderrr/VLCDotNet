@@ -62,7 +62,7 @@ jobs:
           anchor_tag=""
 
           if [ "$publish_release" = "true" ]; then
-            prefix="v${base}."
+            prefix="source-v${base}."
 
             git fetch --force --tags origin
 
@@ -80,18 +80,18 @@ jobs:
 
             next_suffix=$((max_suffix + 1))
             release_version="${base}.${next_suffix}"
-            release_tag="v${release_version}"
-            release_title="VLCDotNet3 ${release_version}"
+            release_tag="source-v${release_version}"
+            release_title="VLCDotNet3.Source ${release_version}"
 
             if [ "$max_suffix" -gt 0 ]; then
               anchor_tag="${prefix}${max_suffix}"
-            elif git rev-parse "refs/tags/v${base}" >/dev/null 2>&1; then
-              anchor_tag="v${base}"
+            elif git rev-parse "refs/tags/source-v${base}" >/dev/null 2>&1; then
+              anchor_tag="source-v${base}"
             fi
           else
             release_version="$base"
-            release_tag="v${base}"
-            release_title="VLCDotNet3 ${base}"
+            release_tag="source-v${base}"
+            release_title="VLCDotNet3.Source ${base}"
           fi
 
           echo "version=$release_version" >> "$GITHUB_OUTPUT"
@@ -150,12 +150,12 @@ jobs:
           fi
           ls -R artifacts | head -n 60
 
-      - name: Pack VLCDotNet3
-        run: dotnet pack src/VLCDotNet/VLCDotNet.csproj -c Release -p:VlcMobileTargets=true -p:PackageVersion=${{ steps.rel.outputs.version }} -o out
+      - name: Pack VLCDotNet3.Source
+        run: dotnet pack src/VLCDotNet/VLCDotNet.csproj -c Release -p:VlcMobileTargets=true -p:VlcPackageId=VLCDotNet3.Source -p:PackageVersion=${{ steps.rel.outputs.version }} -o out
 
       - uses: actions/upload-artifact@v6
         with:
-          name: VLCDotNet3-nupkg
+          name: VLCDotNet3.Source-nupkg
           path: out/*.nupkg
 
       - name: Generate GitHub release notes
@@ -170,9 +170,9 @@ jobs:
           anchor_tag="${{ steps.rel.outputs.anchor }}"
 
           {
-            echo "# VLCDotNet3 ${package_version}"
+            echo "# VLCDotNet3.Source ${package_version}"
             echo
-            echo "Prerelease refresh of the VLCDotNet3 package for libvlc ${vlc_version}."
+            echo "Prerelease refresh of the VLCDotNet3.Source package (from-source contribs) for libvlc ${vlc_version}."
             echo
             echo "## Included runtimes"
             echo
@@ -185,7 +185,7 @@ jobs:
             echo
             echo "## Package"
             echo
-            echo "- NuGet package: VLCDotNet3 ${package_version}"
+            echo "- NuGet package: VLCDotNet3.Source ${package_version}"
             echo "- Native binaries: pulled from a successful build-vlc3 workflow artifact set"
             echo
             echo "## Changes"

@@ -28,11 +28,14 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
 
-    <!-- NuGet packaging (VLCDotNet3) -->
+    <!-- NuGet packaging. The package id is parameterizable so the two pipelines
+         can ship side by side: the prebuilt-contrib pipeline packs the primary
+         "VLCDotNet3"; the from-source pipeline packs "VLCDotNet3.Source". -->
     <IsPackable>true</IsPackable>
-    <PackageId>VLCDotNet3</PackageId>
+    <VlcPackageId Condition="'$(VlcPackageId)' == ''">VLCDotNet3</VlcPackageId>
+    <PackageId>$(VlcPackageId)</PackageId>
     <Version>$(VlcVersion)</Version>
-    <Title>VLCDotNet3 - libvlc 3.x for .NET</Title>
+    <Title>$(VlcPackageId) - libvlc 3.x for .NET</Title>
     <Description>Cross-platform libvlc 3.0.x P/Invoke bindings packaged with native VLC binaries for Windows, Linux, macOS, Mac Catalyst, iOS and Android. Usable from .NET MAUI, WinUI 3, Win32, Avalonia and console apps.</Description>
     <PackageTags>vlc;libvlc;video;audio;media;player;maui;avalonia;winui;win32;pinvoke;interop</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -56,8 +59,8 @@
     <None Include="$(MSBuildThisFileDirectory)../../PACKAGE-LICENSE.txt" Pack="true" PackagePath="PACKAGE-LICENSE.txt" />
     <None Include="$(MSBuildThisFileDirectory)../../README.md" Pack="true" PackagePath="README.md" />
     <None Include="$(MSBuildThisFileDirectory)../../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="THIRD-PARTY-NOTICES.md" />
-    <None Include="$(MSBuildThisFileDirectory)build/VLCDotNet3.targets" Pack="true" PackagePath="build/VLCDotNet3.targets" />
-    <None Include="$(MSBuildThisFileDirectory)build/VLCDotNet3.targets" Pack="true" PackagePath="buildTransitive/VLCDotNet3.targets" />
+    <None Include="$(MSBuildThisFileDirectory)build/VLCDotNet3.targets" Pack="true" PackagePath="build/$(VlcPackageId).targets" />
+    <None Include="$(MSBuildThisFileDirectory)build/VLCDotNet3.targets" Pack="true" PackagePath="buildTransitive/$(VlcPackageId).targets" />
   </ItemGroup>
 
   <!--
