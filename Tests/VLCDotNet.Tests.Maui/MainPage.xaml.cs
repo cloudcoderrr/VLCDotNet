@@ -37,19 +37,26 @@ namespace VLCDotNet.Tests.Maui
             SummaryLabel.Text = "Preparing media…";
 
             string output = MauiTestHost.OutputDirectory();
+            Console.WriteLine($"[vlcdotnet-tests] output={output}");
             try
             {
                 string media = await MauiTestHost.StageMediaAsync();
+                Console.WriteLine($"[vlcdotnet-tests] media={media}");
                 MauiTestHost.ConfigurePluginPath();
                 await MauiTestHost.StageStaticModuleManifestAsync(output);
                 MauiTestHost.DumpNativeLayout(output);
+                Console.WriteLine("[vlcdotnet-tests] native layout dumped");
 
                 SummaryLabel.Text = "Running…";
                 var env = new TestEnvironment
                 {
                     MediaDirectory = media,
                     OutputDirectory = output,
-                    Progress = o => MainThread.BeginInvokeOnMainThread(() => _results.Add(o)),
+                    Progress = o =>
+                    {
+                        Console.WriteLine($"[vlcdotnet-tests] {o}");
+                        MainThread.BeginInvokeOnMainThread(() => _results.Add(o));
+                    },
                 };
 
                 var results = await Task.Run(() => new VlcTestSuite(env).Run());
@@ -58,11 +65,13 @@ namespace VLCDotNet.Tests.Maui
                 int fail = results.Count(r => !r.Passed && !r.Skipped);
                 int skip = results.Count(r => r.Skipped);
                 SummaryLabel.Text = $"{pass} passed, {fail} failed, {skip} skipped — {output}";
+                Console.WriteLine($"[vlcdotnet-tests] completed pass={pass} fail={fail} skip={skip}");
                 WriteMarker(output, $"{pass} passed, {fail} failed, {skip} skipped", fail);
             }
             catch (Exception ex)
             {
                 SummaryLabel.Text = "Error: " + ex.Message;
+                Console.WriteLine("[vlcdotnet-tests] error: " + ex);
                 WriteMarker(output, "error: " + ex, 99);
             }
             finally
@@ -77,6 +86,7 @@ namespace VLCDotNet.Tests.Maui
             try
             {
                 File.WriteAllText(Path.Combine(output, "DONE.txt"), failures + "\n" + summary + "\n");
+                Console.WriteLine($"[vlcdotnet-tests] wrote DONE.txt failures={failures}");
             }
             catch
             {

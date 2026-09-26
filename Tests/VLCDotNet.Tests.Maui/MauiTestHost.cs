@@ -36,7 +36,10 @@ namespace VLCDotNet.Tests.Maui
 
         public static string OutputDirectory()
         {
-            string dir = Path.Combine(FileSystem.AppDataDirectory, "test-output");
+            string? overrideDir = Environment.GetEnvironmentVariable("VLCDOTNET_TEST_OUTPUT");
+            string dir = string.IsNullOrWhiteSpace(overrideDir)
+                ? Path.Combine(FileSystem.AppDataDirectory, "test-output")
+                : overrideDir;
             Directory.CreateDirectory(dir);
             return dir;
         }

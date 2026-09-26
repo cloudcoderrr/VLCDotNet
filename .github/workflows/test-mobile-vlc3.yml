@@ -241,17 +241,22 @@ jobs:
         run: |
           set -euo pipefail
           set -x
+          container="$HOME/Library/Containers/com.vlcdotnet.tests/Data"
+          output_dir="$container/test-output"
           rm -rf "$HOME/Library/Containers/com.vlcdotnet.tests" || true
           mkdir -p mobile-output/catalyst
           app=$(find Tests/VLCDotNet.Tests.Maui/bin/Debug/net10.0-maccatalyst -name '*.app' -maxdepth 3 | head -1)
           test -n "$app"
           exe=$(find "$app/Contents/MacOS" -maxdepth 1 -type f | head -1)
           test -n "$exe"
-          "$exe" > mobile-output/catalyst/app-stdout.txt 2>&1 &
+          VLCDOTNET_TEST_OUTPUT="$output_dir" "$exe" > mobile-output/catalyst/app-stdout.txt 2>&1 &
           app_pid=$!
-          container="$HOME/Library/Containers/com.vlcdotnet.tests/Data"
           done_path=""
           for i in $(seq 1 90); do
+            if [ -f "$output_dir/DONE.txt" ]; then
+              done_path="$output_dir/DONE.txt"
+              break
+            fi
             done_path=$(find "$container" -path '*test-output/DONE.txt' -print -quit 2>/dev/null || true)
             if [ -n "$done_path" ]; then
               break
