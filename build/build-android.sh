@@ -42,6 +42,20 @@ export ANDROID_ABI="${ABI}"
 export CFLAGS="${CFLAGS:-} -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types -Wno-error=int-conversion"
 export CXXFLAGS="${CXXFLAGS:-} -Wno-error=incompatible-pointer-types -Wno-c++11-narrowing"
 
+if [ "${ARCH}" = "arm" ]; then
+  # libvpx's armv7 build still invokes the removed arm-linux-androideabi-as
+  # binary. Route that invocation through clang, which can assemble the same .S
+  # sources for the NDK target.
+  ARM_AS_WRAP_DIR="${WORK_DIR}/android-arm-as-wrap"
+  mkdir -p "${ARM_AS_WRAP_DIR}"
+  cat > "${ARM_AS_WRAP_DIR}/arm-linux-androideabi-as" <<EOF
+#!/bin/sh
+exec "${CC}" -c "$@"
+EOF
+  chmod +x "${ARM_AS_WRAP_DIR}/arm-linux-androideabi-as"
+  export PATH="${ARM_AS_WRAP_DIR}:${PATH}"
+fi
+
 VLC_SRC="${WORK_DIR}/vlc-android-${ARCH}"
 INSTALL_PREFIX="${WORK_DIR}/install-android-${ARCH}"
 mkdir -p "${WORK_DIR}"

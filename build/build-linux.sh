@@ -21,6 +21,10 @@ VLC_SRC="${WORK_DIR}/vlc-linux-${ARCH}"
 INSTALL_PREFIX="${WORK_DIR}/install-linux-${ARCH}"
 mkdir -p "${WORK_DIR}"
 
+# sidplay2's xsid tables trigger narrowing diagnostics on the Linux cross
+# toolchains; keep the contrib build lenient enough to compile that legacy C++.
+export CXXFLAGS="${CXXFLAGS:-} -Wno-narrowing"
+
 clone_vlc "${VLC_SRC}"
 apply_patches "${VLC_SRC}"
 

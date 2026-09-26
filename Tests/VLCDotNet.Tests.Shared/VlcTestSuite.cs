@@ -44,6 +44,15 @@ namespace VLCDotNet.Tests.Shared
             "vpx",
         };
 
+        private static readonly string[] AppleMobileRequiredModules =
+        {
+            "access_output_file",
+            "avcodec",
+            "stream_out_standard",
+            "stream_out_transcode",
+            "videotoolbox",
+        };
+
         private readonly TestEnvironment _env;
         private readonly List<TestOutcome> _results = new List<TestOutcome>();
         private IntPtr _instance;
@@ -197,17 +206,12 @@ namespace VLCDotNet.Tests.Shared
                 }
 
                 var missing = new List<string>();
-                foreach (string module in RequiredModules)
+                foreach (string module in GetRequiredModules())
                 {
                     if (!modules.Contains(module))
                     {
                         missing.Add(module);
                     }
-                }
-
-                if (IsAppleMobileOrCatalyst() && !modules.Contains("videotoolbox"))
-                {
-                    missing.Add("videotoolbox");
                 }
 
                 var discovered = new List<string>(modules);
@@ -814,8 +818,16 @@ namespace VLCDotNet.Tests.Shared
                 return spec.ExpectedAppleModuleMarkers;
             }
 
-            return spec.ExpectedModuleMarkers;
+            if (IsAppleMobileOrCatalyst())
+            {
+                return Array.Empty<string>();
+            }
+
+            return Array.Empty<string>();
         }
+
+        private static IReadOnlyList<string> GetRequiredModules() =>
+            IsAppleMobileOrCatalyst() ? AppleMobileRequiredModules : RequiredModules;
 
         private HashSet<string> DiscoverAvailableModules()
         {

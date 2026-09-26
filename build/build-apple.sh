@@ -128,6 +128,15 @@ case "${PLATFORM}" in
 esac
 BOOTSTRAP_FLAGS=($(minimal_local_playback_contrib_flags "${BOOTSTRAP_INCLUDE_ASS}"))
 CODEC_FLAGS=($(requested_codec_config_flags))
+case "${PLATFORM}" in
+  ios|iossimulator|maccatalyst)
+    # Apple mobile/Catalyst validate VT hardware decode plus general playback.
+    # libvpx's RTC encoder path and schroedinger's orc dependency are unstable
+    # in this contrib cross-build flow and not required for that surface.
+    BOOTSTRAP_FLAGS+=(--disable-vpx --disable-schroedinger)
+    CODEC_FLAGS+=(--disable-vpx --disable-schroedinger)
+    ;;
+esac
 (
   cd "${CONTRIB_BUILD}"
   env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" "${BOOTSTRAP_FLAGS[@]}"
