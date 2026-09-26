@@ -12,12 +12,19 @@ diff --git a/modules/codec/videotoolbox.m b/modules/codec/videotoolbox.m
  #import <sys/types.h>
  #import <sys/sysctl.h>
  #import <mach/machine.h>
-@@ -1251,7 +1255,7 @@ static int StartVideoToolbox(decoder_t *p_dec)
+@@ -1251,11 +1255,13 @@ static int StartVideoToolbox(decoder_t *p_dec)
          return VLC_EGENERIC;
      }
  
 -#if !TARGET_OS_IPHONE
-+#if !TARGET_OS_IPHONE || TARGET_OS_MACCATALYST
++#if TARGET_OS_MACCATALYST
++    /* macCatalyst exposes neither the macOS OpenGL nor the iOS OpenGLES
++     * pixel-buffer compatibility keys. The decoder still works without them. */
++#elif !TARGET_OS_IPHONE
      CFDictionarySetValue(destinationPixelBufferAttributes,
                           kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey,
+                          kCFBooleanTrue);
+ #else
+     CFDictionarySetValue(destinationPixelBufferAttributes,
+                          kCVPixelBufferOpenGLESCompatibilityKey,
                           kCFBooleanTrue);
