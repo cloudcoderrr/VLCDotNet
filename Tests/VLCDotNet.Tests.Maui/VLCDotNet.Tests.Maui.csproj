@@ -24,7 +24,7 @@
     <VlcMobileTargets>true</VlcMobileTargets>
 
     <SupportedOSPlatformVersion Condition="'$(TargetFramework)' == 'net10.0-ios'">12.2</SupportedOSPlatformVersion>
-    <SupportedOSPlatformVersion Condition="'$(TargetFramework)' == 'net10.0-maccatalyst'">13.1</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="'$(TargetFramework)' == 'net10.0-maccatalyst'">15.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="'$(TargetFramework)' == 'net10.0-android'">21.0</SupportedOSPlatformVersion>
     <!-- Android requires the native .so to be extractable for VLC plugin scanning. -->
     <AndroidExtractNativeLibs Condition="'$(TargetFramework)' == 'net10.0-android'">true</AndroidExtractNativeLibs>
