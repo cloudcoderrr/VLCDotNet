@@ -127,6 +127,7 @@ case "${PLATFORM}" in
     ;;
 esac
 BOOTSTRAP_FLAGS=($(minimal_local_playback_contrib_flags "${BOOTSTRAP_INCLUDE_ASS}"))
+CODEC_FLAGS=($(requested_codec_config_flags))
 (
   cd "${CONTRIB_BUILD}"
   env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" "${BOOTSTRAP_FLAGS[@]}"
@@ -146,13 +147,14 @@ CONFIG_FLAGS=(
   "--host=${TRIPLET}"
   "--with-contrib=${VLC_SRC}/contrib/${TRIPLET}"
   --disable-vlc --disable-qt --disable-skins2 --disable-macosx
-  --disable-nls --disable-lua --disable-a52 --disable-sparkle --disable-vpx
+  --disable-nls --disable-lua --disable-a52 --disable-sparkle
   --disable-bluray
   --disable-gnutls --disable-srt
   --disable-libxml2
   --disable-screen --disable-vcd --disable-live555 --disable-realrtsp
   --enable-avcodec --enable-swscale
 )
+CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
 case "${PLATFORM}" in
   ios|iossimulator)
     CONFIG_FLAGS+=(--disable-fribidi --disable-harfbuzz --disable-libass --disable-macosx-avfoundation)
@@ -171,19 +173,13 @@ case "${PLATFORM}" in
     CONFIG_FLAGS+=(--enable-shared --disable-static) ;;
 esac
 
-# videotoolbox is enabled purely by a header probe (no configure switch) and its
-# plugin needs UIKit, which is unavailable/broken under Mac Catalyst's macabi
-# target. We decode in software via avcodec, so force the probe to fail on the
-# non-macOS Apple targets.
 # Isolate pkg-config to the contrib prefix so Homebrew's host-arch libraries
 # (openssl, libssh2, ...) do not leak into the cross build and enable modules
 # like sftp that then fail to link for the target architecture.
 CONFIGURE_ENV=("${CONTRIB_ENV[@]}" "PKG_CONFIG_LIBDIR=${VLC_SRC}/contrib/${TRIPLET}/lib/pkgconfig")
-case "${PLATFORM}" in
-  ios|iossimulator|maccatalyst)
-    CONFIGURE_ENV+=(ac_cv_header_VideoToolbox_VideoToolbox_h=no)
-    ;;
-esac
+
+CONTRIB_PREFIX_DIR="${VLC_SRC}/contrib/${TRIPLET}"
+strip_local_only_network_contribs "${CONTRIB_PREFIX_DIR}"
 
 (
   cd "${BUILD_DIR}"

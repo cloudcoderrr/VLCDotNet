@@ -41,6 +41,20 @@ namespace VLCDotNet.Tests.Maui
             return dir;
         }
 
+        public static async Task StageStaticModuleManifestAsync(string outputDirectory)
+        {
+            try
+            {
+                using Stream src = await FileSystem.OpenAppPackageFileAsync("static-modules.txt");
+                using FileStream fs = File.Create(Path.Combine(outputDirectory, "static-modules.txt"));
+                await src.CopyToAsync(fs);
+            }
+            catch
+            {
+                // Dynamic plugin platforms do not bundle a static module manifest.
+            }
+        }
+
         public static void ConfigurePluginPath()
         {
 #if ANDROID

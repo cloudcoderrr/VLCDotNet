@@ -28,6 +28,22 @@ namespace VLCDotNet.Tests.Shared
     /// </summary>
     public sealed class VlcTestSuite
     {
+        private static readonly string[] RequiredModules =
+        {
+            "access_output_file",
+            "avcodec",
+            "faad",
+            "flac",
+            "mad",
+            "mpc",
+            "schroedinger",
+            "sid",
+            "stream_out_standard",
+            "stream_out_transcode",
+            "theora",
+            "vpx",
+        };
+
         private readonly TestEnvironment _env;
         private readonly List<TestOutcome> _results = new List<TestOutcome>();
         private IntPtr _instance;
@@ -54,6 +70,7 @@ namespace VLCDotNet.Tests.Shared
             try
             {
                 TestInstanceAndVersion();
+                TestRequestedModulesAvailable();
 
                 foreach (MediaSpec spec in MediaCatalog.Videos)
                 {
@@ -70,6 +87,7 @@ namespace VLCDotNet.Tests.Shared
                 TestMultitrackAudioAndSubtitles();
                 TestExternalSubtitles();
                 TestTransportControls();
+                TestStreamOutputTranscode();
             }
             finally
             {
@@ -164,6 +182,54 @@ namespace VLCDotNet.Tests.Shared
             Record(outcome, sw);
         }
 
+        private void TestRequestedModulesAvailable()
+        {
+            var outcome = new TestOutcome("Modules", "requested plugins");
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                HashSet<string> modules = DiscoverAvailableModules();
+                if (modules.Count == 0)
+                {
+                    outcome.Passed = false;
+                    outcome.Message = "no plugin or static module inventory was discovered";
+                    return;
+                }
+
+                var missing = new List<string>();
+                foreach (string module in RequiredModules)
+                {
+                    if (!modules.Contains(module))
+                    {
+                        missing.Add(module);
+                    }
+                }
+
+                if (IsAppleMobileOrCatalyst() && !modules.Contains("videotoolbox"))
+                {
+                    missing.Add("videotoolbox");
+                }
+
+                var discovered = new List<string>(modules);
+                discovered.Sort(StringComparer.OrdinalIgnoreCase);
+                outcome.Details.Add("modules: " + string.Join(", ", discovered));
+
+                outcome.Passed = missing.Count == 0;
+                outcome.Message = outcome.Passed
+                    ? "requested codec and sout modules are present"
+                    : "missing modules: " + string.Join(", ", missing);
+            }
+            catch (Exception ex)
+            {
+                outcome.Passed = false;
+                outcome.Message = ex.Message;
+            }
+            finally
+            {
+                Record(outcome, sw);
+            }
+        }
+
         // ----- Video -------------------------------------------------------
 
         private void TestVideoFile(MediaSpec spec)
@@ -184,6 +250,7 @@ namespace VLCDotNet.Tests.Shared
                 media = LibVlc.libvlc_media_new_path(_instance, path);
                 mp = LibVlc.libvlc_media_player_new_from_media(media);
                 cap = new VideoFrameCapture(mp, 320, 180);
+                long logCursor = CaptureLogCursor();
 
                 if (!PlayAndWaitPlaying(mp))
                 {
@@ -205,11 +272,15 @@ namespace VLCDotNet.Tests.Shared
                     outcome.Artifacts.Add(bmp);
                 }
 
-                bool ok = stats.Frames > 0 && stats.NonDarkFraction > 0.02 && stats.LumaRange > 40 && stats.AvgChannelSpread < 80;
+                bool mediaOk = stats.Frames > 0 && stats.NonDarkFraction > 0.02 && stats.LumaRange > 40 && stats.AvgChannelSpread < 80;
+                bool moduleOk = ValidateExpectedModules(spec, ReadLogSince(logCursor), outcome);
+                bool ok = mediaOk && moduleOk;
                 outcome.Passed = ok;
                 outcome.Message = ok
                     ? $"decoded {stats.Frames} frames; {stats.NonDarkFraction:P0} non-dark"
-                    : "no decoded frames, frame is black, image lacks detail, or the frame has an unexpected color cast";
+                    : !mediaOk
+                        ? "no decoded frames, frame is black, image lacks detail, or the frame has an unexpected color cast"
+                        : "expected decoder module was not observed in the VLC log";
             }
             catch (Exception ex)
             {
@@ -249,6 +320,7 @@ namespace VLCDotNet.Tests.Shared
                 media = LibVlc.libvlc_media_new_path(_instance, path);
                 mp = LibVlc.libvlc_media_player_new_from_media(media);
                 probe = new AudioProbe(mp, 44100, (uint)Math.Max(1, spec.AudioChannels));
+                long logCursor = CaptureLogCursor();
 
                 if (!PlayAndWaitPlaying(mp))
                 {
@@ -268,9 +340,15 @@ namespace VLCDotNet.Tests.Shared
                     outcome.Artifacts.Add(wav);
                 }
 
-                bool ok = probe.SampleValues > 0 && rms > 30.0;
+                bool audioOk = probe.SampleValues > 0 && rms > 30.0;
+                bool moduleOk = ValidateExpectedModules(spec, ReadLogSince(logCursor), outcome);
+                bool ok = audioOk && moduleOk;
                 outcome.Passed = ok;
-                outcome.Message = ok ? $"audio present (RMS {rms:F0})" : "silent or no audio captured";
+                outcome.Message = ok
+                    ? $"audio present (RMS {rms:F0})"
+                    : !audioOk
+                        ? "silent or no audio captured"
+                        : "expected decoder module was not observed in the VLC log";
             }
             catch (Exception ex)
             {
@@ -510,6 +588,94 @@ namespace VLCDotNet.Tests.Shared
             }
         }
 
+        private void TestStreamOutputTranscode()
+        {
+            var outcome = new TestOutcome("StreamOutput", "ffmpeg transcode");
+            var sw = Stopwatch.StartNew();
+            IntPtr media = IntPtr.Zero, mp = IntPtr.Zero, outputMedia = IntPtr.Zero;
+            try
+            {
+                string input = Path.Combine(_env.MediaDirectory, MediaCatalog.Videos[0].FileName);
+                if (!File.Exists(input))
+                {
+                    Skip(outcome, sw, "input media not found");
+                    return;
+                }
+
+                string output = Path.Combine(_env.OutputDirectory, "sout-avformat-mp4.mp4");
+                if (File.Exists(output))
+                {
+                    File.Delete(output);
+                }
+
+                media = LibVlc.libvlc_media_new_path(_instance, input);
+                LibVlc.libvlc_media_add_option(media,
+                    ":sout=#transcode{vcodec=mp4v,vb=900,acodec=mp4a,ab=128}:std{access=file,mux=avformat{mux=mp4},dst='" + EscapeSoutPath(output) + "'}");
+                mp = LibVlc.libvlc_media_player_new_from_media(media);
+                long logCursor = CaptureLogCursor();
+
+                if (LibVlc.libvlc_media_player_play(mp) != 0)
+                {
+                    Fail(outcome, sw, "could not start stream output transcode");
+                    return;
+                }
+
+                bool completed = Wait(() =>
+                {
+                    VlcState state = LibVlc.libvlc_media_player_get_state(mp);
+                    return state == VlcState.Ended || state == VlcState.Error || state == VlcState.Stopped;
+                }, 30000, 100);
+
+                VlcState finalState = LibVlc.libvlc_media_player_get_state(mp);
+                Thread.Sleep(250);
+
+                long size = File.Exists(output) ? new FileInfo(output).Length : 0;
+                outcome.Details.Add($"state={finalState}, output-bytes={size}");
+                if (size > 0)
+                {
+                    outcome.Artifacts.Add(output);
+                }
+
+                string logDelta = ReadLogSince(logCursor);
+                bool sawTranscode = logDelta.IndexOf("transcode", StringComparison.OrdinalIgnoreCase) >= 0;
+                bool sawFfmpegMux = logDelta.IndexOf("avformat", StringComparison.OrdinalIgnoreCase) >= 0
+                    || logDelta.IndexOf("ffmpeg", StringComparison.OrdinalIgnoreCase) >= 0;
+                outcome.Details.Add($"log markers: transcode={sawTranscode}, ffmpeg/avformat={sawFfmpegMux}");
+
+                bool parsedOk = false;
+                if (size > 0)
+                {
+                    outputMedia = LibVlc.libvlc_media_new_path(_instance, output);
+                    LibVlc.libvlc_media_parse_with_options(outputMedia, VlcMediaParseFlag.ParseLocal, 5000);
+                    Wait(() => LibVlc.libvlc_media_get_parsed_status(outputMedia) == VlcMediaParsedStatus.Done, 6000);
+                    int trackCount = GetTracks(outputMedia).Count;
+                    long duration = LibVlc.libvlc_media_get_duration(outputMedia);
+                    outcome.Details.Add($"output tracks={trackCount}, duration={duration}ms");
+                    parsedOk = trackCount >= 2 && duration > 0;
+                }
+
+                bool ok = completed && finalState != VlcState.Error && size > 0 && parsedOk && sawTranscode && sawFfmpegMux;
+                outcome.Passed = ok;
+                outcome.Message = ok
+                    ? "stream output produced a parsed MP4 via transcode + avformat"
+                    : "stream output did not produce the expected ffmpeg-backed transcode";
+            }
+            catch (Exception ex)
+            {
+                outcome.Passed = false;
+                outcome.Message = ex.Message;
+            }
+            finally
+            {
+                if (outputMedia != IntPtr.Zero)
+                {
+                    LibVlc.libvlc_media_release(outputMedia);
+                }
+                Cleanup(mp, media);
+                Record(outcome, sw);
+            }
+        }
+
         // ----- Log verification --------------------------------------------
 
         private void TestLogFileWritten()
@@ -592,6 +758,126 @@ namespace VLCDotNet.Tests.Shared
 
         private static string GetArtifactStem(string fileName) =>
             Path.GetFileName(fileName).Replace('.', '_');
+
+        private long CaptureLogCursor()
+        {
+            _log?.Flush();
+            return !string.IsNullOrEmpty(_logPath) && File.Exists(_logPath)
+                ? new FileInfo(_logPath).Length
+                : 0;
+        }
+
+        private string ReadLogSince(long offset)
+        {
+            _log?.Flush();
+            if (string.IsNullOrEmpty(_logPath) || !File.Exists(_logPath))
+            {
+                return string.Empty;
+            }
+
+            using var fs = new FileStream(_logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            if (offset > fs.Length)
+            {
+                offset = 0;
+            }
+            fs.Seek(offset, SeekOrigin.Begin);
+            using var reader = new StreamReader(fs, Encoding.UTF8, true);
+            return reader.ReadToEnd();
+        }
+
+        private bool ValidateExpectedModules(MediaSpec spec, string logDelta, TestOutcome outcome)
+        {
+            IReadOnlyList<string> markers = GetExpectedModules(spec);
+            if (markers.Count == 0)
+            {
+                return true;
+            }
+
+            outcome.Details.Add("expected markers: " + string.Join(", ", markers));
+            foreach (string marker in markers)
+            {
+                if (logDelta.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    outcome.Details.Add("observed marker: " + marker);
+                    return true;
+                }
+            }
+
+            outcome.Details.Add("expected markers not found in VLC log delta");
+            return false;
+        }
+
+        private static IReadOnlyList<string> GetExpectedModules(MediaSpec spec)
+        {
+            if (IsAppleMobileOrCatalyst() && spec.ExpectedAppleModuleMarkers.Count > 0)
+            {
+                return spec.ExpectedAppleModuleMarkers;
+            }
+
+            return spec.ExpectedModuleMarkers;
+        }
+
+        private HashSet<string> DiscoverAvailableModules()
+        {
+            var modules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            string manifest = Path.Combine(_env.OutputDirectory, "static-modules.txt");
+            if (File.Exists(manifest))
+            {
+                foreach (string line in File.ReadLines(manifest))
+                {
+                    string module = line.Trim();
+                    if (module.Length > 0)
+                    {
+                        modules.Add(module);
+                    }
+                }
+            }
+
+            string? pluginRoot = VlcRuntime.PluginPath;
+            if (string.IsNullOrWhiteSpace(pluginRoot))
+            {
+                pluginRoot = Environment.GetEnvironmentVariable("VLC_PLUGIN_PATH");
+            }
+
+            if (!string.IsNullOrWhiteSpace(pluginRoot) && Directory.Exists(pluginRoot))
+            {
+                foreach (string file in Directory.EnumerateFiles(pluginRoot, "*", SearchOption.AllDirectories))
+                {
+                    string ext = Path.GetExtension(file);
+                    if (!ext.Equals(".dll", StringComparison.OrdinalIgnoreCase)
+                        && !ext.Equals(".so", StringComparison.OrdinalIgnoreCase)
+                        && !ext.Equals(".dylib", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    modules.Add(NormalizeModuleName(Path.GetFileNameWithoutExtension(file)));
+                }
+            }
+
+            return modules;
+        }
+
+        private static string NormalizeModuleName(string fileName)
+        {
+            string name = fileName;
+            if (name.StartsWith("lib", StringComparison.OrdinalIgnoreCase))
+            {
+                name = name.Substring(3);
+            }
+            if (name.EndsWith("_plugin", StringComparison.OrdinalIgnoreCase))
+            {
+                name = name.Substring(0, name.Length - "_plugin".Length);
+            }
+            return name;
+        }
+
+        private static string EscapeSoutPath(string path) =>
+            path.Replace('\\', '/').Replace("'", "\\'");
+
+        private static bool IsAppleMobileOrCatalyst() =>
+            OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst();
 
         private static bool PlayAndWaitPlaying(IntPtr mp, int timeoutMs = 10000)
         {

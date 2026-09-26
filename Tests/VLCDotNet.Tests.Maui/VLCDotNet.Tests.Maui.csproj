@@ -117,5 +117,9 @@
     </NativeReference>
   </ItemGroup>
 
+  <ItemGroup Condition="('$(TargetFramework)' == 'net10.0-ios' or '$(TargetFramework)' == 'net10.0-maccatalyst') and Exists('$(_VlcRidDir)/static/static-modules.txt')">
+    <MauiAsset Include="$(_VlcRidDir)/static/static-modules.txt" LogicalName="static-modules.txt" />
+  </ItemGroup>
+
 
 </Project>

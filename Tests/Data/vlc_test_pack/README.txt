@@ -19,6 +19,9 @@ video_mpeg4_mp3.avi
 video_hevc_aac.mkv
   H.265/HEVC video, AAC audio, Matroska container.
 
+video_dirac_flac.mkv
+  Dirac video, FLAC stereo audio, Matroska container.
+
 multitrack_h264_audio_subs.mkv
   H.264 video with TWO selectable audio tracks and TWO selectable subtitle tracks.
   Audio 1: AAC, language=eng
@@ -34,6 +37,8 @@ audio_mp3_stereo.mp3
   MP3 192 kb/s stereo.
 audio_flac_stereo.flac
   Lossless FLAC stereo.
+audio_aac_stereo.m4a
+  AAC-LC stereo in an M4A container.
 audio_opus_stereo.ogg
   Opus stereo in Ogg.
 

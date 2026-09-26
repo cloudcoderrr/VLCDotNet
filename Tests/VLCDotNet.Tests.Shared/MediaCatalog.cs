@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace VLCDotNet.Tests.Shared
@@ -34,6 +35,10 @@ namespace VLCDotNet.Tests.Shared
         public string? VideoCodecHint { get; init; }
 
         public string? AudioCodecHint { get; init; }
+
+        public IReadOnlyList<string> ExpectedModuleMarkers { get; init; } = Array.Empty<string>();
+
+        public IReadOnlyList<string> ExpectedAppleModuleMarkers { get; init; } = Array.Empty<string>();
     }
 
     /// <summary>The synthetic media pack under Tests/Data/vlc_test_pack and its expectations.</summary>
@@ -53,6 +58,7 @@ namespace VLCDotNet.Tests.Shared
                 HasVideo = true, HasAudio = true, VideoWidth = 640, VideoHeight = 360,
                 AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 8000,
                 VideoCodecHint = "h264", AudioCodecHint = "mp4a",
+                ExpectedAppleModuleMarkers = new[] { "videotoolbox" },
             },
             TransportStream,
             new MediaSpec("video_vp9_opus.webm")
@@ -60,6 +66,7 @@ namespace VLCDotNet.Tests.Shared
                 HasVideo = true, HasAudio = true, VideoWidth = 640, VideoHeight = 360,
                 AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 8008,
                 VideoCodecHint = "vp09", AudioCodecHint = "opus",
+                ExpectedModuleMarkers = new[] { "vpx" },
             },
             new MediaSpec("video_mpeg4_mp3.avi")
             {
@@ -72,6 +79,14 @@ namespace VLCDotNet.Tests.Shared
                 HasVideo = true, HasAudio = true, VideoWidth = 640, VideoHeight = 360,
                 AudioChannels = 1, AudioSampleRate = 48000, DurationMs = 6021,
                 VideoCodecHint = "hevc", AudioCodecHint = "mp4a",
+                ExpectedAppleModuleMarkers = new[] { "videotoolbox" },
+            },
+            new MediaSpec("video_dirac_flac.mkv")
+            {
+                HasVideo = true, HasAudio = true, VideoWidth = 640, VideoHeight = 360,
+                AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 6000,
+                VideoCodecHint = "drac", AudioCodecHint = "flac",
+                ExpectedModuleMarkers = new[] { "schroedinger" },
             },
         };
 
@@ -87,8 +102,9 @@ namespace VLCDotNet.Tests.Shared
         public static readonly IReadOnlyList<MediaSpec> Audios = new List<MediaSpec>
         {
             new MediaSpec("audio_pcm_stereo.wav")   { HasAudio = true, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 5000, AudioCodecHint = "araw" },
-            new MediaSpec("audio_mp3_stereo.mp3")   { HasAudio = true, AudioChannels = 2, AudioSampleRate = 44100, DurationMs = 5041, AudioCodecHint = "mpga" },
-            new MediaSpec("audio_flac_stereo.flac") { HasAudio = true, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 5000, AudioCodecHint = "flac" },
+            new MediaSpec("audio_mp3_stereo.mp3")   { HasAudio = true, AudioChannels = 2, AudioSampleRate = 44100, DurationMs = 5041, AudioCodecHint = "mpga", ExpectedModuleMarkers = new[] { "mad", "mpg123" } },
+            new MediaSpec("audio_flac_stereo.flac") { HasAudio = true, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 5000, AudioCodecHint = "flac", ExpectedModuleMarkers = new[] { "flac" } },
+            new MediaSpec("audio_aac_stereo.m4a")   { HasAudio = true, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 5000, AudioCodecHint = "mp4a", ExpectedModuleMarkers = new[] { "faad" } },
             new MediaSpec("audio_opus_stereo.ogg")  { HasAudio = true, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 5006, AudioCodecHint = "opus" },
         };
 

@@ -41,6 +41,7 @@ namespace VLCDotNet.Tests.Maui
             {
                 string media = await MauiTestHost.StageMediaAsync();
                 MauiTestHost.ConfigurePluginPath();
+                await MauiTestHost.StageStaticModuleManifestAsync(output);
                 MauiTestHost.DumpNativeLayout(output);
 
                 SummaryLabel.Text = "Running…";

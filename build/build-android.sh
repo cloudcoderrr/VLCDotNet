@@ -51,6 +51,7 @@ apply_patches "${VLC_SRC}"
 
 CONTRIB_ENV=(HAVE_ANDROID=1 ANDROID_API="${API}" ANDROID_ABI="${ABI}" ANDROID_NDK="${ANDROID_NDK_HOME}")
 BOOTSTRAP_FLAGS=($(minimal_local_playback_contrib_flags 1))
+CODEC_FLAGS=($(requested_codec_config_flags))
 
 # ---- 1. contribs --------------------------------------------------------------
 CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-android-${ARCH}"
@@ -76,8 +77,8 @@ CONFIG_FLAGS=(
   "--host=${TRIPLET}"
   "--with-contrib=${VLC_SRC}/contrib/${TRIPLET}"
   --disable-vlc --disable-qt --disable-skins2 --disable-nls
-  --disable-lua --disable-a52 --disable-sid
-  --disable-vpx --disable-sdl-image
+  --disable-lua --disable-a52
+  --disable-sdl-image
   --disable-bluray
   --disable-xcb --disable-alsa --disable-pulse --disable-vdpau
   --disable-v4l2 --disable-vnc --disable-gnutls --disable-srt --disable-ncurses
@@ -85,6 +86,7 @@ CONFIG_FLAGS=(
   --enable-avcodec --enable-swscale
   --enable-shared --disable-static
 )
+CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
 
 # Android API 21 ships a sys/shm.h header stub, but the SysV shared-memory
 # functions (shmdt/shmctl/...) are only available on newer API levels. Force
@@ -96,10 +98,7 @@ CONFIG_ENV=("${CONTRIB_ENV[@]}" ac_cv_header_sys_shm_h=no)
 # gnutls/srt from the contrib prefix keeps VLC from linking optional desktop/
 # network modules (notably VNC) against partial nettle backports on Android.
 CONTRIB_PREFIX_DIR="${VLC_SRC}/contrib/${TRIPLET}"
-rm -f "${CONTRIB_PREFIX_DIR}"/lib/libgnutls* \
-  "${CONTRIB_PREFIX_DIR}"/lib/pkgconfig/gnutls.pc \
-  "${CONTRIB_PREFIX_DIR}"/lib/libsrt* \
-  "${CONTRIB_PREFIX_DIR}"/lib/pkgconfig/srt.pc 2>/dev/null || true
+strip_local_only_network_contribs "${CONTRIB_PREFIX_DIR}"
 
 # NDK r29 clang no longer implicitly links libm into the module plugins, so math
 # symbols (e.g. log10f in the audiotrack output) are unresolved. NDK r29 also

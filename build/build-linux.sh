@@ -267,16 +267,15 @@ mkdir -p "${CONTRIB_BUILD}"
 # symbols in dependent plugins (vnc/srt). We only play local files, so remove
 # gnutls/srt from the contrib prefix to keep those modules out of the build.
 CONTRIB_PREFIX_DIR="${VLC_SRC}/contrib/${TRIPLET}"
-rm -f "${CONTRIB_PREFIX_DIR}"/lib/libgnutls* \
-      "${CONTRIB_PREFIX_DIR}"/lib/pkgconfig/gnutls.pc \
-      "${CONTRIB_PREFIX_DIR}"/lib/libsrt* \
-      "${CONTRIB_PREFIX_DIR}"/lib/pkgconfig/srt.pc 2>/dev/null || true
+strip_local_only_network_contribs "${CONTRIB_PREFIX_DIR}"
 
 ( cd "${VLC_SRC}" && ./bootstrap )
 
 BUILD_DIR="${VLC_SRC}/build-${ARCH}"
 rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
+
+CODEC_FLAGS=($(requested_codec_config_flags))
 
 CONFIG_FLAGS=(
   "--prefix=${INSTALL_PREFIX}"
@@ -287,11 +286,9 @@ CONFIG_FLAGS=(
   --disable-nls
   --disable-lua
   --disable-a52
-  --disable-sid
   --enable-avcodec       # FFmpeg-based decoders for the test media
   --enable-swscale
   --disable-vdpau
-  --disable-mad
   --disable-sdl-image   # not needed for tests; avoids broken cross link paths
   --disable-xcb          # headless: video verified via vmem callbacks, no X11
   --disable-alsa         # headless: audio verified via amem callbacks
@@ -305,6 +302,7 @@ CONFIG_FLAGS=(
   --disable-static
   --disable-fast-install # cross libtool otherwise defers the real libvlccore.so
 )
+CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
 [ "${CROSS}" = "1" ] && CONFIG_FLAGS+=("--host=${TRIPLET}" "--build=x86_64-linux-gnu")
 
 (

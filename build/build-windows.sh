@@ -48,11 +48,11 @@ BUILD_ARGS=(-r -z -u -S 0x0A000000 -a "${ARCH}")
 # libbluray, gnutls/srt and ARIB B25 are outside the current file-playback test
 # surface. Keep them out of the Windows source-contrib graph so the build does
 # not depend on flaky VideoLAN-hosted tarballs or the x86_64 bluray link path.
-# VLC's win32 configure.sh force-enables many optional modules (faad, flac,
-# goom, mpc, schroedinger, shout, theora, zvbi, live555, ...). We only build the
-# minimal contrib closure, so override each with a trailing --disable-* (autoconf
-# takes the last flag) and also drop the default-required optical-disc modules.
-export CONFIGFLAGS="${CONFIGFLAGS:-} --disable-lua --disable-live555 --disable-realrtsp --disable-faad --disable-flac --disable-goom --disable-libcddb --disable-mpc --disable-schroedinger --disable-shout --disable-theora --disable-zvbi --disable-dvdread --disable-dvdnav --disable-nls --disable-update-check --disable-bluray --disable-gnutls --disable-srt --disable-aribcam --disable-fontconfig"
+# VLC's win32 configure.sh force-enables many optional modules. Keep the
+# dedicated codec plugins we exercise, but still drop unrelated network/disc/UI
+# modules and their contrib dependencies.
+REQUESTED_CODEC_FLAGS="$(requested_codec_config_flags | tr '\n' ' ')"
+export CONFIGFLAGS="${CONFIGFLAGS:-} --disable-lua --disable-live555 --disable-realrtsp --disable-goom --disable-libcddb --disable-shout --disable-zvbi --disable-dvdread --disable-dvdnav --disable-nls --disable-update-check --disable-bluray --disable-gnutls --disable-srt --disable-aribcam --disable-fontconfig ${REQUESTED_CODEC_FLAGS}"
 MINIMAL_CONTRIB_FLAGS="$(minimal_local_playback_contrib_flags 1 | tr '\n' ' ')"
 export CONTRIBFLAGS="${CONTRIBFLAGS:-} ${MINIMAL_CONTRIB_FLAGS}"
 EXTRA_LINK_FLAGS=""

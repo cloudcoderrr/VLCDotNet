@@ -54,6 +54,17 @@ apply_patches() {
   log "Applied ${applied} patch(es)"
 }
 
+# strip_local_only_network_contribs <contrib-prefix>
+# Drops contrib-provided TLS/streaming libraries that would otherwise pull in
+# desktop/network modules we do not ship in the current test surface.
+strip_local_only_network_contribs() {
+  local prefix="$1"
+  rm -f "${prefix}"/lib/libgnutls* \
+        "${prefix}"/lib/pkgconfig/gnutls.pc \
+        "${prefix}"/lib/libsrt* \
+        "${prefix}"/lib/pkgconfig/srt.pc 2>/dev/null || true
+}
+
 # normalize_output <rid> <install-prefix>
 # Copies the built libvlc runtime (libs + plugins + licenses) from an installed
 # prefix into artifacts/<rid>/ using a stable layout consumed by the packer.
@@ -147,22 +158,37 @@ stage_static_vlc() {
 
   log "Staging static plugin + contrib archives for ${rid}"
 
-  local syms="" a
+  local syms="" a staged_modules=""
   local plugdir="${prefix}/lib/vlc/plugins"
   if [ -d "${plugdir}" ]; then
     while IFS= read -r -d '' a; do
-      local base cat
+      local base cat stage_module=0
       # Only the plugin categories used for local-file decode/playback. Other
       # categories (video_filter, misc/addons, services_discovery, control,
-      # gui, visualization, lua, mux, stream_out, access_output, ...) are not
-      # needed and are the source of static-link symbol collisions.
+      # gui, visualization, lua, ...) are not needed and are the source of
+      # static-link symbol collisions. Keep the normal playback categories, and
+      # add only the small file-transcode sout slice exercised by the tests.
+      base="$(basename "$a" .a)"
       cat="$(basename "$(dirname "$a")")"
       case "${cat}" in
-        access|audio_filter|audio_output|codec|demux|packetizer|spu|text_renderer|video_chroma|video_output) : ;;
-        *) continue ;;
+        access|audio_filter|audio_output|codec|demux|packetizer|spu|text_renderer|video_chroma|video_output)
+          stage_module=1
+          ;;
+        access_output)
+          case "${base}" in
+            libaccess_output_file_plugin) stage_module=1 ;;
+          esac
+          ;;
+        stream_out)
+          case "${base}" in
+            libstream_out_standard_plugin|libstream_out_transcode_plugin) stage_module=1 ;;
+          esac
+          ;;
       esac
-      base="$(basename "$a" .a)"
+      [ "${stage_module}" = "1" ] || continue
       cp -a "$a" "${sdir}/"
+      staged_modules="${staged_modules}
+$(printf '%s\n' "${base#lib}" | sed 's/_plugin$//')"
       syms="${syms}
 $("${nm}" "$a" 2>/dev/null | grep -oE 'vlc_entry__[A-Za-z0-9_]+' | sort -u)"
     done < <(find "${plugdir}" -name '*.a' -print0)
@@ -205,6 +231,8 @@ $("${nm}" "$a" 2>/dev/null | grep -oE 'vlc_entry__[A-Za-z0-9_]+' | sort -u)"
     echo '};'
   } > "${gen}"
 
+  printf '%s\n' "${staged_modules}" | sed '/^$/d' | sort -u > "${sdir}/static-modules.txt"
+
   ( cd "${sdir}" \
       && ${CC} ${cflags} -c -o vlc-static-plugins.o vlc-static-plugins.c \
       && "${AR}" rc libvlcstaticmodules.a vlc-static-plugins.o \
@@ -220,20 +248,42 @@ $("${nm}" "$a" 2>/dev/null | grep -oE 'vlc_entry__[A-Za-z0-9_]+' | sort -u)"
 # Number of parallel make jobs.
 jobs() { getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2; }
 
+# requested_codec_config_flags
+# Enables the dedicated codec plugins we verify explicitly in tests.
+requested_codec_config_flags() {
+  printf '%s\n' \
+    --enable-faad \
+    --enable-flac \
+    --enable-mad \
+    --enable-mpc \
+    --enable-schroedinger \
+    --enable-sid \
+    --enable-theora \
+    --enable-vpx
+}
+
 # minimal_local_playback_contrib_flags <include-ass:0|1>
-# Shared contrib package set for the synthetic local-playback test surface.
-# libdvbpsi keeps MPEG-TS mux/demux available for .ts media coverage.
+# Shared contrib package set for the synthetic playback/transcode test surface.
+# libdvbpsi keeps MPEG-TS mux/demux available for .ts media coverage; the extra
+# codec libraries back the dedicated decoder modules the tests assert on.
 minimal_local_playback_contrib_flags() {
   local include_ass="${1:-1}"
   local flags=(
     --disable-all
     --enable-ffmpeg
+    --enable-faad2
+    --enable-flac
+    --enable-mad
+    --enable-mpcdec
     --enable-opus
     --enable-ogg
     --enable-matroska
+    --enable-schroedinger
+    --enable-sidplay2
+    --enable-theora
+    --enable-vpx
     --enable-dvbpsi
     --disable-net
-    --disable-sout
     --disable-disc
   )
 
@@ -277,13 +327,19 @@ prefetch_contrib_tarballs() {
   pf_one libogg-1.3.6.tar.xz      https://ftp.osuosl.org/pub/xiph/releases/ogg/libogg-1.3.6.tar.xz https://github.com/xiph/ogg/releases/download/v1.3.6/libogg-1.3.6.tar.xz
   pf_one libdvbpsi-1.3.3.tar.bz2  https://get.videolan.org/libdvbpsi/1.3.3/libdvbpsi-1.3.3.tar.bz2 https://download.videolan.org/pub/videolan/libdvbpsi/1.3.3/libdvbpsi-1.3.3.tar.bz2
   pf_one libgsm_1.0.13.tar.gz     https://www.quut.com/gsm/gsm-1.0.13.tar.gz
+  pf_one faad2-2_10_0.tar.gz      https://github.com/knik0/faad2/archive/2_10_0.tar.gz
   pf_one freetype-2.13.1.tar.xz   https://download.savannah.gnu.org/releases/freetype/freetype-2.13.1.tar.xz
   pf_one libebml-1.4.3.tar.xz     https://dl.matroska.org/downloads/libebml/libebml-1.4.3.tar.xz
   pf_one libmatroska-1.7.0.tar.xz https://dl.matroska.org/downloads/libmatroska/libmatroska-1.7.0.tar.xz
   pf_one libiconv-1.17.tar.gz     https://mirrors.kernel.org/gnu/libiconv/libiconv-1.17.tar.gz
+  pf_one libmad-0.15.1b.tar.gz    https://deb.debian.org/debian/pool/main/libm/libmad/libmad_0.15.1b.orig.tar.gz
+  pf_one libtheora-1.1.1.tar.xz   https://downloads.xiph.org/releases/theora/libtheora-1.1.1.tar.xz https://ftp.osuosl.org/pub/xiph/releases/theora/libtheora-1.1.1.tar.xz
+  pf_one libvpx-1.15.2.tar.gz     https://github.com/webmproject/libvpx/archive/v1.15.2.tar.gz
   pf_one fontconfig-2.12.3.tar.gz https://www.freedesktop.org/software/fontconfig/release/fontconfig-2.12.3.tar.gz
   pf_one libxml2-2.9.14.tar.xz    https://download.gnome.org/sources/libxml2/2.9/libxml2-2.9.14.tar.xz
   pf_one openjpeg-2.5.0.tar.gz    https://github.com/uclouvain/openjpeg/archive/v2.5.0.tar.gz
+  pf_one schroedinger-1.0.11.tar.gz https://deb.debian.org/debian/pool/main/s/schroedinger/schroedinger_1.0.11.orig.tar.gz
+  pf_one sidplay-libs-2.1.1.tar.gz https://downloads.sourceforge.net/project/sidplay2/sidplay2/sidplay-libs-2.1.1/sidplay-libs-2.1.1.tar.gz
   pf_one zlib-1.3.1.tar.xz        https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.xz
   pf_one fribidi-1.0.12.tar.xz    https://github.com/fribidi/fribidi/releases/download/v1.0.12/fribidi-1.0.12.tar.xz
   pf_one harfbuzz-11.5.0.tar.xz   https://github.com/harfbuzz/harfbuzz/releases/download/11.5.0/harfbuzz-11.5.0.tar.xz
