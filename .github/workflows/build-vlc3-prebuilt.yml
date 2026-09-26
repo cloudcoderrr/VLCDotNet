@@ -1,13 +1,14 @@
 name: build-vlc3-prebuilt
 
 # Builds libvlc 3.0.x for every supported platform using PREBUILT dependencies
-# (VideoLAN `make prebuilt` contribs for cross targets; distro apt packages on
-# Linux) and uploads one artifact per RID (vlc3-prebuilt-<rid>). Trigger
-# manually; use "only" to build a single platform family while iterating.
+# (VideoLAN artifacts.videolan.org contrib bundles for cross targets where the
+# toolchain matches; distro apt packages on Linux; source fallback otherwise)
+# and uploads one artifact per RID (vlc3-prebuilt-<rid>).
+#
+# Trigger: workflow_dispatch with "only", or push to the branch with a commit
+# message tag [build:<family>] / [build:all].
 
 on:
-  # Auto-run while iterating on the feature branch (keeps main untouched, since
-  # workflow_dispatch requires the workflow to exist on the default branch).
   push:
     branches: [prebuilt-contribs]
     paths:
@@ -22,7 +23,7 @@ on:
         options: [all, windows, linux, apple, android]
 
 concurrency:
-  group: build-vlc3-prebuilt-${{ github.ref }}-${{ inputs.only || 'push' }}
+  group: build-vlc3-prebuilt-${{ github.ref }}-${{ inputs.only || github.sha }}
   cancel-in-progress: false
 
 permissions:
@@ -33,7 +34,9 @@ env:
 
 jobs:
   linux:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.only == 'all' || inputs.only == 'linux' }}
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && (inputs.only == 'all' || inputs.only == 'linux'))
+       || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[build:linux]') || contains(github.event.head_commit.message, '[build:all]'))) }}
     # 22.04 ships FFmpeg 4.4 (VLC 3.0.23 builds against it) and an older glibc,
     # so the bundled runtime stays portable to newer consumers.
     runs-on: ubuntu-22.04
@@ -59,6 +62,64 @@ jobs:
             liborc-0.4-dev libxml2-dev
       - name: Build (${{ matrix.arch }})
         run: bash prebuilt/build/build-linux.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vlc3-prebuilt-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error
+
+  windows:
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && (inputs.only == 'all' || inputs.only == 'windows'))
+       || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[build:windows]') || contains(github.event.head_commit.message, '[build:all]'))) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, rid: win-x64 }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install cross build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential automake autopoint libtool-bin pkg-config gettext \
+            git bison flex nasm yasm cmake ninja-build meson zip p7zip-full \
+            gperf help2man nsis dos2unix curl xz-utils zstd file
+      - name: Build (${{ matrix.arch }})
+        run: bash prebuilt/build/build-windows.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vlc3-prebuilt-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error
+
+  android:
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && (inputs.only == 'all' || inputs.only == 'android'))
+       || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[build:android]') || contains(github.event.head_commit.message, '[build:all]'))) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, rid: android-x64 }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential automake autopoint libtool-bin pkg-config gettext \
+            git bison flex nasm yasm cmake ninja-build meson curl xz-utils zstd unzip \
+            gperf help2man
+      - name: Resolve Android NDK
+        run: echo "ANDROID_NDK_HOME=${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}" >> "$GITHUB_ENV"
+      - name: Build (${{ matrix.arch }})
+        run: bash prebuilt/build/build-android.sh ${{ matrix.arch }}
       - uses: actions/upload-artifact@v6
         with:
           name: vlc3-prebuilt-${{ matrix.rid }}

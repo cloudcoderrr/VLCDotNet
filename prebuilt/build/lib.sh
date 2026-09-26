@@ -72,17 +72,22 @@ apply_patches() {
 # Number of parallel make jobs.
 jobs() { getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2; }
 
-# contrib_prebuilt_or_build <vlc-src> <triplet> [-- <bootstrap-flag>...]
+# contrib_prebuilt_or_build <vlc-src> <triplet> <ci-job> [-- <bootstrap-flag>...]
 #
 # Prepares the contrib prefix at <vlc-src>/contrib/<triplet> using VideoLAN's
-# prebuilt bundle when available, otherwise a full from-source contrib build.
-# Reads an optional CONTRIB_ENV array from the caller's environment for the
-# platform selector variables (HAVE_ANDROID=1, BUILDFORIOS=1, ...).
+# official prebuilt bundle when one is published for this contrib state,
+# otherwise a full from-source contrib build.
 #
-# Sets CONTRIB_MODE to "prebuilt" or "source" for the caller's logging.
+# The prebuilt bundle URL mirrors VideoLAN's own 3.0.x CI:
+#   https://artifacts.videolan.org/vlc-3.0/<ci-job>/vlc-contrib-<triplet>-<sha>.tar.zst
+# where <sha> = extras/ci/get-contrib-sha.sh <ci-job> (a hash of the exact
+# contrib source state), gated by extras/ci/check-url.sh.
+#
+# Reads an optional CONTRIB_ENV array for platform selectors (HAVE_ANDROID=1,
+# BUILDFORIOS=1, ...). Sets CONTRIB_MODE to "prebuilt" or "source".
 CONTRIB_MODE=""
 contrib_prebuilt_or_build() {
-  local src="$1" triplet="$2"; shift 2
+  local src="$1" triplet="$2" cijob="$3"; shift 3
   local -a bootstrap_flags=()
   if [ "${1:-}" = "--" ]; then
     shift
@@ -102,17 +107,35 @@ contrib_prebuilt_or_build() {
     env "${cenv[@]}" ../bootstrap --host="${triplet}" "${bootstrap_flags[@]}"
   )
 
-  # Try the official prebuilt bundle first.
-  if [ "${CONTRIB_FORCE_SOURCE:-0}" != "1" ] \
-     && ( cd "${cbuild}" && env "${cenv[@]}" make prebuilt ) 2>&1 | tee "${WORK_DIR}/contrib-prebuilt-${triplet}.log"; then
-    if [ -d "${cprefix}/lib" ] || [ -d "${cprefix}/lib64" ]; then
-      CONTRIB_MODE="prebuilt"
-      log "Contrib: using VideoLAN prebuilt bundle for ${triplet}"
-      return 0
+  # Resolve the official prebuilt URL for this contrib state, if reachable.
+  local prebuilt_url=""
+  if [ "${CONTRIB_FORCE_SOURCE:-0}" != "1" ]; then
+    local sha=""
+    sha="$( cd "${src}" && ./extras/ci/get-contrib-sha.sh "${cijob}" 2>/dev/null || true )"
+    if [ -n "${sha}" ]; then
+      local url="https://artifacts.videolan.org/vlc-3.0/${cijob}/vlc-contrib-${triplet}-${sha}.tar.zst"
+      if ( cd "${src}" && ./extras/ci/check-url.sh "${url}" ) >/dev/null 2>&1; then
+        prebuilt_url="${url}"
+      else
+        warn "No published prebuilt bundle at ${url}"
+      fi
     fi
-    warn "make prebuilt reported success but ${cprefix} looks empty; falling back to source"
-  else
-    warn "No prebuilt contrib bundle for ${triplet} (or download failed); building from source"
+  fi
+
+  if [ -n "${prebuilt_url}" ]; then
+    log "Contrib: fetching VideoLAN prebuilt bundle for ${triplet}"
+    log "  ${prebuilt_url}"
+    if ( cd "${cbuild}" && env "${cenv[@]}" make prebuilt PREBUILT_URL="${prebuilt_url}" ) \
+         2>&1 | tee "${WORK_DIR}/contrib-prebuilt-${triplet}.log"; then
+      if [ -d "${cprefix}/lib" ] || [ -d "${cprefix}/lib64" ]; then
+        CONTRIB_MODE="prebuilt"
+        log "Contrib: using VideoLAN prebuilt bundle for ${triplet}"
+        return 0
+      fi
+      warn "make prebuilt succeeded but ${cprefix} looks empty; falling back to source"
+    else
+      warn "make prebuilt failed for ${triplet}; falling back to source"
+    fi
   fi
 
   # Fallback: full from-source contrib build (default package set).

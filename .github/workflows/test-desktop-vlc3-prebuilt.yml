@@ -1,0 +1,132 @@
+name: test-desktop-vlc3-prebuilt
+
+# Runs the shared test suite (Avalonia app --autorun headless) on each desktop
+# OS using the native libvlc built by build-vlc3-prebuilt. Mirrors
+# test-desktop-vlc3 but consumes the vlc3-prebuilt-<rid> artifacts.
+
+on:
+  push:
+    branches: [prebuilt-contribs]
+    paths:
+      - "prebuilt/**"
+      - "Tests/**"
+      - "src/**"
+      - ".github/workflows/test-desktop-vlc3-prebuilt.yml"
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Desktop OS to test"
+        type: choice
+        default: all
+        options: [all, linux, windows, macos]
+      build_run_id:
+        description: "build-vlc3-prebuilt run id (blank = latest with the artifact)"
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  rid: linux-x64, family: linux }
+          - { os: windows-latest, rid: win-x64,   family: windows }
+          - { os: macos-14,       rid: osx-arm64, family: macos }
+    runs-on: ${{ matrix.os }}
+    # On push, gate per-family via the commit message tag [test:<family>] or
+    # [test:all]; on dispatch, gate via the "only" input.
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && (inputs.only == 'all' || inputs.only == matrix.family))
+       || (github.event_name == 'push' && (contains(github.event.head_commit.message, format('[test:{0}]', matrix.family)) || contains(github.event.head_commit.message, '[test:all]'))) }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Resolve build run id
+        id: run
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rid="${{ inputs.build_run_id }}"
+          if [ -z "$rid" ]; then
+            # Pick the most recent build run that actually has this artifact.
+            for id in $(gh run list --workflow build-vlc3-prebuilt.yml --branch prebuilt-contribs --limit 30 --json databaseId --jq '.[].databaseId'); do
+              if gh api "repos/${{ github.repository }}/actions/runs/$id/artifacts" --jq '.artifacts[].name' 2>/dev/null | grep -qx "vlc3-prebuilt-${{ matrix.rid }}"; then
+                rid="$id"; break
+              fi
+            done
+          fi
+          [ -n "$rid" ] || { echo "No build run with artifact vlc3-prebuilt-${{ matrix.rid }}" >&2; exit 1; }
+          echo "id=$rid" >> "$GITHUB_OUTPUT"
+          echo "Using build run $rid"
+
+      - name: Download native ${{ matrix.rid }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download ${{ steps.run.outputs.id }} -n vlc3-prebuilt-${{ matrix.rid }} -D native
+
+      - name: Build Avalonia test app
+        run: dotnet build Tests/VLCDotNet.Tests.Avalonia/VLCDotNet.Tests.Avalonia.csproj -c Release
+
+      - name: Stage native libvlc next to the app and run headless tests
+        id: runtests
+        continue-on-error: true
+        shell: bash
+        run: |
+          out="Tests/VLCDotNet.Tests.Avalonia/bin/Release/net8.0"
+          cp -a native/* "$out"/
+          export VLC_PLUGIN_PATH="$out/plugins"
+          case "${{ runner.os }}" in
+            Linux)   export LD_LIBRARY_PATH="$PWD/$out:${LD_LIBRARY_PATH:-}";;
+            macOS)   export DYLD_LIBRARY_PATH="$PWD/$out:${DYLD_LIBRARY_PATH:-}";;
+          esac
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            sudo apt-get update -qq >/dev/null 2>&1 || true
+            sudo apt-get install -y gdb >/dev/null 2>&1 || true
+            ulimit -c unlimited || true
+            sudo sysctl -w kernel.core_pattern="$PWD/core.%p" >/dev/null 2>&1 || true
+            export DOTNET_DbgEnableMiniDump=0
+          fi
+          set +e
+          dotnet "$out/VLCDotNet.Tests.Avalonia.dll" --autorun
+          code=$?
+          set -e
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "${{ runner.os }}" = "Linux" ] && [ "$code" -ge 128 ]; then
+            echo "---- app exited with $code (native signal); capturing backtrace ----"
+            core=$(ls -t core.* 2>/dev/null | head -1)
+            if [ -n "$core" ] && command -v gdb >/dev/null 2>&1; then
+              gdb -batch -ex "bt" -ex "thread apply all bt" -ex quit "$(command -v dotnet)" "$core" 2>&1 | tail -n 160
+            fi
+          fi
+          echo "---- vlc-log.txt (tail) ----"
+          tail -n 40 "$out/test-output/vlc-log.txt" || true
+          echo "---- runner-report.txt (tail) ----"
+          tail -n 60 "$out/test-output/runner-report.txt" || true
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-output-prebuilt-${{ matrix.rid }}
+          path: Tests/VLCDotNet.Tests.Avalonia/bin/Release/net8.0/test-output
+          if-no-files-found: warn
+
+      - name: Fail if tests failed
+        shell: bash
+        run: |
+          if [ "${{ steps.runtests.outputs.code }}" != "0" ]; then
+            echo "::error::${{ steps.runtests.outputs.code }} test(s) failed"
+            exit 1
+          fi
+          echo "All tests passed."
