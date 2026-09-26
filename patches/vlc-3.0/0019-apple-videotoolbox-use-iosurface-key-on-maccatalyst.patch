@@ -1,7 +1,8 @@
 diff --git a/modules/codec/videotoolbox.m b/modules/codec/videotoolbox.m
+index 7d408bf..9006a6e 100644
 --- a/modules/codec/videotoolbox.m
 +++ b/modules/codec/videotoolbox.m
-@@ -38,6 +38,10 @@
+@@ -44,6 +44,10 @@
  #import <Foundation/Foundation.h>
  #import <TargetConditionals.h>
  
@@ -12,7 +13,7 @@ diff --git a/modules/codec/videotoolbox.m b/modules/codec/videotoolbox.m
  #import <sys/types.h>
  #import <sys/sysctl.h>
  #import <mach/machine.h>
-@@ -1251,11 +1255,13 @@ static int StartVideoToolbox(decoder_t *p_dec)
+@@ -1252,7 +1256,10 @@ static int StartVideoToolbox(decoder_t *p_dec)
          return VLC_EGENERIC;
      }
  
@@ -23,8 +24,4 @@ diff --git a/modules/codec/videotoolbox.m b/modules/codec/videotoolbox.m
 +#elif !TARGET_OS_IPHONE
      CFDictionarySetValue(destinationPixelBufferAttributes,
                           kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey,
-                          kCFBooleanTrue);
- #else
-     CFDictionarySetValue(destinationPixelBufferAttributes,
-                          kCVPixelBufferOpenGLESCompatibilityKey,
                           kCFBooleanTrue);
