@@ -37,21 +37,43 @@ jobs:
           - { os: windows-latest, rid: win-x64,   family: windows }
           - { os: macos-14,       rid: osx-arm64, family: macos }
     runs-on: ${{ matrix.os }}
-    # On push, gate per-family via the commit message tag [test:<family>] or
-    # [test:all]; on dispatch, gate via the "only" input.
-    if: >-
-      ${{ (github.event_name == 'workflow_dispatch' && (inputs.only == 'all' || inputs.only == matrix.family))
-       || (github.event_name == 'push' && (contains(github.event.head_commit.message, format('[test:{0}]', matrix.family)) || contains(github.event.head_commit.message, '[test:all]'))) }}
     steps:
+      # Gate per-family: dispatch uses the "only" input; push uses a commit
+      # message tag [test:<family>] / [test:all]. matrix is not available in a
+      # job-level if, so gate here in a step instead. COMMIT_MSG is passed via
+      # env (not interpolated into the script) to avoid shell injection.
+      - name: Gate
+        id: gate
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          ONLY: ${{ inputs.only }}
+          FAMILY: ${{ matrix.family }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          run=false
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            if [ "$ONLY" = "all" ] || [ "$ONLY" = "$FAMILY" ]; then run=true; fi
+          else
+            case "$COMMIT_MSG" in
+              *"[test:$FAMILY]"*|*"[test:all]"*) run=true ;;
+            esac
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "gate: event=$EVENT only=$ONLY family=$FAMILY run=$run"
+
       - uses: actions/checkout@v5
+        if: steps.gate.outputs.run == 'true'
 
       - uses: actions/setup-dotnet@v5
+        if: steps.gate.outputs.run == 'true'
         with:
           dotnet-version: |
             8.0.x
             10.0.x
 
       - name: Resolve build run id
+        if: steps.gate.outputs.run == 'true'
         id: run
         shell: bash
         env:
@@ -71,14 +93,17 @@ jobs:
           echo "Using build run $rid"
 
       - name: Download native ${{ matrix.rid }}
+        if: steps.gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh run download ${{ steps.run.outputs.id }} -n vlc3-prebuilt-${{ matrix.rid }} -D native
 
       - name: Build Avalonia test app
+        if: steps.gate.outputs.run == 'true'
         run: dotnet build Tests/VLCDotNet.Tests.Avalonia/VLCDotNet.Tests.Avalonia.csproj -c Release
 
       - name: Stage native libvlc next to the app and run headless tests
+        if: steps.gate.outputs.run == 'true'
         id: runtests
         continue-on-error: true
         shell: bash
@@ -115,7 +140,7 @@ jobs:
           tail -n 60 "$out/test-output/runner-report.txt" || true
 
       - name: Upload test artifacts
-        if: always()
+        if: always() && steps.gate.outputs.run == 'true'
         uses: actions/upload-artifact@v6
         with:
           name: test-output-prebuilt-${{ matrix.rid }}
@@ -123,6 +148,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Fail if tests failed
+        if: steps.gate.outputs.run == 'true'
         shell: bash
         run: |
           if [ "${{ steps.runtests.outputs.code }}" != "0" ]; then
