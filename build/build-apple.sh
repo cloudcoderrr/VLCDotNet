@@ -120,12 +120,13 @@ mkdir -p "${CONTRIB_BUILD}"
 # Minimal contrib closure for local-file playback of the test media. libass
 # (subtitle rendering) is desktop-only: FriBidi's Meson generator executes
 # target binaries, which the iOS cross toolchains cannot run.
-BOOTSTRAP_FLAGS=(--disable-all --enable-ffmpeg --enable-opus --enable-ogg --enable-matroska --disable-net --disable-sout --disable-disc)
+BOOTSTRAP_INCLUDE_ASS=0
 case "${PLATFORM}" in
   macos|maccatalyst)
-    BOOTSTRAP_FLAGS+=(--enable-ass)
+    BOOTSTRAP_INCLUDE_ASS=1
     ;;
 esac
+BOOTSTRAP_FLAGS=($(minimal_local_playback_contrib_flags "${BOOTSTRAP_INCLUDE_ASS}"))
 (
   cd "${CONTRIB_BUILD}"
   env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" "${BOOTSTRAP_FLAGS[@]}"

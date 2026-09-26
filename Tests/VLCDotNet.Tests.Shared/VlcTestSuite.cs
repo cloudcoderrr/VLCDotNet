@@ -66,6 +66,7 @@ namespace VLCDotNet.Tests.Shared
                 }
 
                 TestParse(MediaCatalog.Videos[0]);
+                TestParse(MediaCatalog.TransportStream);
                 TestMultitrackAudioAndSubtitles();
                 TestExternalSubtitles();
                 TestTransportControls();
@@ -198,7 +199,7 @@ namespace VLCDotNet.Tests.Shared
                 FrameStats stats = cap.Analyze();
                 outcome.Details.Add(stats.ToString());
 
-                string bmp = Path.Combine(_env.OutputDirectory, "snapshot-" + Path.GetFileNameWithoutExtension(spec.FileName) + ".bmp");
+                string bmp = Path.Combine(_env.OutputDirectory, "snapshot-" + GetArtifactStem(spec.FileName) + ".bmp");
                 if (cap.WriteBmp(bmp))
                 {
                     outcome.Artifacts.Add(bmp);
@@ -261,7 +262,7 @@ namespace VLCDotNet.Tests.Shared
                 double rms = probe.Rms;
                 outcome.Details.Add($"captured {probe.SampleValues} samples; RMS={rms:F1}");
 
-                string wav = Path.Combine(_env.OutputDirectory, "audio-" + Path.GetFileNameWithoutExtension(spec.FileName) + ".wav");
+                string wav = Path.Combine(_env.OutputDirectory, "audio-" + GetArtifactStem(spec.FileName) + ".wav");
                 if (probe.WriteWav(wav))
                 {
                     outcome.Artifacts.Add(wav);
@@ -588,6 +589,9 @@ namespace VLCDotNet.Tests.Shared
             }
             return ids;
         }
+
+        private static string GetArtifactStem(string fileName) =>
+            Path.GetFileName(fileName).Replace('.', '_');
 
         private static bool PlayAndWaitPlaying(IntPtr mp, int timeoutMs = 10000)
         {

@@ -238,11 +238,11 @@ mkdir -p "${CONTRIB_BUILD}"
   cd "${CONTRIB_BUILD}"
   # Build only the contrib closure needed for local-file playback of the test
   # media: ffmpeg decoders, Opus (ffmpeg's opus decoder is disabled), libass
-  # subtitles and Matroska. --disable-all empties the default ~80-package set so
-  # bootstrap resolves just these packages plus their dependencies, keeping every
-  # download on a reachable upstream host instead of the unreliable VideoLAN
-  # mirror.
-  BOOT_ARGS=(--disable-all --enable-ffmpeg --enable-opus --enable-ogg --enable-ass --enable-matroska --disable-net --disable-sout --disable-disc)
+  # subtitles, Matroska and MPEG-TS (libdvbpsi). --disable-all empties the
+  # default ~80-package set so bootstrap resolves just these packages plus their
+  # dependencies, keeping every download on a reachable upstream host instead of
+  # the unreliable VideoLAN mirror.
+  BOOT_ARGS=($(minimal_local_playback_contrib_flags 1))
   if [ "${CROSS}" = "1" ]; then
     # Explicit --build is required so autoconf treats this as a cross build and
     # never tries to execute target binaries on the x86_64 runner.

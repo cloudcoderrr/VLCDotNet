@@ -39,6 +39,13 @@ namespace VLCDotNet.Tests.Shared
     /// <summary>The synthetic media pack under Tests/Data/vlc_test_pack and its expectations.</summary>
     public static class MediaCatalog
     {
+        public static readonly MediaSpec TransportStream = new MediaSpec("video_h264_aac.ts")
+        {
+            HasVideo = true, HasAudio = true, VideoWidth = 640, VideoHeight = 360,
+            AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 8021,
+            VideoCodecHint = "h264", AudioCodecHint = "mp4a",
+        };
+
         public static readonly IReadOnlyList<MediaSpec> Videos = new List<MediaSpec>
         {
             new MediaSpec("video_h264_aac.mp4")
@@ -47,6 +54,7 @@ namespace VLCDotNet.Tests.Shared
                 AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 8000,
                 VideoCodecHint = "h264", AudioCodecHint = "mp4a",
             },
+            TransportStream,
             new MediaSpec("video_vp9_opus.webm")
             {
                 HasVideo = true, HasAudio = true, VideoWidth = 640, VideoHeight = 360,

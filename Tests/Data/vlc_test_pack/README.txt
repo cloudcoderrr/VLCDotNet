@@ -7,6 +7,9 @@ VIDEO FILES
 video_h264_aac.mp4
   H.264/AVC video, AAC stereo audio, MP4 container.
 
+video_h264_aac.ts
+  H.264/AVC video, AAC stereo audio, MPEG-TS container.
+
 video_vp9_opus.webm
   VP9 video, Opus stereo audio, WebM container.
 

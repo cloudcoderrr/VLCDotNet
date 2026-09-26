@@ -17,8 +17,8 @@ Every script performs the same high-level steps (`build/lib.sh`):
 
 1. Shallow-clone VLC at the tag in `VLC_VERSION` (defaults to `Directory.Build.props`'s `VlcVersion`).
 2. Apply every `patches/vlc-3.0/*.patch` (unified diff, `git apply` → `patch -p1` → 3-way).
-3. Build third-party dependencies with the VLC **contrib** system, preferring the
-   published **prebuilt** contribs (`make prebuilt`) and falling back to a source build.
+3. Build the shared minimal third-party dependency closure with the VLC **contrib**
+   system (see `minimal_local_playback_contrib_flags` in `build/lib.sh`).
 4. `./bootstrap`, then `configure` for a **libvlc-only** build (`--disable-vlc`, no GUI).
 5. `make && make install` into a private prefix.
 6. Normalize the result into `artifacts/<rid>/` (`libvlc*`, `libvlccore*`, `plugins/`, licenses).
@@ -30,7 +30,6 @@ Every script performs the same high-level steps (`build/lib.sh`):
 | `VLC_VERSION` | VLC git tag to build (default `3.0.23`). |
 | `WORK_DIR` | Scratch checkout/build dir (default `build/_work`). |
 | `ARTIFACTS_DIR` | Output root (default `artifacts`). |
-| `VLC_PREBUILT_CONTRIBS_URL` | Override the prebuilt contrib package URL. |
 | `ANDROID_NDK_HOME` | Android NDK path (Android only). |
 
 ## Local example

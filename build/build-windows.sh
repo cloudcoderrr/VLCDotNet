@@ -53,7 +53,8 @@ BUILD_ARGS=(-r -z -u -S 0x0A000000 -a "${ARCH}")
 # minimal contrib closure, so override each with a trailing --disable-* (autoconf
 # takes the last flag) and also drop the default-required optical-disc modules.
 export CONFIGFLAGS="${CONFIGFLAGS:-} --disable-lua --disable-live555 --disable-realrtsp --disable-faad --disable-flac --disable-goom --disable-libcddb --disable-mpc --disable-schroedinger --disable-shout --disable-theora --disable-zvbi --disable-dvdread --disable-dvdnav --disable-nls --disable-update-check --disable-bluray --disable-gnutls --disable-srt --disable-aribcam --disable-fontconfig"
-export CONTRIBFLAGS="${CONTRIBFLAGS:-} --disable-all --enable-ffmpeg --enable-opus --enable-ogg --enable-ass --enable-matroska --disable-net --disable-sout --disable-disc"
+MINIMAL_CONTRIB_FLAGS="$(minimal_local_playback_contrib_flags 1 | tr '\n' ' ')"
+export CONTRIBFLAGS="${CONTRIBFLAGS:-} ${MINIMAL_CONTRIB_FLAGS}"
 EXTRA_LINK_FLAGS=""
 if [ "${ARCH}" = "x86_64" ]; then
   # x86_64 UCRT contribs such as freetype and SDL_image emit references to

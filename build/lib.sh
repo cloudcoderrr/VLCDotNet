@@ -220,6 +220,30 @@ $("${nm}" "$a" 2>/dev/null | grep -oE 'vlc_entry__[A-Za-z0-9_]+' | sort -u)"
 # Number of parallel make jobs.
 jobs() { getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2; }
 
+# minimal_local_playback_contrib_flags <include-ass:0|1>
+# Shared contrib package set for the synthetic local-playback test surface.
+# libdvbpsi keeps MPEG-TS mux/demux available for .ts media coverage.
+minimal_local_playback_contrib_flags() {
+  local include_ass="${1:-1}"
+  local flags=(
+    --disable-all
+    --enable-ffmpeg
+    --enable-opus
+    --enable-ogg
+    --enable-matroska
+    --enable-dvbpsi
+    --disable-net
+    --disable-sout
+    --disable-disc
+  )
+
+  if [ "${include_ass}" = "1" ]; then
+    flags+=(--enable-ass)
+  fi
+
+  printf '%s\n' "${flags[@]}"
+}
+
 # prefetch_contrib_tarballs <tarballs-dir>
 # Best-effort pre-seed of the minimal contrib closure tarballs from reliable
 # mirrors into the contrib tarballs directory, so the VLC contrib `make fetch`
@@ -251,6 +275,7 @@ prefetch_contrib_tarballs() {
   pf_one ffmpeg-4.4.5.tar.xz      https://ffmpeg.org/releases/ffmpeg-4.4.5.tar.xz
   pf_one opus-1.3.tar.gz          https://archive.mozilla.org/pub/opus/opus-1.3.tar.gz
   pf_one libogg-1.3.6.tar.xz      https://ftp.osuosl.org/pub/xiph/releases/ogg/libogg-1.3.6.tar.xz https://github.com/xiph/ogg/releases/download/v1.3.6/libogg-1.3.6.tar.xz
+  pf_one libdvbpsi-1.3.3.tar.bz2  https://get.videolan.org/libdvbpsi/1.3.3/libdvbpsi-1.3.3.tar.bz2 https://download.videolan.org/pub/videolan/libdvbpsi/1.3.3/libdvbpsi-1.3.3.tar.bz2
   pf_one libgsm_1.0.13.tar.gz     https://www.quut.com/gsm/gsm-1.0.13.tar.gz
   pf_one freetype-2.13.1.tar.xz   https://download.savannah.gnu.org/releases/freetype/freetype-2.13.1.tar.xz
   pf_one libebml-1.4.3.tar.xz     https://dl.matroska.org/downloads/libebml/libebml-1.4.3.tar.xz
