@@ -1,0 +1,76 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] apple: exclude iOS OpenGLES vout modules on Mac Catalyst
+
+VLC 3.0 predates Mac Catalyst. We build Catalyst with the macabi target, so its
+TARGET_OS_IPHONE probe makes configure treat it as iOS (HAVE_IOS) and try to
+build the iOS video output (video_output/ios.m), which imports
+<OpenGLES/EAGL.h> and links -framework OpenGLES. Catalyst has no OpenGLES (Metal
+only), so that fails. Detect Catalyst (TARGET_OS_MACCATALYST) and skip the
+iOS-GLES vout plugins there; playback still works via the app's vmem/amem
+callbacks.
+---
+ configure.ac                     | 11 +++++++++++
+ modules/video_output/Makefile.am |  2 ++
+ 2 files changed, 13 insertions(+)
+
+diff --git a/configure.ac b/configure.ac
+--- a/configure.ac
++++ b/configure.ac
+@@ -103,6 +103,7 @@ dnl
+ HAVE_WIN64="0"
+ HAVE_IOS="0"
+ HAVE_OSX="0"
+ HAVE_TVOS="0"
++HAVE_MACCATALYST="0"
+ 
+ case "${host_os}" in
+   "")
+@@ -188,6 +189,13 @@ dnl
+              HAVE_OSX="0"
+              ],)
+ 
++    AC_EGREP_CPP(yes,
++            [#import <TargetConditionals.h>
++             #if defined(TARGET_OS_MACCATALYST) && TARGET_OS_MACCATALYST
++             yes
++             #endif],
++             [HAVE_MACCATALYST="1"],)
++
+     dnl
+     dnl  Handle Mac OS X SDK flags
+     dnl
+@@ -404,6 +412,7 @@ AM_CONDITIONAL(HAVE_DARWIN,  test "${SYS}" = "darwin")
+ AM_CONDITIONAL(HAVE_IOS,     test "${HAVE_IOS}" = "1")
+ AM_CONDITIONAL(HAVE_OSX,     test "${HAVE_OSX}" = "1")
+ AM_CONDITIONAL(HAVE_TVOS,    test "${HAVE_TVOS}" = "1")
++AM_CONDITIONAL(HAVE_MACCATALYST, test "${HAVE_MACCATALYST}" = "1")
+ 
+ AM_CONDITIONAL(HAVE_NACL,    test "${SYS}" = "nacl")
+ AM_CONDITIONAL(HAVE_LIBANL,  test "${HAVE_LIBANL}" = "1")
+diff --git a/modules/video_output/Makefile.am b/modules/video_output/Makefile.am
+--- a/modules/video_output/Makefile.am
++++ b/modules/video_output/Makefile.am
+@@ -59,7 +59,9 @@ libvout_ios_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(voutdir)' \
+ 	-Wl,-framework,OpenGLES,-framework,QuartzCore,-framework,UIKit \
+ 	-Wl,-framework,Foundation
+ if HAVE_IOS
++if !HAVE_MACCATALYST
+ vout_LTLIBRARIES += libvout_ios_plugin.la libglconv_cvpx_plugin.la
++endif
+ endif
+ if HAVE_TVOS
+ vout_LTLIBRARIES += libvout_ios_plugin.la libglconv_cvpx_plugin.la
+diff --git a/modules/video_filter/Makefile.am b/modules/video_filter/Makefile.am
+--- a/modules/video_filter/Makefile.am
++++ b/modules/video_filter/Makefile.am
+@@ -116,7 +116,9 @@ if HAVE_OSX
+ video_filter_LTLIBRARIES += libci_filters_plugin.la
+ endif
+ 
+ if HAVE_IOS
++if !HAVE_MACCATALYST
+ video_filter_LTLIBRARIES += libci_filters_plugin.la
++endif
+ endif
+ 
+ libdeinterlace_common_la_SOURCES = video_filter/deinterlace/common.c video_filter/deinterlace/common.h

@@ -1,0 +1,59 @@
+name: build-vlc3-prebuilt
+
+# Builds libvlc 3.0.x for every supported platform using PREBUILT dependencies
+# (VideoLAN `make prebuilt` contribs for cross targets; distro apt packages on
+# Linux) and uploads one artifact per RID (vlc3-prebuilt-<rid>). Trigger
+# manually; use "only" to build a single platform family while iterating.
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Platform family to build"
+        type: choice
+        default: all
+        options: [all, windows, linux, apple, android]
+
+concurrency:
+  group: build-vlc3-prebuilt-${{ github.ref }}-${{ inputs.only }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  VLC_VERSION: "3.0.23"
+
+jobs:
+  linux:
+    if: ${{ inputs.only == 'all' || inputs.only == 'linux' }}
+    # 22.04 ships FFmpeg 4.4 (VLC 3.0.23 builds against it) and an older glibc,
+    # so the bundled runtime stays portable to newer consumers.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, rid: linux-x64 }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build + prebuilt distro dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential automake autoconf autopoint libtool-bin pkg-config gettext \
+            git bison flex nasm yasm cmake ninja-build meson curl xz-utils zstd \
+            gperf help2man patchelf \
+            libavcodec-dev libavformat-dev libavutil-dev libswscale-dev \
+            libfaad-dev libflac-dev libmad0-dev libmpcdec-dev libtheora-dev libvpx-dev \
+            libogg-dev libopus-dev libmatroska-dev libebml-dev libdvbpsi-dev \
+            libass-dev libfreetype6-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev \
+            liborc-0.4-dev libxml2-dev
+      - name: Build (${{ matrix.arch }})
+        run: bash prebuilt/build/build-linux.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vlc3-prebuilt-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error

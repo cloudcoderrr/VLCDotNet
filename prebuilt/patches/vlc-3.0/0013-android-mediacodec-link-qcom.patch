@@ -1,0 +1,23 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] android: link qcom.c into the mediacodec plugin
+
+`modules/codec/omxil/utils.c` (compiled into libmediacodec_plugin) references
+`qcom_convert`, which is defined in `codec/omxil/qcom.c`. The mediacodec plugin's
+`_SOURCES` in VLC 3.0.23 lists utils.c but not qcom.c, so the Android build fails
+to link with `undefined symbol: qcom_convert`. Add qcom.c/qcom.h to the plugin
+sources (the omxil and omxil_vout plugins already compile it).
+---
+ modules/codec/Makefile.am | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/modules/codec/Makefile.am b/modules/codec/Makefile.am
+--- a/modules/codec/Makefile.am
++++ b/modules/codec/Makefile.am
+@@ -502,6 +502,7 @@ libiomx_plugin_la_LIBADD = $(libomxil_plugin_la_LIBADD)
+ 
+ libmediacodec_plugin_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(srcdir)/codec/omxil
+ libmediacodec_plugin_la_SOURCES = codec/omxil/mediacodec.c codec/omxil/mediacodec.h \
++	codec/omxil/qcom.c codec/omxil/qcom.h \
+ 	codec/omxil/mediacodec_jni.c codec/omxil/mediacodec_ndk.c codec/omxil/utils.c \
+ 	video_output/android/utils.c video_output/android/utils.h \
+ 	video_output/android/display.h \
