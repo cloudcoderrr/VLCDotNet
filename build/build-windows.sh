@@ -39,15 +39,13 @@ export PATH="${LLVM_MINGW_DIR}/bin:${PATH}"
 # VLC's d3d11 output can use Win8+ DXGI types (IID_IDXGIResource1, etc.).
 BUILD_ARGS=(-r -z -u -S 0x0A000000 -a "${ARCH}")
 
-# The GitHub runner currently cannot reach VideoLAN's prebuilt contrib host
-# reliably on either Windows arch, and the x86_64 bundle also mismatches our
-# UCRT llvm-mingw toolchain. Build contribs from source for both arches so the
-# inputs are consistent and all package fetches go through our patched source
-# URLs instead of the prebuilt archive host.
+# The x86_64 prebuilt contrib bundle does not match our UCRT llvm-mingw
+# toolchain. Build contribs from source for both arches to keep inputs
+# consistent.
 
 # libbluray, gnutls/srt and ARIB B25 are outside the current file-playback test
-# surface. Keep them out of the Windows source-contrib graph so the build does
-# not depend on flaky VideoLAN-hosted tarballs or the x86_64 bluray link path.
+# surface. Keep them out of the Windows source-contrib graph and avoid the
+# x86_64 bluray link path.
 # VLC's win32 configure.sh force-enables many optional modules. Keep the
 # dedicated codec plugins we exercise, but still drop unrelated network/disc/UI
 # modules and their contrib dependencies.
@@ -110,8 +108,6 @@ sudo tee /usr/local/bin/makensis >/dev/null <<'EOF'
 exit 0
 EOF
 sudo chmod +x /usr/local/bin/makensis
-
-prefetch_contrib_tarballs "${VLC_SRC}/contrib/tarballs"
 
 log "Running extras/package/win32/build.sh ${BUILD_ARGS[*]}"
 (

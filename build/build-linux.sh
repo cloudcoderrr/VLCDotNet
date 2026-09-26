@@ -244,8 +244,7 @@ mkdir -p "${CONTRIB_BUILD}"
   # media: ffmpeg decoders, Opus (ffmpeg's opus decoder is disabled), libass
   # subtitles, Matroska and MPEG-TS (libdvbpsi). --disable-all empties the
   # default ~80-package set so bootstrap resolves just these packages plus their
-  # dependencies, keeping every download on a reachable upstream host instead of
-  # the unreliable VideoLAN mirror.
+  # dependencies.
   BOOT_ARGS=($(minimal_local_playback_contrib_flags 1))
   if [ "${CROSS}" = "1" ]; then
     # Explicit --build is required so autoconf treats this as a cross build and
@@ -253,7 +252,6 @@ mkdir -p "${CONTRIB_BUILD}"
     BOOT_ARGS+=(--host="${TRIPLET}" --build="x86_64-linux-gnu")
   fi
   ../bootstrap "${BOOT_ARGS[@]}"
-  prefetch_contrib_tarballs "${VLC_SRC}/contrib/tarballs"
   make -j"$(jobs)" fetch
   if ! make -j"$(jobs)"; then
     warn "Parallel contrib build failed; retrying serially for a clean error"

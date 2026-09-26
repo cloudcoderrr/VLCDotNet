@@ -2,36 +2,25 @@ From: VLCDotNet CI <ci@vlcdotnet>
 Subject: [PATCH] contrib: build libass with DirectWrite on desktop Windows
 
 VLC's contrib only switches libass to the native DirectWrite font provider for
-WinStore/UWP targets; regular desktop Win32 still pulls in `fontconfig`, which
-in turn drags in `libxml2`. Both are fetched from the fragile
-`freedesktop.org` / `download.gnome.org` hosts (and fall back to the now-dead
-`downloads.videolan.org`). In one Windows run the arm64 job fetched
-`fontconfig-2.12.3.tar.gz` from freedesktop.org while the x86_64 job -- hitting
-the same host at the same moment -- was dropped and then timed out on the dead
-VideoLAN fallback, failing the whole build.
-
-libass 0.17.3 fully supports DirectWrite on desktop Windows too, so treat
-`HAVE_WIN32` exactly like `HAVE_WINSTORE`: disable fontconfig and enable
-DirectWrite. This removes fontconfig *and* libxml2 (the only remaining
-libxml2 consumer once bluray/gettext are disabled) from the Windows contrib
-closure, eliminating the two flakiest Windows downloads entirely. Linux, which
-has no `HAVE_WIN32`, keeps fontconfig unchanged.
+WinStore/UWP targets; regular desktop Win32 still pulls in `fontconfig` and
+`libxml2`. libass 0.17.3 supports DirectWrite on desktop Windows too, so treat
+`HAVE_WIN32` like `HAVE_WINSTORE`: disable fontconfig and enable DirectWrite.
+Linux, which has no `HAVE_WIN32`, keeps fontconfig unchanged.
 ---
- contrib/src/ass/rules.mak | 5 ++++-
- 1 file changed, 4 insertions(+), 1 deletion(-)
+ contrib/src/ass/rules.mak | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/contrib/src/ass/rules.mak b/contrib/src/ass/rules.mak
 index 4171273..3d65e50 100644
 --- a/contrib/src/ass/rules.mak
 +++ b/contrib/src/ass/rules.mak
-@@ -20,7 +20,10 @@ else
+@@ -20,7 +20,9 @@ else
  ifdef HAVE_DARWIN_OS
  WITH_FONTCONFIG = 0
  else
 -ifdef HAVE_WINSTORE
 +# Desktop Windows uses libass' native DirectWrite font provider (like UWP),
-+# dropping the fontconfig + libxml2 contrib deps and their fragile
-+# freedesktop.org / gnome.org downloads entirely.
++# avoiding fontconfig and its libxml2 dependency.
 +ifdef HAVE_WIN32
  WITH_FONTCONFIG = 0
  WITH_DWRITE = 1

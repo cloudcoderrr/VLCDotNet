@@ -155,7 +155,6 @@ esac
 (
   cd "${CONTRIB_BUILD}"
   env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" "${BOOTSTRAP_FLAGS[@]}"
-  prefetch_contrib_tarballs "${VLC_SRC}/contrib/tarballs"
   env "${CONTRIB_ENV[@]}" make -j"$(jobs)" fetch
   env "${CONTRIB_ENV[@]}" make -j"$(jobs)" || env "${CONTRIB_ENV[@]}" make -j1
 )

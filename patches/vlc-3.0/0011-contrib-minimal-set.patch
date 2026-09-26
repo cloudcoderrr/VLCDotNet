@@ -1,0 +1,24 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] contrib: preserve --disable-all with additional exclusions
+
+Select the build set with `--disable-all --enable-<pkg>`. The stock rule only
+empties the package list when `PKGS_DISABLE` is exactly `all`, but VLC's own
+`extras/package/win32/build.sh` appends extra `--disable-*` flags, so the
+value is never exactly `all` on Windows. Trigger the empty-set path whenever
+`all` appears anywhere in `PKGS_DISABLE`; no real package is named `all`.
+---
+ contrib/src/main.mak | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/contrib/src/main.mak b/contrib/src/main.mak
+--- a/contrib/src/main.mak
++++ b/contrib/src/main.mak
+@@ -521,7 +521,7 @@ REQUIRE_GNUV3 = \
+ PKGS_FOUND :=
+ include $(SRC)/*/rules.mak
+ 
+-ifeq ($(PKGS_DISABLE), all)
++ifneq ($(filter all,$(PKGS_DISABLE)),)
+ PKGS :=
+ endif
+ #
