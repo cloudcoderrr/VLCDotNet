@@ -205,11 +205,11 @@ namespace VLCDotNet.Tests.Shared
                     outcome.Artifacts.Add(bmp);
                 }
 
-                bool ok = stats.Frames > 0 && stats.NonDarkFraction > 0.02;
+                bool ok = stats.Frames > 0 && stats.NonDarkFraction > 0.02 && stats.LumaRange > 40 && stats.AvgChannelSpread < 80;
                 outcome.Passed = ok;
                 outcome.Message = ok
                     ? $"decoded {stats.Frames} frames; {stats.NonDarkFraction:P0} non-dark"
-                    : "no decoded frames or frame is black";
+                    : "no decoded frames, frame is black, image lacks detail, or the frame has an unexpected color cast";
             }
             catch (Exception ex)
             {

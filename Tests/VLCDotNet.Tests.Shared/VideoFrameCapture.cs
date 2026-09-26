@@ -7,12 +7,14 @@ namespace VLCDotNet.Tests.Shared
     /// <summary>Summary statistics computed over a captured video frame.</summary>
     public readonly struct FrameStats
     {
-        public FrameStats(double nonDarkFraction, byte avgR, byte avgG, byte avgB, long frames)
+        public FrameStats(double nonDarkFraction, byte avgR, byte avgG, byte avgB, int lumaRange, int avgChannelSpread, long frames)
         {
             NonDarkFraction = nonDarkFraction;
             AvgR = avgR;
             AvgG = avgG;
             AvgB = avgB;
+            LumaRange = lumaRange;
+            AvgChannelSpread = avgChannelSpread;
             Frames = frames;
         }
 
@@ -25,10 +27,16 @@ namespace VLCDotNet.Tests.Shared
 
         public byte AvgB { get; }
 
+        /// <summary>Difference between the darkest and brightest pixel luma in the frame.</summary>
+        public int LumaRange { get; }
+
+        /// <summary>Difference between the highest and lowest average RGB channel.</summary>
+        public int AvgChannelSpread { get; }
+
         public long Frames { get; }
 
         public override string ToString() =>
-            $"frames={Frames}, non-dark={NonDarkFraction:P1}, avgRGB=({AvgR},{AvgG},{AvgB})";
+            $"frames={Frames}, non-dark={NonDarkFraction:P1}, luma-range={LumaRange}, avg-channel-spread={AvgChannelSpread}, avgRGB=({AvgR},{AvgG},{AvgB})";
     }
 
     /// <summary>
@@ -107,11 +115,13 @@ namespace VLCDotNet.Tests.Shared
 
             if (frame == null)
             {
-                return new FrameStats(0, 0, 0, 0, frames);
+                return new FrameStats(0, 0, 0, 0, 0, 0, frames);
             }
 
             long nonDark = 0;
             long sumR = 0, sumG = 0, sumB = 0;
+            int minLuma = 255;
+            int maxLuma = 0;
             int pixels = Width * Height;
             for (int i = 0; i < pixels; i++)
             {
@@ -121,15 +131,30 @@ namespace VLCDotNet.Tests.Shared
                 byte r = frame[o + 2];
                 sumR += r; sumG += g; sumB += b;
                 int luma = (299 * r + 587 * g + 114 * b) / 1000;
+                if (luma < minLuma)
+                {
+                    minLuma = luma;
+                }
+                if (luma > maxLuma)
+                {
+                    maxLuma = luma;
+                }
                 if (luma > 16)
                 {
                     nonDark++;
                 }
             }
 
+            byte avgR = (byte)(sumR / pixels);
+            byte avgG = (byte)(sumG / pixels);
+            byte avgB = (byte)(sumB / pixels);
+            int avgChannelSpread = Math.Max(avgR, Math.Max(avgG, avgB)) - Math.Min(avgR, Math.Min(avgG, avgB));
+
             return new FrameStats(
                 (double)nonDark / pixels,
-                (byte)(sumR / pixels), (byte)(sumG / pixels), (byte)(sumB / pixels),
+                avgR, avgG, avgB,
+                maxLuma - minLuma,
+                avgChannelSpread,
                 frames);
         }
 
