@@ -125,3 +125,34 @@ jobs:
           name: vlc3-prebuilt-${{ matrix.rid }}
           path: artifacts/${{ matrix.rid }}
           if-no-files-found: error
+
+  apple:
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && (inputs.only == 'all' || inputs.only == 'apple'))
+       || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[build:apple]') || contains(github.event.head_commit.message, '[build:all]'))) }}
+    runs-on: macos-14
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: macos,        arch: arm64,  rid: osx-arm64 }
+          - { platform: iossimulator,  arch: arm64,  rid: iossimulator-arm64 }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
+        run: |
+          brew install automake libtool pkg-config nasm yasm meson ninja gettext bison flex gperf help2man || true
+          PY_USER_BIN="$(python3 -c 'import sysconfig; print(sysconfig.get_path("scripts", "posix_user"))')"
+          python3 -m pip install --user --break-system-packages 'cmake<3.29'
+          export PATH="$PY_USER_BIN:$PATH"
+          cmake --version
+          echo "$PY_USER_BIN" >> "$GITHUB_PATH"
+          echo "/opt/homebrew/opt/bison/bin:/opt/homebrew/opt/gettext/bin:/opt/homebrew/opt/flex/bin" >> "$GITHUB_PATH"
+      - name: Build (${{ matrix.platform }}/${{ matrix.arch }})
+        run: bash prebuilt/build/build-apple.sh ${{ matrix.platform }} ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vlc3-prebuilt-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error
