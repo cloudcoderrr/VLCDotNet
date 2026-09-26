@@ -63,6 +63,9 @@ while [ "$#" -gt 0 ]; do
       args+=("${opt}=${val}")
       shift 2
       ;;
+    arm|thumb)
+      shift
+      ;;
     -I|-include|-o)
       args+=("$1" "$2")
       shift 2

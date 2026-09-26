@@ -823,7 +823,7 @@ namespace VLCDotNet.Tests.Shared
                 return Array.Empty<string>();
             }
 
-            return Array.Empty<string>();
+            return spec.ExpectedModuleMarkers;
         }
 
         private static IReadOnlyList<string> GetRequiredModules() =>

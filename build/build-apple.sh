@@ -122,7 +122,7 @@ mkdir -p "${CONTRIB_BUILD}"
 # target binaries, which the iOS cross toolchains cannot run.
 BOOTSTRAP_INCLUDE_ASS=0
 case "${PLATFORM}" in
-  macos|maccatalyst)
+  macos)
     BOOTSTRAP_INCLUDE_ASS=1
     ;;
 esac
