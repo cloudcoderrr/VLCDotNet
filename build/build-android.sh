@@ -46,7 +46,10 @@ if [ "${ARCH}" = "arm" ]; then
   # 32-bit bionic only exposes fseeko/ftello to libc++ when large-file macros
   # are enabled. The SID demux pulls those through sidplay2's C++ headers.
   export CFLAGS="${CFLAGS} -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
-  export CXXFLAGS="${CXXFLAGS} -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
+  # libc++ on 32-bit Android still routes std::fstream through fseeko/ftello,
+  # which are not exposed compatibly for this API level. Force the simpler
+  # fseek/ftell path used for newlib-like environments so sidplay2 builds.
+  export CXXFLAGS="${CXXFLAGS} -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_LIBCPP_LIBC_NEWLIB"
   # NDK r29 removed arm-linux-androideabi-as; point libvpx at clang directly so
   # its Android configure path adds the correct assembler-with-cpp flags.
   export AS="${CC}"
