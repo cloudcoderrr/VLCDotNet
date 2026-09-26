@@ -53,6 +53,7 @@
 
   <!-- Package metadata / docs / consumer targets -->
   <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)../../PACKAGE-LICENSE.txt" Pack="true" PackagePath="PACKAGE-LICENSE.txt" />
     <None Include="$(MSBuildThisFileDirectory)../../README.md" Pack="true" PackagePath="README.md" />
     <None Include="$(MSBuildThisFileDirectory)../../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="THIRD-PARTY-NOTICES.md" />
     <None Include="$(MSBuildThisFileDirectory)build/VLCDotNet3.targets" Pack="true" PackagePath="build/VLCDotNet3.targets" />

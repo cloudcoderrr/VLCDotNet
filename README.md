@@ -43,5 +43,9 @@ The native VLC binaries are produced entirely in CI from VideoLAN source. See
 
 ## License
 
-Managed bindings: **LGPL-2.1-or-later**. Redistributed VLC binaries: see
-[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md). Not affiliated with VideoLAN.
+The repository-authored C# bindings and packaging code are licensed under the
+**MIT License**; see [`LICENSE`](LICENSE).
+
+Redistributed VLC binaries, plugins, and other third-party components keep
+their upstream licenses. See [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)
+for the applicable VLC/libvlc GPL/LGPL notices. Not affiliated with VideoLAN.
