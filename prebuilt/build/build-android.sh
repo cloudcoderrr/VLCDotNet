@@ -50,9 +50,17 @@ mkdir -p "${WORK_DIR}"
 clone_vlc "${VLC_SRC}"
 apply_patches "${VLC_SRC}"
 
-# ---- 1. contribs: prebuilt bundle (fallback: source) -------------------------
+# ---- 1. contribs: prebuilt bundle (fallback: source, minimal proven set) -----
+# VideoLAN's artifacts.videolan.org bundles are rotated out for the pinned 3.0.x
+# contrib SHA, so this falls back to a from-source build. Constrain the fallback
+# to the test-required codec closure (the full default set pulls fragile
+# packages like mpg123/x264 that are unneeded and break the cross autoreconf).
 CONTRIB_ENV=(HAVE_ANDROID=1 ANDROID_API="${API}" ANDROID_ABI="${ABI}" ANDROID_NDK="${ANDROID_NDK_HOME}")
-contrib_prebuilt_or_build "${VLC_SRC}" "${TRIPLET}" "${CIJOB}"
+contrib_prebuilt_or_build "${VLC_SRC}" "${TRIPLET}" "${CIJOB}" -- \
+  --disable-all --enable-ffmpeg --enable-faad2 --enable-flac --enable-mad \
+  --enable-mpcdec --enable-opus --enable-ogg --enable-matroska \
+  --enable-schroedinger --enable-sidplay2 --enable-theora --enable-vpx \
+  --enable-dvbpsi --enable-ass --disable-net --disable-disc
 CONTRIB_PREFIX="${VLC_SRC}/contrib/${TRIPLET}"
 
 # ---- 2. bootstrap + configure ------------------------------------------------

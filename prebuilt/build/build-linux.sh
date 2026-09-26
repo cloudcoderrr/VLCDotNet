@@ -25,9 +25,9 @@ case "${ARCH}" in
   *) die "Unsupported Linux arch: ${ARCH}" ;;
 esac
 
-if [ "${ARCH}" != "x86_64" ]; then
-  die "build-linux.sh currently implements x86_64 (native); ${ARCH} is added in a later iteration"
-fi
+# arm/arm64 build natively inside a QEMU-emulated container (see the workflow),
+# so this script stays architecture-agnostic: it always does a native build
+# against the distro packages and the two source-built niche codecs.
 
 VLC_SRC="${WORK_DIR}/vlc-linux-${ARCH}"
 INSTALL_PREFIX="${WORK_DIR}/install-linux-${ARCH}"
