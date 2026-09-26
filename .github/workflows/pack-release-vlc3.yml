@@ -23,7 +23,7 @@ jobs:
   pack:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Select Xcode 26.0
         run: |
@@ -36,7 +36,7 @@ jobs:
           done
           xcodebuild -version
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
 
@@ -97,7 +97,7 @@ jobs:
       - name: Pack VLCDotNet3
         run: dotnet pack src/VLCDotNet/VLCDotNet.csproj -c Release -p:VlcMobileTargets=true -o out
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: VLCDotNet3-nupkg
           path: out/*.nupkg

@@ -26,11 +26,11 @@ jobs:
     if: ${{ inputs.only == 'all' || inputs.only == 'android' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -79,7 +79,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 3072
           script: bash .github/scripts/run-android-maui-tests.sh
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: mobile-output-android
@@ -90,7 +90,7 @@ jobs:
     if: ${{ inputs.only == 'all' || inputs.only == 'ios' }}
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Select Xcode 26.0
         run: |
           echo "Available Xcodes:"; ls -d /Applications/Xcode*.app 2>/dev/null || true
@@ -103,7 +103,7 @@ jobs:
             fi
           done
           xcodebuild -version
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
       - name: Install MAUI workloads
@@ -188,7 +188,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: mobile-output-ios

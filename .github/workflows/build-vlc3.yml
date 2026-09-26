@@ -33,7 +33,7 @@ jobs:
       matrix:
         arch: [x86_64, aarch64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install cross build dependencies
         run: |
           sudo apt-get update
@@ -46,7 +46,7 @@ jobs:
       - name: Map arch to RID
         id: rid
         run: echo "rid=$([ '${{ matrix.arch }}' = 'x86_64' ] && echo win-x64 || echo win-arm64)" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: vlc3-${{ steps.rid.outputs.rid }}
           path: artifacts/${{ steps.rid.outputs.rid }}
@@ -64,7 +64,7 @@ jobs:
           - { arch: armv7,   rid: linux-arm }
           - { arch: aarch64, rid: linux-arm64 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -75,7 +75,7 @@ jobs:
             gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf \
             gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
       - name: Cache VLC source + contrib build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: build/_work
           key: vlc3-linux-${{ matrix.arch }}-${{ env.VLC_VERSION }}-v1-${{ github.run_id }}
@@ -83,7 +83,7 @@ jobs:
             vlc3-linux-${{ matrix.arch }}-${{ env.VLC_VERSION }}-v1-
       - name: Build (${{ matrix.arch }})
         run: bash build/build-linux.sh ${{ matrix.arch }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: vlc3-${{ matrix.rid }}
           path: artifacts/${{ matrix.rid }}
@@ -105,7 +105,7 @@ jobs:
           - { platform: iossimulator, arch: x86_64, rid: iossimulator-x64 }
           - { platform: iossimulator, arch: arm64,  rid: iossimulator-arm64 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install build tools
         run: |
           brew install automake libtool pkg-config nasm yasm meson ninja gettext bison flex gperf help2man || true
@@ -117,7 +117,7 @@ jobs:
           echo "/opt/homebrew/opt/bison/bin:/opt/homebrew/opt/gettext/bin:/opt/homebrew/opt/flex/bin" >> "$GITHUB_PATH"
       - name: Build (${{ matrix.platform }}/${{ matrix.arch }})
         run: bash build/build-apple.sh ${{ matrix.platform }} ${{ matrix.arch }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: vlc3-${{ matrix.rid }}
           path: artifacts/${{ matrix.rid }}
@@ -135,7 +135,7 @@ jobs:
           - { arch: arm64,  rid: android-arm64 }
           - { arch: x86_64, rid: android-x64 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -147,7 +147,7 @@ jobs:
         run: echo "ANDROID_NDK_HOME=${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}" >> "$GITHUB_ENV"
       - name: Build (${{ matrix.arch }})
         run: bash build/build-android.sh ${{ matrix.arch }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: vlc3-${{ matrix.rid }}
           path: artifacts/${{ matrix.rid }}

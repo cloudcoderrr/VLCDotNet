@@ -32,9 +32,9 @@ jobs:
           - { os: macos-14,       rid: osx-arm64, family: macos }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -117,7 +117,7 @@ jobs:
 
       - name: Upload test artifacts
         if: ${{ always() && steps.gate.outputs.run == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-output-${{ matrix.rid }}
           path: Tests/VLCDotNet.Tests.Avalonia/bin/Release/net8.0/test-output
