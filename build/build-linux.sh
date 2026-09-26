@@ -2,7 +2,7 @@
 #
 # Build libvlc for Linux (x64 / arm / arm64) using the VLC contrib system and a
 # libvlc-only configure. x64 builds natively; arm/arm64 cross-compile with the
-# GNU cross toolchains. Prebuilt contribs are used when available.
+# GNU cross toolchains against the same source-built minimal contrib closure.
 #
 #   Usage: build-linux.sh <x86_64|armv7|aarch64>
 #

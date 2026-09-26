@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 #
 # Build libvlc for Windows (x64 / arm64) by cross-compiling on Ubuntu with the
-# official VideoLAN win32 build script. Prebuilt contribs are used to keep the
-# job within CI time limits, falling back to a source contrib build.
+# official VideoLAN win32 build script and a source-built minimal contrib set.
 #
 #   Usage: build-windows.sh <x86_64|aarch64>
 #

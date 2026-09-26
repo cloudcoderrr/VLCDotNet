@@ -26,7 +26,6 @@ checkout after patches 0001-0010.
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/contrib/src/main.mak b/contrib/src/main.mak
-index 0000000..0000001 100644
 --- a/contrib/src/main.mak
 +++ b/contrib/src/main.mak
 @@ -255,7 +255,7 @@ endif

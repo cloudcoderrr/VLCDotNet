@@ -11,7 +11,6 @@ forced enables; callers that want them can pass --enable-dvdread/--enable-caca.
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/extras/package/win32/build.sh b/extras/package/win32/build.sh
-index 1111111..2222222 100644
 --- a/extras/package/win32/build.sh
 +++ b/extras/package/win32/build.sh
 @@ -505,7 +505,7 @@ if [ -n "$WINSTORE" ]; then

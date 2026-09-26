@@ -14,7 +14,6 @@ callbacks.
  2 files changed, 13 insertions(+)
 
 diff --git a/configure.ac b/configure.ac
-index 1111111..2222222 100644
 --- a/configure.ac
 +++ b/configure.ac
 @@ -103,6 +103,7 @@ dnl
@@ -49,7 +48,6 @@ index 1111111..2222222 100644
  AM_CONDITIONAL(HAVE_NACL,    test "${SYS}" = "nacl")
  AM_CONDITIONAL(HAVE_LIBANL,  test "${HAVE_LIBANL}" = "1")
 diff --git a/modules/video_output/Makefile.am b/modules/video_output/Makefile.am
-index 3333333..4444444 100644
 --- a/modules/video_output/Makefile.am
 +++ b/modules/video_output/Makefile.am
 @@ -59,7 +59,9 @@ libvout_ios_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(voutdir)' \
@@ -63,7 +61,6 @@ index 3333333..4444444 100644
  if HAVE_TVOS
  vout_LTLIBRARIES += libvout_ios_plugin.la libglconv_cvpx_plugin.la
 diff --git a/modules/video_filter/Makefile.am b/modules/video_filter/Makefile.am
-index 5555555..6666666 100644
 --- a/modules/video_filter/Makefile.am
 +++ b/modules/video_filter/Makefile.am
 @@ -116,7 +116,9 @@ if HAVE_OSX

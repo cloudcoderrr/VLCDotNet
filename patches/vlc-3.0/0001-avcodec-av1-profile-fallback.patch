@@ -16,7 +16,6 @@ stable (main=0, high=1, professional=2), and where the symbols already exist
  1 file changed, 11 insertions(+)
 
 diff --git a/modules/codec/avcodec/avcommon_compat.h b/modules/codec/avcodec/avcommon_compat.h
-index 1111111..2222222 100644
 --- a/modules/codec/avcodec/avcommon_compat.h
 +++ b/modules/codec/avcodec/avcommon_compat.h
 @@ -37,5 +37,17 @@

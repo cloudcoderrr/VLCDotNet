@@ -1,0 +1,23 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] contrib: use a stable lame source
+
+FFmpeg's contrib build still depends on `lame`, and VLC 3.0.23 starts from a
+single SourceForge mirror path for that tarball. Replace it with a stable HTTPS
+source whose archive was locally validated against VLC 3.0.23's existing
+SHA512SUMS entry, so no checksum updates are required.
+---
+ contrib/src/lame/rules.mak | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/contrib/src/lame/rules.mak b/contrib/src/lame/rules.mak
+--- a/contrib/src/lame/rules.mak
++++ b/contrib/src/lame/rules.mak
+@@ -1,7 +1,7 @@
+ # lame
+ 
+ LAME_VERSION := 3.100
+-LAME_URL := $(SF)/lame/lame-$(LAME_VERSION).tar.gz
++LAME_URL := https://deb.debian.org/debian/pool/main/l/lame/lame_$(LAME_VERSION).orig.tar.gz
+ LAME_CFLAGS := $(CFLAGS)
+ 
+ $(TARBALLS)/lame-$(LAME_VERSION).tar.gz:

@@ -12,7 +12,6 @@ filename and checksum are unchanged.
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/contrib/src/iconv/rules.mak b/contrib/src/iconv/rules.mak
-index 1111111..2222222 100644
 --- a/contrib/src/iconv/rules.mak
 +++ b/contrib/src/iconv/rules.mak
 @@ -1,6 +1,6 @@
