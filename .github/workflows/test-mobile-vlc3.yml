@@ -242,34 +242,36 @@ jobs:
           set -euo pipefail
           set -x
           rm -rf "$HOME/Library/Containers/com.vlcdotnet.tests" || true
+          mkdir -p mobile-output/catalyst
           app=$(find Tests/VLCDotNet.Tests.Maui/bin/Debug/net10.0-maccatalyst -name '*.app' -maxdepth 3 | head -1)
           test -n "$app"
-          open "$app"
+          exe=$(find "$app/Contents/MacOS" -maxdepth 1 -type f | head -1)
+          test -n "$exe"
+          "$exe" > mobile-output/catalyst/app-stdout.txt 2>&1 &
+          app_pid=$!
           container="$HOME/Library/Containers/com.vlcdotnet.tests/Data"
           done_path=""
           for i in $(seq 1 90); do
-            for cand in \
-              "$container/Library/Application Support/test-output/DONE.txt" \
-              "$container/Library/test-output/DONE.txt" \
-              "$container/Documents/test-output/DONE.txt"; do
-              if [ -f "$cand" ]; then
-                done_path="$cand"
-                break 2
-              fi
-            done
+            done_path=$(find "$container" -path '*test-output/DONE.txt' -print -quit 2>/dev/null || true)
+            if [ -n "$done_path" ]; then
+              break
+            fi
+            if ! kill -0 "$app_pid" 2>/dev/null; then
+              break
+            fi
             sleep 5
           done
-          mkdir -p mobile-output/catalyst
-          if [ -d "$container/Library/Application Support/test-output" ]; then
-            cp -R "$container/Library/Application Support/test-output" mobile-output/catalyst/
-          elif [ -d "$container/Library/test-output" ]; then
-            cp -R "$container/Library/test-output" mobile-output/catalyst/
-          elif [ -d "$container/Documents/test-output" ]; then
-            cp -R "$container/Documents/test-output" mobile-output/catalyst/
+          if [ -n "$done_path" ]; then
+            out_dir=$(dirname "$done_path")
+            cp -R "$out_dir" mobile-output/catalyst/test-output
+          elif [ -d "$container" ]; then
+            find "$container" -maxdepth 6 -type f | sort > mobile-output/catalyst/container-files.txt || true
           fi
           if [ -z "$done_path" ]; then
             echo "Mac Catalyst test app never produced DONE.txt" >&2
-            find "$HOME/Library/Containers" -maxdepth 3 -type f -name 'DONE.txt' -o -name 'runner-report.txt' 2>/dev/null || true
+            cat mobile-output/catalyst/app-stdout.txt || true
+            ps -p "$app_pid" -o pid=,command= || true
+            find "$HOME/Library/Containers/com.vlcdotnet.tests" -maxdepth 6 -type f 2>/dev/null | sort || true
             exit 1
           fi
           done_contents=$(cat "$done_path")
@@ -283,7 +285,8 @@ jobs:
           esac
           tail -n 40 mobile-output/catalyst/test-output/runner-report.txt || true
           tail -n 40 mobile-output/catalyst/test-output/vlc-log.txt || true
-          osascript -e 'tell application id "com.vlcdotnet.tests" to quit' >/dev/null 2>&1 || true
+          kill "$app_pid" >/dev/null 2>&1 || true
+          wait "$app_pid" >/dev/null 2>&1 || true
           if [ "$failures" -ne 0 ]; then
             echo "Mac Catalyst test suite reported $failures failure(s)." >&2
             exit 1
