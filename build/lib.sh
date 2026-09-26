@@ -333,12 +333,13 @@ prefetch_contrib_tarballs() {
   pf_one libmatroska-1.7.0.tar.xz https://dl.matroska.org/downloads/libmatroska/libmatroska-1.7.0.tar.xz
   pf_one libiconv-1.17.tar.gz     https://mirrors.kernel.org/gnu/libiconv/libiconv-1.17.tar.gz
   pf_one libmad-0.15.1b.tar.gz    https://deb.debian.org/debian/pool/main/libm/libmad/libmad_0.15.1b.orig.tar.gz
+  pf_one musepack_src_r481.tar.gz https://download.videolan.org/pub/contrib/mpcdec/musepack_src_r481.tar.gz
   pf_one libtheora-1.1.1.tar.xz   https://downloads.xiph.org/releases/theora/libtheora-1.1.1.tar.xz https://ftp.osuosl.org/pub/xiph/releases/theora/libtheora-1.1.1.tar.xz
   pf_one libvpx-1.15.2.tar.gz     https://github.com/webmproject/libvpx/archive/v1.15.2.tar.gz
   pf_one fontconfig-2.12.3.tar.gz https://www.freedesktop.org/software/fontconfig/release/fontconfig-2.12.3.tar.gz
   pf_one libxml2-2.9.14.tar.xz    https://download.gnome.org/sources/libxml2/2.9/libxml2-2.9.14.tar.xz
   pf_one openjpeg-2.5.0.tar.gz    https://github.com/uclouvain/openjpeg/archive/v2.5.0.tar.gz
-  pf_one schroedinger-1.0.11.tar.gz https://deb.debian.org/debian/pool/main/s/schroedinger/schroedinger_1.0.11.orig.tar.gz
+  pf_one schroedinger-1.0.11.tar.gz https://old-releases.ubuntu.com/ubuntu/pool/universe/s/schroedinger/schroedinger_1.0.11.orig.tar.gz
   pf_one sidplay-libs-2.1.1.tar.gz https://downloads.sourceforge.net/project/sidplay2/sidplay2/sidplay-libs-2.1.1/sidplay-libs-2.1.1.tar.gz
   pf_one zlib-1.3.1.tar.xz        https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.xz
   pf_one fribidi-1.0.12.tar.xz    https://github.com/fribidi/fribidi/releases/download/v1.0.12/fribidi-1.0.12.tar.xz
