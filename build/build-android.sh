@@ -47,9 +47,9 @@ if [ "${ARCH}" = "arm" ]; then
   # are enabled. The SID demux pulls those through sidplay2's C++ headers.
   export CFLAGS="${CFLAGS} -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
   # libc++ on 32-bit Android still routes std::fstream through fseeko/ftello,
-  # which are not exposed compatibly for this API level. Force the simpler
-  # fseek/ftell path used for newlib-like environments so sidplay2 builds.
-  export CXXFLAGS="${CXXFLAGS} -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_LIBCPP_LIBC_NEWLIB"
+  # which are not exposed compatibly for this API level. Force libc++ down its
+  # plain fseek/ftell path for this target so sidplay2 builds.
+  export CXXFLAGS="${CXXFLAGS} -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_LIBCPP_HAS_NO_OFF_T_FUNCTIONS"
   # NDK r29 removed arm-linux-androideabi-as; point libvpx at clang directly so
   # its Android configure path adds the correct assembler-with-cpp flags.
   export AS="${CC}"
