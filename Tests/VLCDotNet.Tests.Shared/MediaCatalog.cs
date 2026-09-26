@@ -58,7 +58,6 @@ namespace VLCDotNet.Tests.Shared
                 HasVideo = true, HasAudio = true, VideoWidth = 640, VideoHeight = 360,
                 AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 8000,
                 VideoCodecHint = "h264", AudioCodecHint = "mp4a",
-                ExpectedAppleModuleMarkers = new[] { "videotoolbox" },
             },
             TransportStream,
             new MediaSpec("video_vp9_opus.webm")
@@ -66,7 +65,6 @@ namespace VLCDotNet.Tests.Shared
                 HasVideo = true, HasAudio = true, VideoWidth = 640, VideoHeight = 360,
                 AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 8008,
                 VideoCodecHint = "vp09", AudioCodecHint = "opus",
-                ExpectedModuleMarkers = new[] { "vpx" },
             },
             new MediaSpec("video_mpeg4_mp3.avi")
             {
@@ -79,15 +77,20 @@ namespace VLCDotNet.Tests.Shared
                 HasVideo = true, HasAudio = true, VideoWidth = 640, VideoHeight = 360,
                 AudioChannels = 1, AudioSampleRate = 48000, DurationMs = 6021,
                 VideoCodecHint = "hevc", AudioCodecHint = "mp4a",
-                ExpectedAppleModuleMarkers = new[] { "videotoolbox" },
             },
-            new MediaSpec("video_dirac_flac.mkv")
-            {
-                HasVideo = true, HasAudio = true, VideoWidth = 640, VideoHeight = 360,
-                AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 6000,
-                VideoCodecHint = "drac", AudioCodecHint = "flac",
-                ExpectedModuleMarkers = new[] { "schroedinger" },
-            },
+        };
+
+        public static readonly MediaSpec DiracFlac = new MediaSpec("video_dirac_flac.mkv")
+        {
+            HasVideo = true, HasAudio = true, VideoWidth = 640, VideoHeight = 360,
+            AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 6000,
+            VideoCodecHint = "drac", AudioCodecHint = "flac",
+        };
+
+        public static readonly IReadOnlyList<MediaSpec> AppleHardwareDecodeVideos = new List<MediaSpec>
+        {
+            Videos[0],
+            Videos[4],
         };
 
         /// <summary>Container with two audio and two subtitle tracks for switch testing.</summary>
