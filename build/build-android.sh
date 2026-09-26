@@ -44,13 +44,40 @@ export CXXFLAGS="${CXXFLAGS:-} -Wno-error=incompatible-pointer-types -Wno-c++11-
 
 if [ "${ARCH}" = "arm" ]; then
   # libvpx's armv7 build still invokes the removed arm-linux-androideabi-as
-  # binary. Route that invocation through clang, which can assemble the same .S
-  # sources for the NDK target.
+  # binary with a small set of GNU as flags. Translate those invocations into
+  # an equivalent clang assembler-with-cpp command line for the NDK target.
   ARM_AS_WRAP_DIR="${WORK_DIR}/android-arm-as-wrap"
   mkdir -p "${ARM_AS_WRAP_DIR}"
   cat > "${ARM_AS_WRAP_DIR}/arm-linux-androideabi-as" <<EOF
-#!/bin/sh
-exec "${CC}" -c "$@"
+#!/usr/bin/env bash
+set -euo pipefail
+args=()
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -arch)
+      shift 2
+      ;;
+    -march|-mfpu|-mfloat-abi)
+      opt="$1"
+      val="$2"
+      args+=("${opt}=${val}")
+      shift 2
+      ;;
+    -I|-include|-o)
+      args+=("$1" "$2")
+      shift 2
+      ;;
+    -c|-D*|-I*|-Wa,*|-f*|-m*|-O*|-W*|--target=*|--sysroot=*)
+      args+=("$1")
+      shift
+      ;;
+    *)
+      args+=("$1")
+      shift
+      ;;
+  esac
+done
+exec "${CC}" -x assembler-with-cpp "${args[@]}"
 EOF
   chmod +x "${ARM_AS_WRAP_DIR}/arm-linux-androideabi-as"
   export PATH="${ARM_AS_WRAP_DIR}:${PATH}"

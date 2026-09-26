@@ -133,8 +133,23 @@ case "${PLATFORM}" in
     # Apple mobile/Catalyst validate VT hardware decode plus general playback.
     # libvpx's RTC encoder path and schroedinger's orc dependency are unstable
     # in this contrib cross-build flow and not required for that surface.
-    BOOTSTRAP_FLAGS+=(--disable-vpx --disable-schroedinger)
-    CODEC_FLAGS+=(--disable-vpx --disable-schroedinger)
+    FILTERED_BOOTSTRAP_FLAGS=()
+    for flag in "${BOOTSTRAP_FLAGS[@]}"; do
+      case "${flag}" in
+        --enable-vpx|--enable-schroedinger) ;;
+        *) FILTERED_BOOTSTRAP_FLAGS+=("${flag}") ;;
+      esac
+    done
+    BOOTSTRAP_FLAGS=("${FILTERED_BOOTSTRAP_FLAGS[@]}")
+
+    FILTERED_CODEC_FLAGS=()
+    for flag in "${CODEC_FLAGS[@]}"; do
+      case "${flag}" in
+        --enable-vpx|--enable-schroedinger) ;;
+        *) FILTERED_CODEC_FLAGS+=("${flag}") ;;
+      esac
+    done
+    CODEC_FLAGS=("${FILTERED_CODEC_FLAGS[@]}")
     ;;
 esac
 (
