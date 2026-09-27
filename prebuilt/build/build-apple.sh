@@ -138,7 +138,7 @@ case "${PLATFORM}" in
     # libvpx RTC and schroedinger/orc are unstable in this cross flow and not
     # required for the mobile VT-decode + playback surface.
     FILTERED=(); for f in "${BOOTSTRAP_FLAGS[@]}"; do case "$f" in --enable-vpx|--enable-schroedinger) ;; *) FILTERED+=("$f");; esac; done; BOOTSTRAP_FLAGS=("${FILTERED[@]}")
-    FILTERED=(); for f in "${CODEC_FLAGS[@]}";     do case "$f" in --enable-vpx|--enable-schroedinger) ;; *) FILTERED+=("$f");; esac; done; CODEC_FLAGS=("${FILTERED[@]}")
+    if [ ${#CODEC_FLAGS[@]} -gt 0 ]; then FILTERED=(); for f in "${CODEC_FLAGS[@]}"; do case "$f" in --enable-vpx|--enable-schroedinger) ;; *) FILTERED+=("$f");; esac; done; CODEC_FLAGS=("${FILTERED[@]}"); fi
     ;;
 esac
 (
@@ -164,7 +164,7 @@ CONFIG_FLAGS=(
   --disable-screen --disable-vcd --disable-live555 --disable-realrtsp
   --enable-avcodec --enable-swscale
 )
-CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
+CONFIG_FLAGS+=("${CODEC_FLAGS[@]+"${CODEC_FLAGS[@]}"}")
 case "${PLATFORM}" in
   ios|iossimulator) CONFIG_FLAGS+=(--disable-fribidi --disable-harfbuzz --disable-libass --disable-macosx-avfoundation) ;;
   maccatalyst)      CONFIG_FLAGS+=(--disable-macosx-avfoundation) ;;

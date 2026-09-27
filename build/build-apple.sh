@@ -146,13 +146,15 @@ case "${PLATFORM}" in
     BOOTSTRAP_FLAGS=("${FILTERED_BOOTSTRAP_FLAGS[@]}")
 
     FILTERED_CODEC_FLAGS=()
-    for flag in "${CODEC_FLAGS[@]}"; do
-      case "${flag}" in
-        --enable-vpx|--enable-schroedinger) ;;
-        *) FILTERED_CODEC_FLAGS+=("${flag}") ;;
-      esac
-    done
-    CODEC_FLAGS=("${FILTERED_CODEC_FLAGS[@]}")
+    if [ ${#CODEC_FLAGS[@]} -gt 0 ]; then
+      for flag in "${CODEC_FLAGS[@]}"; do
+        case "${flag}" in
+          --enable-vpx|--enable-schroedinger) ;;
+          *) FILTERED_CODEC_FLAGS+=("${flag}") ;;
+        esac
+      done
+      CODEC_FLAGS=("${FILTERED_CODEC_FLAGS[@]}")
+    fi
     ;;
 esac
 (
@@ -180,7 +182,9 @@ CONFIG_FLAGS=(
   --disable-screen --disable-vcd --disable-live555 --disable-realrtsp
   --enable-avcodec --enable-swscale
 )
-CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
+# CODEC_FLAGS is empty on 4.x (avcodec-only); guard the expansion for the
+# macOS system bash 3.2, whose set -u rejects empty-array expansion.
+[ ${#CODEC_FLAGS[@]} -gt 0 ] && CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
 case "${PLATFORM}" in
   ios|iossimulator)
     CONFIG_FLAGS+=(--disable-fribidi --disable-harfbuzz --disable-libass --disable-macosx-avfoundation)
