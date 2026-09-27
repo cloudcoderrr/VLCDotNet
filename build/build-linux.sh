@@ -39,6 +39,12 @@ apply_patches "${VLC_SRC}"
 if [ "${CROSS}" = "1" ]; then
   log "Cross build: relaxing libvlccore link flags in src/Makefile.am before bootstrap"
   perl -0pi -e 's{libvlccore_la_LDFLAGS = \\\R\h*\$\(LDFLAGS_libvlccore\) \\\R\h*-no-undefined \\\R\h*-export-symbols \$\(srcdir\)/libvlccore\.sym \\\R\h*-version-info (\d+:\d+:\d+)}{libvlccore_la_LDFLAGS = \\\n\t\$(LDFLAGS_libvlccore) \\\n\t-version-info $1}ms' "${VLC_SRC}/src/Makefile.am"
+  # libvlc keeps -no-undefined, which makes the cross libtool refuse to emit the
+  # real libvlc.so.N (libvlc references libvlccore symbols resolved at load
+  # time). Drop -no-undefined and -export-symbols so the versioned shared object
+  # is produced, mirroring the libvlccore relaxation above.
+  log "Cross build: relaxing libvlc link flags in lib/Makefile.am before bootstrap"
+  perl -0pi -e 's{libvlc_la_LDFLAGS = \\\R\h*\$\(LDFLAGS_libvlc\) \\\R\h*-no-undefined \\\R\h*(-version-number \S+) \\\R\h*-export-symbols \$\(srcdir\)/libvlc\.sym}{libvlc_la_LDFLAGS = \\\n\t\$(LDFLAGS_libvlc) \\\n\t$1}ms' "${VLC_SRC}/lib/Makefile.am"
 fi
 
 if [ "${CROSS}" = "1" ]; then
