@@ -41,11 +41,21 @@ namespace VLCDotNet.Tests.Shared
 
     /// <summary>
     /// Captures decoded frames headlessly through libvlc's decode-to-memory
-    /// (vmem) callbacks, so video output can be verified without a display. The
-    /// requested chroma is RV32 (32-bit, byte order B,G,R,X on little-endian).
+    /// (vmem) callbacks, so video output can be verified without a display.
+    /// libvlc 3.x uses RV32 (byte order B,G,R,X on little-endian); libvlc 4.0's
+    /// RV32 layout puts the opaque byte first, so the 4.x build requests RGBA
+    /// (byte order R,G,B,A) for an unambiguous mapping.
     /// </summary>
     public sealed class VideoFrameCapture : IDisposable
     {
+#if VLC4
+        private const string Chroma = "RGBA";
+        private const int ROff = 0, GOff = 1, BOff = 2;
+#else
+        private const string Chroma = "RV32";
+        private const int BOff = 0, GOff = 1, ROff = 2;
+#endif
+
         private readonly IntPtr _buffer;
         private readonly int _bufferSize;
         private readonly VlcVideoLockCb _lockCb;
@@ -68,7 +78,7 @@ namespace VLCDotNet.Tests.Shared
             _unlockCb = OnUnlock;
             _displayCb = OnDisplay;
 
-            LibVlc.libvlc_video_set_format(player, "RV32", (uint)width, (uint)height, (uint)(width * 4));
+            LibVlc.libvlc_video_set_format(player, Chroma, (uint)width, (uint)height, (uint)(width * 4));
             LibVlc.libvlc_video_set_callbacks(player, _lockCb, _unlockCb, _displayCb, IntPtr.Zero);
         }
 
@@ -126,9 +136,9 @@ namespace VLCDotNet.Tests.Shared
             for (int i = 0; i < pixels; i++)
             {
                 int o = i * 4;
-                byte b = frame[o];
-                byte g = frame[o + 1];
-                byte r = frame[o + 2];
+                byte b = frame[o + BOff];
+                byte g = frame[o + GOff];
+                byte r = frame[o + ROff];
                 sumR += r; sumG += g; sumB += b;
                 int luma = (299 * r + 587 * g + 114 * b) / 1000;
                 if (luma < minLuma)
@@ -187,9 +197,9 @@ namespace VLCDotNet.Tests.Shared
                 for (int x = 0; x < Width; x++)
                 {
                     int o = (y * Width + x) * 4;
-                    row[x * 3] = frame[o];         // B
-                    row[x * 3 + 1] = frame[o + 1]; // G
-                    row[x * 3 + 2] = frame[o + 2]; // R
+                    row[x * 3] = frame[o + BOff];     // B
+                    row[x * 3 + 1] = frame[o + GOff]; // G
+                    row[x * 3 + 2] = frame[o + ROff]; // R
                 }
                 w.Write(row, 0, rowSize);
             }
