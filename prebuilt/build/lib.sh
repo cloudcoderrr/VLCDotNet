@@ -279,8 +279,15 @@ $("${nm}" "$a" 2>/dev/null | grep -oE 'vlc_entry__[A-Za-z0-9_]+' | sort -u)"
   fi
 
   if [ -f "${out}/libvlccore.a" ]; then
-    "${AR}" d "${out}/libvlccore.a" revision.o 2>/dev/null || true
-    "${RANLIB:-ranlib}" "${out}/libvlccore.a" 2>/dev/null || true
+    # libtool names the object libvlccore_la-revision.o (not plain revision.o),
+    # so look up the real member name rather than assuming a fixed one; drop
+    # libvlccore's copy of psz_vlc_changeset so the app links exactly one.
+    local revobj
+    revobj="$("${AR}" t "${out}/libvlccore.a" 2>/dev/null | grep -E '(^|[-_])revision\.o$' | head -n1)"
+    if [ -n "${revobj}" ]; then
+      "${AR}" d "${out}/libvlccore.a" "${revobj}" 2>/dev/null || true
+      "${RANLIB:-ranlib}" "${out}/libvlccore.a" 2>/dev/null || true
+    fi
   fi
 
   local uniq

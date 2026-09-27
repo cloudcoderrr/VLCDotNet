@@ -926,7 +926,8 @@ namespace VLCDotNet.Tests.Shared
                     string? lastId = LibVlc.Utf8ToString(Marshal.PtrToStructure<VlcMediaTrack>(last).StringId);
                     LibVlc.libvlc_media_player_select_track(mp, last);
                     // Poll until the selection takes effect rather than assuming a
-                    // fixed delay (track selection is applied asynchronously in v4).
+                    // fixed delay (track selection is applied asynchronously in v4;
+                    // subtitle activation can lag audio, especially on macOS).
                     ok = Wait(() =>
                     {
                         IntPtr sel = LibVlc.libvlc_media_player_get_selected_track(mp, type);
@@ -937,7 +938,7 @@ namespace VLCDotNet.Tests.Shared
                         string? selId = LibVlc.Utf8ToString(Marshal.PtrToStructure<VlcMediaTrack>(sel).StringId);
                         LibVlc.libvlc_media_track_release(sel);
                         return lastId != null && lastId == selId;
-                    }, 3000);
+                    }, 6000);
                 }
             }
             finally
@@ -1231,6 +1232,15 @@ namespace VLCDotNet.Tests.Shared
         {
 #if VLC4
             LibVlc.libvlc_media_player_stop_async(mp);
+            // stop_async returns immediately; wait for the player to actually stop
+            // so the input file handle is closed before the next test reopens the
+            // same media. On Windows a still-open handle otherwise makes the next
+            // sout/demux read 0 bytes ("cannot pre fill buffer").
+            Wait(() =>
+            {
+                VlcState s = LibVlc.libvlc_media_player_get_state(mp);
+                return s == VlcState.Stopped || s == VlcState.NothingSpecial || s == VlcState.Error;
+            }, 3000);
 #else
             LibVlc.libvlc_media_player_stop(mp);
 #endif
