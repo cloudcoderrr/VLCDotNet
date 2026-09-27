@@ -1,31 +1,26 @@
 From: VLCDotNet CI <ci@vlcdotnet>
 Subject: [PATCH] android: export libvlccore JNI_OnLoad so s_jvm is set
 
-libvlccore JNI_OnLoad (src/android/specific.c) stores the JavaVM in the
-static s_jvm that libvlc_InternalInit -> system_Configure asserts is non-NULL.
-JNI_OnLoad is not listed in libvlccore.sym, so libtool -export-symbols hides it
-and neither java.lang.System.loadLibrary nor an explicit dlsym can invoke it,
-leaving s_jvm NULL and aborting libvlc_new on Android. Re-export
-JNI_OnLoad/JNI_OnUnload through an additional version script, applied on Android
-only (android/specific.c is not built elsewhere, and adding the symbols to
-libvlccore.sym would break the Windows .def and Apple -exported_symbols_list
-links). An exact global match wins over libtool local: * wildcard.
+libvlccore JNI_OnLoad (src/android/specific.c) stores the JavaVM in the static
+s_jvm that libvlc_InternalInit -> system_Configure asserts is non-NULL. JNI_OnLoad
+is not listed in libvlccore.sym, so libtool -export-symbols hides it and neither
+java.lang.System.loadLibrary nor an explicit dlsym can invoke it, leaving s_jvm
+NULL and aborting libvlc_new on Android. Re-export JNI_OnLoad/JNI_OnUnload through
+an additional version script, applied on Android only (android/specific.c is not
+built elsewhere; adding the symbols to libvlccore.sym would break the Windows .def
+and Apple -exported_symbols_list links). An exact global match wins over libtools
+local wildcard. The conditional block is kept comment-free so automake parses the
++= augmentation.
 ---
 diff --git a/src/Makefile.am b/src/Makefile.am
-index 869a5eb..23c0f70 100644
+index 869a5eb..aa4b4fa 100644
 --- a/src/Makefile.am
 +++ b/src/Makefile.am
-@@ -470,6 +470,16 @@ libvlccore_la_LDFLAGS = \
+@@ -470,6 +470,10 @@ libvlccore_la_LDFLAGS = \
  	-export-symbols $(srcdir)/libvlccore.sym \
  	-version-info 9:1:0
  libvlccore_la_DEPENDENCIES = libvlccore.sym
 +if HAVE_ANDROID
-+# libvlccore's JNI_OnLoad (android/specific.c) captures the JavaVM, but it is
-+# not listed in libvlccore.sym, so -export-symbols hides it and the Android
-+# runtime can never call it -> libvlc_InternalInit aborts in system_Configure
-+# on "s_jvm != NULL". Re-export the JNI entry points on Android only (other
-+# platforms do not build android/specific.c). An exact global match in a version
-+# script wins over libtool's "local: *" wildcard.
 +libvlccore_la_LDFLAGS += -Wl,--version-script=$(srcdir)/libvlccore_jni.sym
 +libvlccore_la_DEPENDENCIES += libvlccore_jni.sym
 +endif
