@@ -157,6 +157,12 @@ case "${PLATFORM}" in
     fi
     ;;
 esac
+# VLC 4.0's matroska pulls the header-only utfcpp contrib, whose CMake build
+# rejects the macOS SDK under Catalyst's iOS-family target. Drop matroska on
+# Catalyst 4.x; libavformat (ffmpeg) demuxes the MKV test media instead.
+if [ "${VLC_SERIES}" != "3" ] && [ "${PLATFORM}" = "maccatalyst" ]; then
+  _MK=(); for f in "${BOOTSTRAP_FLAGS[@]}"; do case "$f" in --enable-matroska) ;; *) _MK+=("$f");; esac; done; BOOTSTRAP_FLAGS=("${_MK[@]}")
+fi
 (
   cd "${CONTRIB_BUILD}"
   env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" "${BOOTSTRAP_FLAGS[@]}"
