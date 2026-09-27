@@ -5,12 +5,12 @@ name: build-vlc3-prebuilt
 # toolchain matches; distro apt packages on Linux; source fallback otherwise)
 # and uploads one artifact per RID (vlc3-prebuilt-<rid>).
 #
-# Trigger: workflow_dispatch with "only", or push to the branch with a commit
+# Trigger: workflow_dispatch with "only", or push to main/master with a commit
 # message tag [build:<family>] / [build:all].
 
 on:
   push:
-    branches: [prebuilt-contribs]
+    branches: [main, master]
     paths:
       - "prebuilt/**"
       - ".github/workflows/build-vlc3-prebuilt.yml"

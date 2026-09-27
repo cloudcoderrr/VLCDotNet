@@ -1,7 +1,7 @@
 name: pack-release-vlc3-prebuilt
 
 # Downloads every native artifact from a build-vlc3-prebuilt run, packs the
-# primary VLCDotNet3 NuGet (managed bindings + all platform binaries) and
+# VLCDotNet3 NuGet (managed bindings + all platform binaries) and
 # publishes it to a GitHub Release (tag v<version>). Runs on macOS so the
 # iOS/Mac Catalyst heads can be built.
 #
@@ -9,7 +9,7 @@ name: pack-release-vlc3-prebuilt
 
 on:
   push:
-    branches: [prebuilt-contribs]
+    branches: [main, master]
     paths:
       - ".github/workflows/pack-release-vlc3-prebuilt.yml"
   workflow_dispatch:
