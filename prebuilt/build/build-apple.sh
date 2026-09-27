@@ -141,17 +141,20 @@ case "${PLATFORM}" in
     if [ ${#CODEC_FLAGS[@]} -gt 0 ]; then FILTERED=(); for f in "${CODEC_FLAGS[@]}"; do case "$f" in --enable-vpx|--enable-schroedinger) ;; *) FILTERED+=("$f");; esac; done; CODEC_FLAGS=("${FILTERED[@]}"); fi
     ;;
 esac
-# VLC 4.0's matroska pulls the header-only utfcpp contrib, whose CMake build
-# rejects the macOS SDK under Catalyst's iOS-family target. Drop matroska on
-# Catalyst 4.x; libavformat (ffmpeg) demuxes the MKV test media instead.
+# VLC 4.0's contrib sets CMAKE_SYSTEM_NAME=iOS for Catalyst (HAVE_IOS is set),
+# but Catalyst builds against the macOS SDK, which CMake's iOS platform init
+# rejects (fails zlib/utfcpp and any CMake contrib). Force Darwin on the contrib
+# make so CMake treats it as macOS; the compiler still targets the macabi ABI
+# through CFLAGS.
+CONTRIB_MK=()
 if [ "${VLC_SERIES}" != "3" ] && [ "${PLATFORM}" = "maccatalyst" ]; then
-  _MK=(); for f in "${BOOTSTRAP_FLAGS[@]}"; do case "$f" in --enable-matroska) ;; *) _MK+=("$f");; esac; done; BOOTSTRAP_FLAGS=("${_MK[@]}")
+  CONTRIB_MK=(CMAKE_SYSTEM_NAME=Darwin)
 fi
 (
   cd "${CONTRIB_BUILD}"
   env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" "${BOOTSTRAP_FLAGS[@]}"
-  env "${CONTRIB_ENV[@]}" make -j"$(jobs)" fetch
-  env "${CONTRIB_ENV[@]}" make -j"$(jobs)" || env "${CONTRIB_ENV[@]}" make -j1
+  env "${CONTRIB_ENV[@]}" make ${CONTRIB_MK[@]+"${CONTRIB_MK[@]}"} -j"$(jobs)" fetch
+  env "${CONTRIB_ENV[@]}" make ${CONTRIB_MK[@]+"${CONTRIB_MK[@]}"} -j"$(jobs)" || env "${CONTRIB_ENV[@]}" make ${CONTRIB_MK[@]+"${CONTRIB_MK[@]}"} -j1
 )
 
 # ---- 2. bootstrap + configure -------------------------------------------------
