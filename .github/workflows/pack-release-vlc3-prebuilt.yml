@@ -1,14 +1,21 @@
-name: pack-release-vlc3
+name: pack-release-vlc3-prebuilt
 
-# Downloads every native artifact from a build-vlc3 run, packs the VLCDotNet3
-# NuGet (managed bindings + all platform binaries) and publishes it to a GitHub
-# Release. Runs on macOS so the iOS/Mac Catalyst heads can be built.
+# Downloads every native artifact from a build-vlc3-prebuilt run, packs the
+# VLCDotNet3 NuGet (managed bindings + all platform binaries) and
+# publishes it to a GitHub Release (tag v<version>). Runs on macOS so the
+# iOS/Mac Catalyst heads can be built.
+#
+# Trigger: workflow_dispatch, or push with a commit tag [pack].
 
 on:
+  push:
+    branches: [main, master]
+    paths:
+      - ".github/workflows/pack-release-vlc3-prebuilt.yml"
   workflow_dispatch:
     inputs:
       build_run_id:
-        description: "build-vlc3 run id to pull binaries from (blank = latest successful)"
+        description: "build-vlc3-prebuilt run id to pull binaries from (blank = latest successful)"
         required: false
       publish_release:
         description: "Create/update a GitHub Release with the package"
@@ -21,6 +28,9 @@ permissions:
 
 jobs:
   pack:
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch'
+       || (github.event_name == 'push' && contains(github.event.head_commit.message, '[pack]')) }}
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
@@ -29,8 +39,6 @@ jobs:
 
       - name: Select Xcode 26.0
         run: |
-          # net10 iOS/Catalyst (Microsoft.iOS.Sdk 26.0.x) pins to Xcode 26.0.x;
-          # pick the first whose macOS SDK actually exists (a stub 26.0 lacks it).
           for x in /Applications/Xcode_26.0.1.app /Applications/Xcode_26.0.app /Applications/Xcode_26.app; do
             if [ -d "$x/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" ]; then
               sudo xcode-select -s "$x/Contents/Developer"; echo "Selected $x"; break
@@ -56,33 +64,22 @@ jobs:
         id: rel
         run: |
           set -euo pipefail
-
           publish_release="${{ inputs.publish_release }}"
           base="${{ steps.ver.outputs.vlc }}"
           anchor_tag=""
-
           if [ "$publish_release" = "true" ]; then
             prefix="v${base}."
-
             git fetch --force --tags origin
-
             max_suffix=0
             for tag in $(git tag -l "${prefix}*"); do
               suffix="${tag#${prefix}}"
-              case "$suffix" in
-                ''|*[!0-9]*) continue ;;
-              esac
-
-              if [ "$suffix" -gt "$max_suffix" ]; then
-                max_suffix="$suffix"
-              fi
+              case "$suffix" in ''|*[!0-9]*) continue ;; esac
+              if [ "$suffix" -gt "$max_suffix" ]; then max_suffix="$suffix"; fi
             done
-
             next_suffix=$((max_suffix + 1))
             release_version="${base}.${next_suffix}"
             release_tag="v${release_version}"
             release_title="VLCDotNet3 ${release_version}"
-
             if [ "$max_suffix" -gt 0 ]; then
               anchor_tag="${prefix}${max_suffix}"
             elif git rev-parse "refs/tags/v${base}" >/dev/null 2>&1; then
@@ -93,18 +90,10 @@ jobs:
             release_tag="v${base}"
             release_title="VLCDotNet3 ${base}"
           fi
-
           echo "version=$release_version" >> "$GITHUB_OUTPUT"
           echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
           echo "title=$release_title" >> "$GITHUB_OUTPUT"
           echo "anchor=$anchor_tag" >> "$GITHUB_OUTPUT"
-
-          echo "Release version: $release_version"
-          if [ -n "$anchor_tag" ]; then
-            echo "Changes anchor: $anchor_tag"
-          else
-            echo "Changes anchor: none"
-          fi
 
       - name: Resolve build run id
         id: run
@@ -112,7 +101,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           rid="${{ inputs.build_run_id }}"
-          [ -z "$rid" ] && rid=$(gh run list --workflow build-vlc3.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          [ -z "$rid" ] && rid=$(gh run list --workflow build-vlc3-prebuilt.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
           echo "id=$rid" >> "$GITHUB_OUTPUT"
           echo "Using build run $rid"
 
@@ -124,9 +113,9 @@ jobs:
       - name: Stage artifacts/<rid>
         run: |
           set -e
-          for d in artifacts_dl/vlc3-*; do
+          for d in artifacts_dl/vlc3-prebuilt-*; do
             [ -d "$d" ] || continue
-            rid=$(basename "$d" | sed 's/^vlc3-//')
+            rid=$(basename "$d" | sed 's/^vlc3-prebuilt-//')
             mkdir -p "artifacts/$rid"
             cp -a "$d"/. "artifacts/$rid/"
             echo "staged $rid"
@@ -145,7 +134,7 @@ jobs:
           done
           if [ ${#missing[@]} -gt 0 ]; then
             echo "Missing required native artifacts: ${missing[*]}" >&2
-            echo "Pass build_run_id from a successful consolidated build-vlc3 run before packing." >&2
+            echo "Pass build_run_id from a successful consolidated build-vlc3-prebuilt run (only=all)." >&2
             exit 1
           fi
           ls -R artifacts | head -n 60
@@ -163,16 +152,14 @@ jobs:
         id: notes
         run: |
           set -euo pipefail
-
           notes_file="$RUNNER_TEMP/vlc3-release-notes.md"
           package_version="${{ steps.rel.outputs.version }}"
           vlc_version="${{ steps.ver.outputs.vlc }}"
           anchor_tag="${{ steps.rel.outputs.anchor }}"
-
           {
             echo "# VLCDotNet3 ${package_version}"
             echo
-            echo "Prerelease refresh of the VLCDotNet3 package (from-source pipeline) for libvlc ${vlc_version}."
+            echo "Prerelease of the VLCDotNet3 package (prebuilt-contrib pipeline) for libvlc ${vlc_version}."
             echo
             echo "## Included runtimes"
             echo
@@ -183,15 +170,9 @@ jobs:
             echo "- iOS: arm64, simulator x64, simulator arm64"
             echo "- Android: arm, arm64, x64"
             echo
-            echo "## Package"
-            echo
-            echo "- NuGet package: VLCDotNet3 ${package_version}"
-            echo "- Native binaries: pulled from a successful build-vlc3 workflow artifact set"
-            echo
             echo "## Changes"
             echo
           } > "$notes_file"
-
           if [ -n "$anchor_tag" ]; then
             commit_count=$(git rev-list --count "${anchor_tag}..HEAD")
             if [ "$commit_count" -gt 0 ]; then
@@ -203,9 +184,7 @@ jobs:
             fi
           else
             echo "- Initial GitHub prerelease in the ${vlc_version} series." >> "$notes_file"
-            echo "- Packaging refresh for the current repository state." >> "$notes_file"
           fi
-
           echo "file=$notes_file" >> "$GITHUB_OUTPUT"
           cat "$notes_file"
 

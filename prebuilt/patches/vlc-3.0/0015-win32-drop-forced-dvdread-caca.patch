@@ -1,0 +1,24 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] win32: do not force-enable dvdread and caca
+
+The win32 build.sh force-appends `--enable-dvdread --enable-caca` for desktop
+(non-WinStore) builds, after any caller-provided CONFIGFLAGS, so a trailing
+`--disable-dvdread` cannot win. We build a minimal contrib closure without
+libdvdread or libcaca, and those modules then hard-error at configure. Drop the
+forced enables; callers that want them can pass --enable-dvdread/--enable-caca.
+---
+ extras/package/win32/build.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/extras/package/win32/build.sh b/extras/package/win32/build.sh
+--- a/extras/package/win32/build.sh
++++ b/extras/package/win32/build.sh
+@@ -505,7 +505,7 @@ if [ -n "$WINSTORE" ]; then
+     CONFIGFLAGS="$CONFIGFLAGS --disable-crystalhd --disable-dxva2"
+ 
+ else
+-    CONFIGFLAGS="$CONFIGFLAGS --enable-dvdread --enable-caca"
++    :
+ fi
+ if [ -n "$INSTALL_PATH" ]; then
+     CONFIGFLAGS="$CONFIGFLAGS --prefix=$INSTALL_PATH"

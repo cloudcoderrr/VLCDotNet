@@ -1,0 +1,15 @@
+diff --git a/modules/audio_output/Makefile.am b/modules/audio_output/Makefile.am
+index bb2da0d..6cfe77e 100644
+--- a/modules/audio_output/Makefile.am
++++ b/modules/audio_output/Makefile.am
+@@ -5,7 +5,9 @@ aout_LTLIBRARIES =
+ installaoutLTLIBRARIES = install-aoutLTLIBRARIES
+ $(installaoutLTLIBRARIES): install-pkglibLTLIBRARIES
+ 
+-libopensles_android_plugin_la_SOURCES = audio_output/opensles_android.c
++libopensles_android_plugin_la_SOURCES = audio_output/opensles_android.c \
++	video_output/android/utils.c video_output/android/utils.h
++libopensles_android_plugin_la_CFLAGS = $(AM_CFLAGS)
+ libopensles_android_plugin_la_LIBADD = $(LIBDL) $(LIBM)
+ 
+ libandroid_audiotrack_plugin_la_SOURCES = audio_output/audiotrack.c \
