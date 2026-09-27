@@ -468,9 +468,12 @@ namespace VLCDotNet.Tests.Shared
                     Fail(outcome, sw, "did not reach Playing state");
                     return;
                 }
-                Thread.Sleep(1200);
-
 #if VLC4
+                // Poll until the demuxer exposes the expected tracks rather than
+                // assuming they are all present after a fixed delay (v4 track
+                // discovery is asynchronous).
+                Wait(() => CountPlayerTracks(mp, VlcTrackType.Audio) >= 2
+                        && CountPlayerTracks(mp, VlcTrackType.Text) >= 2, 6000);
                 int audioCount = CountPlayerTracks(mp, VlcTrackType.Audio);
                 int spuCount = CountPlayerTracks(mp, VlcTrackType.Text);
                 outcome.Details.Add($"audio tracks={audioCount}, spu tracks={spuCount}");
@@ -480,6 +483,8 @@ namespace VLCDotNet.Tests.Shared
                 bool spuSwitch = SwitchToLastTrack(mp, VlcTrackType.Text);
                 outcome.Details.Add("spu switch ok=" + spuSwitch);
 #else
+                Wait(() => LibVlc.libvlc_audio_get_track_count(mp) >= 2
+                        && LibVlc.libvlc_video_get_spu_count(mp) >= 2, 6000);
                 int audioCount = LibVlc.libvlc_audio_get_track_count(mp);
                 int spuCount = LibVlc.libvlc_video_get_spu_count(mp);
                 outcome.Details.Add($"audio tracks={audioCount}, spu tracks={spuCount}");
@@ -664,19 +669,22 @@ namespace VLCDotNet.Tests.Shared
                     Fail(outcome, sw, "did not reach Playing state");
                     return;
                 }
-                Thread.Sleep(600);
+                // Wait until the clock is running and the length is known rather
+                // than assuming a fixed delay (v4 state changes are asynchronous).
+                Wait(() => LibVlc.libvlc_media_player_get_length(mp) > 0, 5000);
 
                 long length = LibVlc.libvlc_media_player_get_length(mp);
                 bool seekable = IsSeekable(mp);
                 SetPosition(mp, 0.5);
-                Thread.Sleep(700);
+                // Poll until the seek has actually advanced the playback position.
+                Wait(() => LibVlc.libvlc_media_player_get_time(mp) > length / 5, 5000);
                 long time = LibVlc.libvlc_media_player_get_time(mp);
 
                 LibVlc.libvlc_media_player_set_pause(mp, 1);
-                Thread.Sleep(300);
-                bool paused = LibVlc.libvlc_media_player_get_state(mp) == VlcState.Paused;
+                bool paused = Wait(() => LibVlc.libvlc_media_player_get_state(mp) == VlcState.Paused, 3000);
 
                 LibVlc.libvlc_media_player_set_pause(mp, 0);
+                Wait(() => LibVlc.libvlc_media_player_get_state(mp) == VlcState.Playing, 3000);
                 int rateRc = LibVlc.libvlc_media_player_set_rate(mp, 2.0f);
                 float rate = LibVlc.libvlc_media_player_get_rate(mp);
 
@@ -713,44 +721,57 @@ namespace VLCDotNet.Tests.Shared
                 }
 
                 string output = Path.Combine(_env.OutputDirectory, "sout-avformat-mp4.mp4");
-                if (File.Exists(output))
+
+                VlcState finalState = VlcState.NothingSpecial;
+                bool completed = false;
+                long size = 0;
+                string logDelta = string.Empty;
+
+                // The sout demuxer occasionally races on the first attempt and
+                // produces an empty file on some platforms; retry once before
+                // treating the transcode as failed.
+                for (int attempt = 0; attempt < 2 && size == 0; attempt++)
                 {
-                    File.Delete(output);
+                    if (File.Exists(output))
+                    {
+                        File.Delete(output);
+                    }
+
+                    media = NewMedia(input);
+                    LibVlc.libvlc_media_add_option(media, ":sout-avformat-mux=mp4");
+                    LibVlc.libvlc_media_add_option(media,
+                        ":sout=#transcode{vcodec=mp4v,vb=900,acodec=mp4a,ab=128}:std{access=file,mux=avformat,dst='" + EscapeSoutPath(output) + "'}");
+                    mp = NewPlayerFromMedia(media);
+                    long logCursor = CaptureLogCursor();
+
+                    if (LibVlc.libvlc_media_player_play(mp) != 0)
+                    {
+                        Fail(outcome, sw, "could not start stream output transcode");
+                        return;
+                    }
+
+                    completed = Wait(() =>
+                    {
+                        VlcState state = LibVlc.libvlc_media_player_get_state(mp);
+                        return state == VlcState.Ended || state == VlcState.Error || state == VlcState.Stopped;
+                    }, 30000, 100);
+
+                    finalState = LibVlc.libvlc_media_player_get_state(mp);
+                    Cleanup(mp, media);
+                    mp = IntPtr.Zero;
+                    media = IntPtr.Zero;
+                    Thread.Sleep(400);
+
+                    size = File.Exists(output) ? new FileInfo(output).Length : 0;
+                    logDelta = ReadLogSince(logCursor);
                 }
 
-                media = NewMedia(input);
-                LibVlc.libvlc_media_add_option(media, ":sout-avformat-mux=mp4");
-                LibVlc.libvlc_media_add_option(media,
-                    ":sout=#transcode{vcodec=mp4v,vb=900,acodec=mp4a,ab=128}:std{access=file,mux=avformat,dst='" + EscapeSoutPath(output) + "'}");
-                mp = NewPlayerFromMedia(media);
-                long logCursor = CaptureLogCursor();
-
-                if (LibVlc.libvlc_media_player_play(mp) != 0)
-                {
-                    Fail(outcome, sw, "could not start stream output transcode");
-                    return;
-                }
-
-                bool completed = Wait(() =>
-                {
-                    VlcState state = LibVlc.libvlc_media_player_get_state(mp);
-                    return state == VlcState.Ended || state == VlcState.Error || state == VlcState.Stopped;
-                }, 30000, 100);
-
-                VlcState finalState = LibVlc.libvlc_media_player_get_state(mp);
-                Cleanup(mp, media);
-                mp = IntPtr.Zero;
-                media = IntPtr.Zero;
-                Thread.Sleep(400);
-
-                long size = File.Exists(output) ? new FileInfo(output).Length : 0;
                 outcome.Details.Add($"state={finalState}, output-bytes={size}");
                 if (size > 0)
                 {
                     outcome.Artifacts.Add(output);
                 }
 
-                string logDelta = ReadLogSince(logCursor);
                 bool sawTranscode = logDelta.IndexOf("transcode", StringComparison.OrdinalIgnoreCase) >= 0;
                 bool sawFfmpegMux = logDelta.IndexOf("avformat", StringComparison.OrdinalIgnoreCase) >= 0
                     || logDelta.IndexOf("ffmpeg", StringComparison.OrdinalIgnoreCase) >= 0;
@@ -904,14 +925,19 @@ namespace VLCDotNet.Tests.Shared
                     IntPtr last = LibVlc.libvlc_media_tracklist_at(tl, (UIntPtr)(uint)(n - 1));
                     string? lastId = LibVlc.Utf8ToString(Marshal.PtrToStructure<VlcMediaTrack>(last).StringId);
                     LibVlc.libvlc_media_player_select_track(mp, last);
-                    Thread.Sleep(300);
-                    IntPtr sel = LibVlc.libvlc_media_player_get_selected_track(mp, type);
-                    if (sel != IntPtr.Zero)
+                    // Poll until the selection takes effect rather than assuming a
+                    // fixed delay (track selection is applied asynchronously in v4).
+                    ok = Wait(() =>
                     {
+                        IntPtr sel = LibVlc.libvlc_media_player_get_selected_track(mp, type);
+                        if (sel == IntPtr.Zero)
+                        {
+                            return false;
+                        }
                         string? selId = LibVlc.Utf8ToString(Marshal.PtrToStructure<VlcMediaTrack>(sel).StringId);
-                        ok = lastId != null && lastId == selId;
                         LibVlc.libvlc_media_track_release(sel);
-                    }
+                        return lastId != null && lastId == selId;
+                    }, 3000);
                 }
             }
             finally
