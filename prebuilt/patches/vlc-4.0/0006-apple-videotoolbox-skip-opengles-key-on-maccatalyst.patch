@@ -1,0 +1,22 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] apple: skip OpenGLES pixel-buffer compat key on Mac Catalyst
+
+kCVPixelBufferOpenGLESCompatibilityKey is API_UNAVAILABLE(macCatalyst). On
+Catalyst neither the macOS OpenGL nor the iOS OpenGLES compatibility keys are
+available; the Metal compatibility key (set unconditionally just above) is
+enough. Exclude Catalyst from the OpenGLES branch so the VideoToolbox decoder
+compiles there.
+---
+diff --git a/modules/codec/videotoolbox/decoder.c b/modules/codec/videotoolbox/decoder.c
+index 7e475f9..d04f65f 100644
+--- a/modules/codec/videotoolbox/decoder.c
++++ b/modules/codec/videotoolbox/decoder.c
+@@ -1175,7 +1175,7 @@ static int StartVideoToolbox(decoder_t *p_dec)
+    CFDictionarySetValue(destinationPixelBufferAttributes,
+                         kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey,
+                         kCFBooleanTrue);
+-#elif !defined(TARGET_OS_VISION) || !TARGET_OS_VISION
++#elif (!defined(TARGET_OS_VISION) || !TARGET_OS_VISION) && (!defined(TARGET_OS_MACCATALYST) || !TARGET_OS_MACCATALYST)
+     CFDictionarySetValue(destinationPixelBufferAttributes,
+                          kCVPixelBufferOpenGLESCompatibilityKey,
+                          kCFBooleanTrue);
