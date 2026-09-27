@@ -41,17 +41,22 @@ apply_patches "${VLC_SRC}"
 
 # ---- 1. niche codecs Ubuntu dropped: build via VLC contrib (source) ----------
 # schroedinger (Dirac) and sidplay2 (SID) are no longer packaged by current
-# Ubuntu, but the tests assert their VLC modules exist. Build just those two
+# Ubuntu, but the 3.x tests assert their VLC modules exist. Build just those two
 # (plus their deps, e.g. orc) with the contrib system into contrib/<triplet>.
-CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-linux-${ARCH}"
-mkdir -p "${CONTRIB_BUILD}"
-(
-  cd "${CONTRIB_BUILD}"
-  ../bootstrap --disable-all --enable-schroedinger --enable-sidplay2
-  make -j"$(jobs)" fetch
-  make -j"$(jobs)" || make -j1
-)
-CONTRIB_PREFIX="${VLC_SRC}/contrib/${TRIPLET}"
+# VLC 4.0 removed both codecs, so the 4.x build skips this and relies on the
+# distro ffmpeg (avcodec) for decode.
+CONTRIB_PREFIX=""
+if [ "${VLC_SERIES}" = "3" ]; then
+  CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-linux-${ARCH}"
+  mkdir -p "${CONTRIB_BUILD}"
+  (
+    cd "${CONTRIB_BUILD}"
+    ../bootstrap --disable-all --enable-schroedinger --enable-sidplay2
+    make -j"$(jobs)" fetch
+    make -j"$(jobs)" || make -j1
+  )
+  CONTRIB_PREFIX="${VLC_SRC}/contrib/${TRIPLET}"
+fi
 
 # ---- 2. bootstrap + configure ------------------------------------------------
 ( cd "${VLC_SRC}" && ./bootstrap )
@@ -62,7 +67,6 @@ mkdir -p "${BUILD_DIR}"
 
 CONFIG_FLAGS=(
   "--prefix=${INSTALL_PREFIX}"
-  "--with-contrib=${CONTRIB_PREFIX}"   # schroedinger + sidplay2 (source)
   --disable-vlc          # libvlc only, no player binary
   --disable-qt
   --disable-skins2
@@ -81,17 +85,24 @@ CONFIG_FLAGS=(
   --disable-gnutls
   --disable-srt
   --disable-chromaprint
-  --enable-faad
-  --enable-flac
-  --enable-mad
-  --enable-mpc
-  --enable-schroedinger
-  --enable-sid
-  --enable-theora
-  --enable-vpx
   --enable-shared
   --disable-static
 )
+# Point at the source-built niche-codec contrib prefix when present (3.x only).
+[ -n "${CONTRIB_PREFIX}" ] && CONFIG_FLAGS+=("--with-contrib=${CONTRIB_PREFIX}")
+# Dedicated decoder plugins verified by the 3.x tests; 4.x decodes via avcodec.
+if [ "${VLC_SERIES}" = "3" ]; then
+  CONFIG_FLAGS+=(
+    --enable-faad
+    --enable-flac
+    --enable-mad
+    --enable-mpc
+    --enable-schroedinger
+    --enable-sid
+    --enable-theora
+    --enable-vpx
+  )
+fi
 
 (
   cd "${BUILD_DIR}"

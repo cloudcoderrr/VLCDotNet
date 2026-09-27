@@ -259,8 +259,13 @@ $("${nm}" "$a" 2>/dev/null | grep -oE 'vlc_entry__[A-Za-z0-9_]+' | sort -u)"
 jobs() { getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2; }
 
 # requested_codec_config_flags
-# Enables the dedicated codec plugins we verify explicitly in tests.
+# Enables the dedicated codec plugins we verify explicitly in tests. VLC 4.0
+# removed/renamed several of these (schroedinger, sid, mpc) and ffmpeg's
+# decoders cover the test media, so the 4.x build relies on avcodec instead.
 requested_codec_config_flags() {
+  if [ "${VLC_SERIES}" != "3" ]; then
+    return 0
+  fi
   printf '%s\n' \
     --enable-faad \
     --enable-flac \
@@ -278,24 +283,41 @@ requested_codec_config_flags() {
 # codec libraries back the dedicated decoder modules the tests assert on.
 minimal_local_playback_contrib_flags() {
   local include_ass="${1:-1}"
-  local flags=(
-    --disable-all
-    --enable-ffmpeg
-    --enable-faad2
-    --enable-flac
-    --enable-mad
-    --enable-mpcdec
-    --enable-opus
-    --enable-ogg
-    --enable-matroska
-    --enable-schroedinger
-    --enable-sidplay2
-    --enable-theora
-    --enable-vpx
-    --enable-dvbpsi
-    --disable-net
-    --disable-disc
-  )
+  local flags
+  if [ "${VLC_SERIES}" = "3" ]; then
+    flags=(
+      --disable-all
+      --enable-ffmpeg
+      --enable-faad2
+      --enable-flac
+      --enable-mad
+      --enable-mpcdec
+      --enable-opus
+      --enable-ogg
+      --enable-matroska
+      --enable-schroedinger
+      --enable-sidplay2
+      --enable-theora
+      --enable-vpx
+      --enable-dvbpsi
+      --disable-net
+      --disable-disc
+    )
+  else
+    # VLC 4.0 contrib: ffmpeg covers the test-media decoders; several 3.x
+    # packages were removed/renamed in master (mpcdec, schroedinger, sidplay2).
+    # Keep the demux/subtitle closure ffmpeg does not provide.
+    flags=(
+      --disable-all
+      --enable-ffmpeg
+      --enable-opus
+      --enable-ogg
+      --enable-matroska
+      --enable-dvbpsi
+      --disable-net
+      --disable-disc
+    )
+  fi
 
   if [ "${include_ass}" = "1" ]; then
     flags+=(--enable-ass)
