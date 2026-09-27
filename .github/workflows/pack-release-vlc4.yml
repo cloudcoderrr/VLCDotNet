@@ -11,6 +11,9 @@ on:
       build_run_id:
         description: "build-vlc4 run id to pull binaries from (blank = latest successful)"
         required: false
+      linux_run_id:
+        description: "optional build-vlc4 run id to source linux-arm/arm64/x64 from, overlaying build_run_id"
+        required: false
       publish_release:
         description: "Create/update a GitHub Release with the package"
         type: boolean
@@ -110,6 +113,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh run download ${{ steps.run.outputs.id }} -D artifacts_dl
+
+      - name: Overlay linux artifacts from a separate run (optional)
+        if: ${{ inputs.linux_run_id != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          gh run download ${{ inputs.linux_run_id }} -D artifacts_dl_linux
+          for d in artifacts_dl_linux/vlc4-linux-*; do
+            [ -d "$d" ] || continue
+            b=$(basename "$d")
+            rm -rf "artifacts_dl/$b"
+            cp -a "$d" "artifacts_dl/$b"
+            echo "overlaid $b from linux_run_id ${{ inputs.linux_run_id }}"
+          done
 
       - name: Stage artifacts/<rid>
         run: |
