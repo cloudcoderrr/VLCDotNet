@@ -290,6 +290,12 @@ CODEC_FLAGS=($(requested_codec_config_flags))
 CONFIG_FLAGS=(
   "--prefix=${INSTALL_PREFIX}"
   "--with-contrib=${VLC_SRC}/contrib/${TRIPLET}"
+  # VLC enables AM_MAINTAINER_MODE, so make re-runs aclocal/automake/autoconf and
+  # a full ./configure whenever it thinks the autotools inputs are stale. On the
+  # cross legs the patched configure.ac/Makefile.am plus restored-cache mtimes
+  # trip that on every make step, each re-running configure (~1h) -> the job
+  # looked hung for hours. Disable the rebuild rules; bootstrap already ran.
+  --disable-maintainer-mode
   --disable-vlc          # libvlc only, no player binary
   --disable-qt
   --disable-skins2
