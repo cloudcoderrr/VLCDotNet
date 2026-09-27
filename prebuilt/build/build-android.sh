@@ -66,11 +66,21 @@ fi
 # to the test-required codec closure (the full default set pulls fragile
 # packages like mpg123/x264 that are unneeded and break the cross autoreconf).
 CONTRIB_ENV=(HAVE_ANDROID=1 ANDROID_API="${API}" ANDROID_ABI="${ABI}" ANDROID_NDK="${ANDROID_NDK_HOME}")
-contrib_prebuilt_or_build "${VLC_SRC}" "${TRIPLET}" "${CIJOB}" -- \
-  --disable-all --enable-ffmpeg --enable-faad2 --enable-flac --enable-mad \
-  --enable-mpcdec --enable-opus --enable-ogg --enable-matroska \
-  --enable-schroedinger --enable-sidplay2 --enable-theora --enable-vpx \
-  --enable-dvbpsi --enable-ass --disable-net --disable-disc
+if [ "${VLC_SERIES}" = "3" ]; then
+  ANDROID_CONTRIB_FLAGS=(
+    --disable-all --enable-ffmpeg --enable-faad2 --enable-flac --enable-mad
+    --enable-mpcdec --enable-opus --enable-ogg --enable-matroska
+    --enable-schroedinger --enable-sidplay2 --enable-theora --enable-vpx
+    --enable-dvbpsi --enable-ass --disable-net --disable-disc
+  )
+else
+  # VLC 4.0 removed schroedinger/sidplay2/mpcdec; ffmpeg covers the test codecs.
+  ANDROID_CONTRIB_FLAGS=(
+    --disable-all --enable-ffmpeg --enable-opus --enable-ogg --enable-matroska
+    --enable-dvbpsi --enable-ass --disable-net --disable-disc
+  )
+fi
+contrib_prebuilt_or_build "${VLC_SRC}" "${TRIPLET}" "${CIJOB}" -- "${ANDROID_CONTRIB_FLAGS[@]}"
 CONTRIB_PREFIX="${VLC_SRC}/contrib/${TRIPLET}"
 
 # ---- 2. bootstrap + configure ------------------------------------------------

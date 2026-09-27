@@ -41,16 +41,26 @@ esac
 # --- inlined contrib/codec flag helpers (independent of the from-source lib) ---
 minimal_contrib_flags() {
   local include_ass="${1:-1}"
-  local flags=(
-    --disable-all --enable-ffmpeg --enable-faad2 --enable-flac --enable-mad
-    --enable-mpcdec --enable-opus --enable-ogg --enable-matroska
-    --enable-schroedinger --enable-sidplay2 --enable-theora --enable-vpx
-    --enable-dvbpsi --disable-net --disable-disc
-  )
+  local flags
+  if [ "${VLC_SERIES}" = "3" ]; then
+    flags=(
+      --disable-all --enable-ffmpeg --enable-faad2 --enable-flac --enable-mad
+      --enable-mpcdec --enable-opus --enable-ogg --enable-matroska
+      --enable-schroedinger --enable-sidplay2 --enable-theora --enable-vpx
+      --enable-dvbpsi --disable-net --disable-disc
+    )
+  else
+    # VLC 4.0 removed schroedinger/sidplay2/mpcdec; ffmpeg covers the test codecs.
+    flags=(
+      --disable-all --enable-ffmpeg --enable-opus --enable-ogg --enable-matroska
+      --enable-dvbpsi --disable-net --disable-disc
+    )
+  fi
   [ "${include_ass}" = "1" ] && flags+=(--enable-ass)
   printf '%s\n' "${flags[@]}"
 }
 requested_codec_flags() {
+  [ "${VLC_SERIES}" = "3" ] || return 0
   printf '%s\n' --enable-faad --enable-flac --enable-mad --enable-mpc \
     --enable-schroedinger --enable-sid --enable-theora --enable-vpx
 }
