@@ -49,7 +49,12 @@ BUILD_ARGS=(-r -z -u -S 0x0A000000 -a "${ARCH}")
 export CONFIGFLAGS="${CONFIGFLAGS:-} --disable-lua --disable-live555 --disable-realrtsp --disable-goom --disable-libcddb --disable-shout --disable-zvbi --disable-dvdread --disable-dvdnav --disable-nls --disable-update-check --disable-bluray --disable-gnutls --disable-srt --disable-aribcam --disable-fontconfig"
 
 # Test-required codec closure (matches the from-source pipeline's coverage).
-export CONTRIBFLAGS="${CONTRIBFLAGS:-} --disable-all --enable-ffmpeg --enable-faad2 --enable-flac --enable-mad --enable-mpcdec --enable-opus --enable-ogg --enable-matroska --enable-schroedinger --enable-sidplay2 --enable-theora --enable-vpx --enable-dvbpsi --enable-ass --disable-net --disable-disc"
+if [ "${VLC_SERIES}" = "3" ]; then
+  export CONTRIBFLAGS="${CONTRIBFLAGS:-} --disable-all --enable-ffmpeg --enable-faad2 --enable-flac --enable-mad --enable-mpcdec --enable-opus --enable-ogg --enable-matroska --enable-schroedinger --enable-sidplay2 --enable-theora --enable-vpx --enable-dvbpsi --enable-ass --disable-net --disable-disc"
+else
+  # VLC 4.0 removed schroedinger/sidplay2/mpcdec; ffmpeg covers the test codecs.
+  export CONTRIBFLAGS="${CONTRIBFLAGS:-} --disable-all --enable-ffmpeg --enable-opus --enable-ogg --enable-matroska --enable-dvbpsi --enable-ass --disable-net --disable-disc"
+fi
 
 EXTRA_LINK_FLAGS=""
 if [ "${ARCH}" = "x86_64" ]; then
