@@ -127,7 +127,10 @@ esac
 CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-apple-${PLATFORM}-${ARCH}"
 mkdir -p "${CONTRIB_BUILD}"
 BOOTSTRAP_INCLUDE_ASS=0
-[ "${PLATFORM}" = "macos" ] && BOOTSTRAP_INCLUDE_ASS=1
+# VLC 4.0's harfbuzz contrib needs an 'objcpp' meson cross-file entry Apple
+# lacks, so libass stays desktop-3.x-only; 4.x detects subtitle tracks via the
+# built-in demuxers without rendering.
+[ "${PLATFORM}" = "macos" ] && [ "${VLC_SERIES}" = "3" ] && BOOTSTRAP_INCLUDE_ASS=1
 BOOTSTRAP_FLAGS=($(minimal_contrib_flags "${BOOTSTRAP_INCLUDE_ASS}"))
 CODEC_FLAGS=($(requested_codec_flags))
 case "${PLATFORM}" in
@@ -166,6 +169,13 @@ case "${PLATFORM}" in
   ios|iossimulator) CONFIG_FLAGS+=(--disable-fribidi --disable-harfbuzz --disable-libass --disable-macosx-avfoundation) ;;
   maccatalyst)      CONFIG_FLAGS+=(--disable-macosx-avfoundation) ;;
 esac
+# VLC 4.0 builds no libass on Apple (harfbuzz objcpp gap); keep the text-shaping
+# modules unlinked on macos/catalyst too.
+if [ "${VLC_SERIES}" != "3" ]; then
+  case "${PLATFORM}" in
+    macos|maccatalyst) CONFIG_FLAGS+=(--disable-fribidi --disable-harfbuzz --disable-libass) ;;
+  esac
+fi
 case "${PLATFORM}" in
   ios|iossimulator|maccatalyst) CONFIG_FLAGS+=(--enable-static --disable-shared --enable-static-modules) ;;
   macos)                        CONFIG_FLAGS+=(--enable-shared --disable-static) ;;
