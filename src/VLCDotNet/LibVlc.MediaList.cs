@@ -63,9 +63,11 @@ namespace VLCDotNet
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern void libvlc_media_list_unlock(IntPtr list);
 
+#if !VLC4
         /// <summary>Returns the media list event manager. (<c>libvlc_media_list_event_manager</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern IntPtr libvlc_media_list_event_manager(IntPtr list);
+#endif
 
         // ----- libvlc_media_list_player.h ----------------------------------
 
@@ -81,6 +83,7 @@ namespace VLCDotNet
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern void libvlc_media_list_player_retain(IntPtr listPlayer);
 
+#if !VLC4
         /// <summary>Returns the media-list player event manager. (<c>libvlc_media_list_player_event_manager</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern IntPtr libvlc_media_list_player_event_manager(IntPtr listPlayer);
@@ -88,6 +91,7 @@ namespace VLCDotNet
         /// <summary>Sets the underlying media player. (<c>libvlc_media_list_player_set_media_player</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern void libvlc_media_list_player_set_media_player(IntPtr listPlayer, IntPtr player);
+#endif
 
         /// <summary>Gets the underlying media player. (<c>libvlc_media_list_player_get_media_player</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
@@ -125,9 +129,15 @@ namespace VLCDotNet
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern int libvlc_media_list_player_play_item(IntPtr listPlayer, IntPtr media);
 
+#if VLC4
+        /// <summary>Stops playback asynchronously. (<c>libvlc_media_list_player_stop_async</c>)</summary>
+        [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+        public static extern void libvlc_media_list_player_stop_async(IntPtr listPlayer);
+#else
         /// <summary>Stops playback. (<c>libvlc_media_list_player_stop</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern void libvlc_media_list_player_stop(IntPtr listPlayer);
+#endif
 
         /// <summary>Plays the next item. (<c>libvlc_media_list_player_next</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]

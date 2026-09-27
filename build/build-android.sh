@@ -145,5 +145,21 @@ fi
 )
 
 normalize_output "${RID}" "${INSTALL_PREFIX}"
+
+# VLC 4.0's C++ plugins (mkv/libmatroska, spatializer, adaptive, vpx_alpha,
+# blend, ...) dynamically link the NDK's shared C++ runtime, which is not part
+# of the VLC install prefix. Ship it alongside libvlc.so so the APK layout puts
+# it in lib/<abi>/ and those plugins can dlopen at runtime. VLC 3.0's plugin set
+# does not pull in libc++_shared, so this is limited to 4.x.
+if [ "${VLC_SERIES}" != "3" ]; then
+  libcxx="${NDK_TC}/sysroot/usr/lib/${TRIPLET}/libc++_shared.so"
+  if [ -f "${libcxx}" ]; then
+    cp -a "${libcxx}" "${ARTIFACTS_DIR}/${RID}/"
+    log "Bundled libc++_shared.so for ${RID}"
+  else
+    warn "libc++_shared.so not found at ${libcxx}"
+  fi
+fi
+
 cp -a "${VLC_SRC}/COPYING"     "${ARTIFACTS_DIR}/${RID}/" 2>/dev/null || true
 cp -a "${VLC_SRC}/COPYING.LIB" "${ARTIFACTS_DIR}/${RID}/" 2>/dev/null || true

@@ -20,6 +20,7 @@ namespace VLCDotNet
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern void libvlc_media_discoverer_stop(IntPtr discoverer);
 
+#if !VLC4
         /// <summary>Releases a media discoverer. (<c>libvlc_media_discoverer_release</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern void libvlc_media_discoverer_release(IntPtr discoverer);
@@ -27,6 +28,7 @@ namespace VLCDotNet
         /// <summary>Returns the media list produced by a discoverer. (<c>libvlc_media_discoverer_media_list</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern IntPtr libvlc_media_discoverer_media_list(IntPtr discoverer);
+#endif
 
         /// <summary>Returns non-zero when the discoverer is running. (<c>libvlc_media_discoverer_is_running</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
@@ -47,9 +49,11 @@ namespace VLCDotNet
         public static extern IntPtr libvlc_renderer_discoverer_new(IntPtr instance,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string name);
 
+#if !VLC4
         /// <summary>Releases a renderer discoverer. (<c>libvlc_renderer_discoverer_release</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern void libvlc_renderer_discoverer_release(IntPtr discoverer);
+#endif
 
         /// <summary>Starts a renderer discoverer. Returns 0 on success. (<c>libvlc_renderer_discoverer_start</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
@@ -59,9 +63,11 @@ namespace VLCDotNet
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern void libvlc_renderer_discoverer_stop(IntPtr discoverer);
 
+#if !VLC4
         /// <summary>Returns the renderer discoverer event manager. (<c>libvlc_renderer_discoverer_event_manager</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern IntPtr libvlc_renderer_discoverer_event_manager(IntPtr discoverer);
+#endif
 
         /// <summary>Gets the list of available renderer discovery services. (<c>libvlc_renderer_discoverer_list_get</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
@@ -71,9 +77,11 @@ namespace VLCDotNet
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern void libvlc_renderer_discoverer_list_release(IntPtr services, nuint count);
 
+#if !VLC4
         /// <summary>Holds (retains) a renderer item. (<c>libvlc_renderer_item_hold</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern IntPtr libvlc_renderer_item_hold(IntPtr item);
+#endif
 
         /// <summary>Releases a renderer item. (<c>libvlc_renderer_item_release</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]

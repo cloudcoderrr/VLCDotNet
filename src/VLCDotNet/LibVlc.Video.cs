@@ -24,6 +24,7 @@ namespace VLCDotNet
         public static extern void libvlc_video_set_aspect_ratio(IntPtr player,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? aspect);
 
+#if !VLC4
         /// <summary>Gets the crop geometry (const char*, caller must <see cref="libvlc_free"/>). (<c>libvlc_video_get_crop_geometry</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern IntPtr libvlc_video_get_crop_geometry(IntPtr player);
@@ -32,6 +33,7 @@ namespace VLCDotNet
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern void libvlc_video_set_crop_geometry(IntPtr player,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? geometry);
+#endif
 
         /// <summary>Sets the deinterlace mode (NULL = disable). (<c>libvlc_video_set_deinterlace</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]

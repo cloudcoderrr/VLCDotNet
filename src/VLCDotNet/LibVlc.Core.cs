@@ -37,10 +37,12 @@ namespace VLCDotNet
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern void libvlc_retain(IntPtr instance);
 
+#if !VLC4
         /// <summary>Tries to start a user interface for the instance. (<c>libvlc_add_intf</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern int libvlc_add_intf(IntPtr instance,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? name);
+#endif
 
         /// <summary>Sets a human-readable application name and HTTP user agent. (<c>libvlc_set_user_agent</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
@@ -75,6 +77,11 @@ namespace VLCDotNet
 
         // ----- Events (libvlc.h) -------------------------------------------
 
+#if !VLC4
+        // libvlc 4.0 removed the event-manager model (event_attach/detach and the
+        // per-object *_event_manager getters); event delivery now goes through
+        // callbacks supplied at object creation, so these are 3.x only.
+
         /// <summary>Registers an event handler on an event manager. (<c>libvlc_event_attach</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern int libvlc_event_attach(IntPtr eventManager, VlcEventType eventType,
@@ -88,6 +95,7 @@ namespace VLCDotNet
         /// <summary>Returns the human-readable name of an event type (const char*). (<c>libvlc_event_type_name</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern IntPtr libvlc_event_type_name(VlcEventType eventType);
+#endif
 
         // ----- Logging (libvlc.h) ------------------------------------------
 

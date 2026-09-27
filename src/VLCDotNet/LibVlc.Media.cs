@@ -110,9 +110,11 @@ namespace VLCDotNet
 
         // ----- State / stats / structure -----------------------------------
 
+#if !VLC4
         /// <summary>Returns the current media state. (<c>libvlc_media_get_state</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern VlcState libvlc_media_get_state(IntPtr media);
+#endif
 
         /// <summary>Fills a <see cref="VlcMediaStats"/> structure. Returns non-zero on success. (<c>libvlc_media_get_stats</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
@@ -122,9 +124,11 @@ namespace VLCDotNet
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern IntPtr libvlc_media_subitems(IntPtr media);
 
+#if !VLC4
         /// <summary>Returns the media's event manager. (<c>libvlc_media_event_manager</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern IntPtr libvlc_media_event_manager(IntPtr media);
+#endif
 
         /// <summary>Returns the media duration in milliseconds. (<c>libvlc_media_get_duration</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]

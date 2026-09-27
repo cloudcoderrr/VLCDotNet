@@ -45,9 +45,11 @@ namespace VLCDotNet
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern IntPtr libvlc_media_player_get_media(IntPtr player);
 
+#if !VLC4
         /// <summary>Returns the player's event manager. (<c>libvlc_media_player_event_manager</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern IntPtr libvlc_media_player_event_manager(IntPtr player);
+#endif
 
         /// <summary>Returns non-zero if the player is currently playing. (<c>libvlc_media_player_is_playing</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
