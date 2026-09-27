@@ -21,6 +21,14 @@ VLC_SRC="${WORK_DIR}/vlc-linux-${ARCH}"
 INSTALL_PREFIX="${WORK_DIR}/install-linux-${ARCH}"
 mkdir -p "${WORK_DIR}"
 
+# Cross builds have stalled for hours inside a single sub-make emitting no
+# output: default block buffering (worsened by `| tee`) hides the command that
+# hangs, and the build/_work cache then resumes straight back into it. Run every
+# make step line-buffered and under a wall-clock cap so a wedged compiler/linker
+# aborts quickly with the offending command visible instead of stalling the job.
+MAKE_STEP_TIMEOUT="${MAKE_STEP_TIMEOUT:-40m}"
+mk() { timeout --kill-after=30s "${MAKE_STEP_TIMEOUT}" stdbuf -oL -eL make "$@"; }
+
 # sidplay2's xsid tables trigger narrowing diagnostics on the Linux cross
 # toolchains; keep the contrib build lenient enough to compile that legacy C++.
 export CXXFLAGS="${CXXFLAGS:-} -Wno-narrowing"
@@ -314,12 +322,12 @@ CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
     # rpath-link hints must be present before ../configure runs.
     export LDFLAGS="${LDFLAGS-} -Wl,-rpath-link,$(pwd)/src/.libs -Wl,-rpath-link,$(pwd)/lib/.libs"
   fi
-  ../configure "${CONFIG_FLAGS[@]}"
+  timeout --kill-after=30s "${MAKE_STEP_TIMEOUT}" stdbuf -oL -eL ../configure "${CONFIG_FLAGS[@]}"
   # Build the support lib and libvlccore before the plugins. Under a single
   # "make -j" the recursive src/ and modules/ sub-makes overlap on the cross
   # toolchains, so a plugin can try to link ../src/.libs/libvlccore.so before
   # libtool has finalized it. Building compat + src first is deterministic.
-  make -j"$(jobs)" -C compat
+  mk -j"$(jobs)" -C compat
   if [ "${CROSS}" = "1" ]; then
     # The aarch64/armv7 cross libtool has been observed to emit only
     # libvlccore.la + dangling dev symlinks, never the real libvlccore.so.N
@@ -327,13 +335,13 @@ CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
     # Trace the actual libvlccore link so the real ld/libtool command is
     # captured, then list what landed in src/.libs.
     log "Cross build: tracing the libvlccore link (V=1) for diagnosis"
-    make -C src V=1 libvlccore.la 2>&1 | tee "${WORK_DIR}/libvlccore-${ARCH}.log" || true
+    mk -C src V=1 libvlccore.la 2>&1 | tee "${WORK_DIR}/libvlccore-${ARCH}.log" || true
     log "libvlccore artifacts produced under src/.libs:"
     ls -la src/.libs/ 2>/dev/null | grep -i vlccore || log "(no libvlccore.* in src/.libs)"
     log "last 60 lines of the libvlccore link trace:"
     tail -n 60 "${WORK_DIR}/libvlccore-${ARCH}.log" || true
   fi
-  make -j"$(jobs)" -C src
+  mk -j"$(jobs)" -C src
   if [ "${CROSS}" = "1" ]; then
     shopt -s nullglob
     core_real=(src/.libs/libvlccore.so.*.*.*)
@@ -346,7 +354,7 @@ CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
       fi
       log "evaluated libtool shared-library mode before relink:"
       ./libtool --config 2>/dev/null | grep -E '^(build_libtool_libs|build_old_libs)=' || true
-      make -C src V=1 -B libvlccore.la 2>&1 | tee "${WORK_DIR}/libvlccore-relink-${ARCH}.log" || true
+      mk -C src V=1 -B libvlccore.la 2>&1 | tee "${WORK_DIR}/libvlccore-relink-${ARCH}.log" || true
       shopt -s nullglob
       core_real=(src/.libs/libvlccore.so.*.*.*)
       shopt -u nullglob
@@ -378,7 +386,7 @@ CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
       ls -la src/.libs/ 2>/dev/null | grep -i vlccore || true
       exit 1
     fi
-    make -j"$(jobs)" -C lib
+    mk -j"$(jobs)" -C lib
     shopt -s nullglob
     libvlc_real=(lib/.libs/libvlc.so.*.*.*)
     shopt -u nullglob
@@ -386,7 +394,7 @@ CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
       warn "Cross build did not emit a versioned libvlc shared object after make -C lib; forcing a serial relink"
       log "evaluated libtool shared-library mode before libvlc relink:"
       ./libtool --config 2>/dev/null | grep -E '^(build_libtool_libs|build_old_libs)=' || true
-      make -C lib V=1 -B libvlc.la 2>&1 | tee "${WORK_DIR}/libvlc-relink-${ARCH}.log" || true
+      mk -C lib V=1 -B libvlc.la 2>&1 | tee "${WORK_DIR}/libvlc-relink-${ARCH}.log" || true
       shopt -s nullglob
       libvlc_real=(lib/.libs/libvlc.so.*.*.*)
       shopt -u nullglob
@@ -407,11 +415,11 @@ CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
       exit 1
     fi
   fi
-  make -j"$(jobs)"
+  mk -j"$(jobs)"
   if [ "${CROSS}" = "1" ]; then
     stage_cross_linux_prefix "$(pwd)" "${INSTALL_PREFIX}" "${VLC_SRC}/contrib/${TRIPLET}"
   else
-    make install
+    mk install
   fi
 )
 
