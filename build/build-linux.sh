@@ -329,14 +329,14 @@ CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
     export LDFLAGS="${LDFLAGS-} -Wl,-rpath-link,$(pwd)/src/.libs -Wl,-rpath-link,$(pwd)/lib/.libs"
   fi
   timeout --kill-after=30s "${MAKE_STEP_TIMEOUT}" stdbuf -oL -eL ../configure "${CONFIG_FLAGS[@]}"
-  if [ "${CROSS}" = "1" ] && ./libtool --config 2>/dev/null | grep -q '^build_libtool_libs=no$'; then
-    # Cross libtool otherwise emits libvlccore.la + dangling .so symlinks but
-    # never the real libvlccore.so.N. Force shared-library mode up front so the
-    # first link already produces the versioned object -- this avoids the -B
-    # relink fallback, which would re-run ./config.status --recheck (a full,
-    # ~40-minute reconfigure that the make-step timeout then kills).
+  if [ "${CROSS}" = "1" ] && [ -f libtool ]; then
+    # Cross libtool otherwise emits libvlccore.la/libvlc.la + dangling .so
+    # symlinks but never the real .so.N. Force shared-library mode up front (and
+    # again before each relink below) so the versioned object is produced. This
+    # also avoids the -B relink that would re-run ./config.status --recheck (a
+    # full, ~40-minute reconfigure the make-step timeout then kills). Idempotent.
     log "Cross build: forcing build_libtool_libs=yes in libtool before building"
-    perl -0pi -e 's/^build_libtool_libs=no$/build_libtool_libs=yes/m; s/^build_old_libs=yes$/build_old_libs=no/m' libtool
+    perl -0pi -e 's/^build_libtool_libs=.*/build_libtool_libs=yes/m; s/^build_old_libs=.*/build_old_libs=no/m' libtool
   fi
   # Build the support lib and libvlccore before the plugins. Under a single
   # "make -j" the recursive src/ and modules/ sub-makes overlap on the cross
@@ -408,8 +408,10 @@ CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
     shopt -u nullglob
     if [ ${#libvlc_real[@]} -eq 0 ]; then
       warn "Cross build did not emit a versioned libvlc shared object after make -C lib; forcing a serial relink"
-      log "evaluated libtool shared-library mode before libvlc relink:"
-      ./libtool --config 2>/dev/null | grep -E '^(build_libtool_libs|build_old_libs)=' || true
+      if ./libtool --config 2>/dev/null | grep -q '^build_libtool_libs=no$'; then
+        warn "libtool reports build_libtool_libs=no for the cross build; forcing shared-library mode before relink"
+        perl -0pi -e 's/^build_libtool_libs=no$/build_libtool_libs=yes/m; s/^build_old_libs=yes$/build_old_libs=no/m' libtool
+      fi
       rm -f lib/libvlc.la lib/.libs/libvlc.la lib/.libs/libvlc.lai lib/.libs/libvlc.a lib/.libs/libvlc.so* 2>/dev/null || true
       mk -C lib V=1 libvlc.la 2>&1 | tee "${WORK_DIR}/libvlc-relink-${ARCH}.log" || true
       shopt -s nullglob
@@ -422,7 +424,14 @@ CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
         shopt -u nullglob
       fi
     fi
-    if [ ${#libvlc_real[@]} -eq 0 ]; then
+    if [ ${#libvlc_real[@]} -gt 0 ]; then
+      if link_shared_soname_chain lib/.libs libvlc; then
+        libvlc_chain="$(sed -n "s/^library_names='\(.*\)'$/\1/p" lib/.libs/libvlc.lai | tail -n 1)"
+        log "Synthesized cross-build libvlc symlink chain: ${libvlc_chain:-$(basename "${libvlc_real[0]}")}"
+      else
+        ln -sf "$(basename "${libvlc_real[0]}")" lib/.libs/libvlc.so
+      fi
+    else
       warn "Cross build still has no versioned libvlc shared object under lib/.libs after forced relink"
       log "lib/.libs/libvlc.lai contents:"
       sed -n '1,160p' lib/.libs/libvlc.lai 2>/dev/null || true
