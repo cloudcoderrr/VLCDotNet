@@ -6,31 +6,23 @@ s_jvm that libvlc_InternalInit -> system_Configure asserts is non-NULL. JNI_OnLo
 is not listed in libvlccore.sym, so libtool -export-symbols hides it and neither
 java.lang.System.loadLibrary nor an explicit dlsym can invoke it, leaving s_jvm
 NULL and aborting libvlc_new on Android. Re-export JNI_OnLoad/JNI_OnUnload with an
-Android-only version script referenced from the unconditional LDFLAGS via a
-conditional variable (android/specific.c is not built elsewhere; adding the
+Android-only version script (android/specific.c is not built elsewhere; adding the
 symbols to libvlccore.sym would break the Windows .def and Apple
--exported_symbols_list links). An exact global match wins over libtool local
+-exported_symbols_list links). An exact global match wins over the libtool local
 wildcard.
 ---
 diff --git a/src/Makefile.am b/src/Makefile.am
-index 869a5eb..ee2ddd6 100644
+index 9d93ba4..9288ff6 100644
 --- a/src/Makefile.am
 +++ b/src/Makefile.am
-@@ -468,8 +468,14 @@ libvlccore_la_LDFLAGS = \
- 	$(LDFLAGS_libvlccore) \
- 	-no-undefined \
- 	-export-symbols $(srcdir)/libvlccore.sym \
-+	$(libvlccore_jni_export) \
- 	-version-info 9:1:0
- libvlccore_la_DEPENDENCIES = libvlccore.sym
-+if HAVE_ANDROID
-+libvlccore_jni_export = -Wl,--version-script=$(srcdir)/libvlccore_jni.sym
-+else
-+libvlccore_jni_export =
-+endif
- if HAVE_WIN32
- libvlccore_la_DEPENDENCIES += libvlc_win32_rc.$(OBJEXT)
- libvlccore_la_LDFLAGS += -Wl,libvlc_win32_rc.$(OBJEXT) -avoid-version -Wc,-static $(LIBCOM)
+@@ -629,6 +629,7 @@ libvlccore_la_LDFLAGS += -avoid-version
+ endif
+ if HAVE_ANDROID
+ libvlccore_la_LDFLAGS += -avoid-version
++libvlccore_la_LDFLAGS += -Wl,--version-script=$(srcdir)/libvlccore_jni.sym
+ endif
+ 
+ libvlccore_win32_rc.$(OBJEXT): libvlccore_win32_rc.rc $(top_srcdir)/extras/package/win32/libvlccore.dll.manifest
 diff --git a/src/libvlccore_jni.sym b/src/libvlccore_jni.sym
 new file mode 100644
 index 0000000..2209b52
