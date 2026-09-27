@@ -1,6 +1,23 @@
 namespace VLCDotNet
 {
     /// <summary>Current state of a media player or media (<c>libvlc_state_t</c>).</summary>
+#if VLC4
+    public enum VlcState
+    {
+        NothingSpecial = 0,
+        Opening = 1,
+        Playing = 2,
+        Paused = 3,
+        Stopped = 4,
+        Stopping = 5,
+        Error = 6,
+
+        // Removed from libvlc 4.0 (end-of-stream now surfaces as Stopped). Kept
+        // with sentinel values so shared code compiles; they are never returned.
+        Buffering = 100,
+        Ended = 101,
+    }
+#else
     public enum VlcState
     {
         NothingSpecial = 0,
@@ -12,6 +29,7 @@ namespace VLCDotNet
         Ended = 6,
         Error = 7,
     }
+#endif
 
     /// <summary>Kind of a media resource (<c>libvlc_media_type_t</c>).</summary>
     public enum VlcMediaType
