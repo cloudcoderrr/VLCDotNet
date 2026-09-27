@@ -1,0 +1,32 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] apple: skip OpenGLES pixel-buffer compat key in samplebufferdisplay on Catalyst
+
+The Metal samplebufferdisplay vout (which we keep on Mac Catalyst) builds a
+CVPixelBufferPool attribute dictionary whose keys/values arrays must stay the
+same length (enforced by a _Static_assert). On non-vision Apple targets it adds
+kCVPixelBufferOpenGLESCompatibilityKey, which is API_UNAVAILABLE(macCatalyst).
+Exclude Catalyst from both the key and value guards so the arrays stay matched
+and only the Metal compatibility key is used there.
+---
+diff --git a/modules/video_output/apple/VLCSampleBufferDisplay.m b/modules/video_output/apple/VLCSampleBufferDisplay.m
+index c59e87b..e519cb2 100644
+--- a/modules/video_output/apple/VLCSampleBufferDisplay.m
++++ b/modules/video_output/apple/VLCSampleBufferDisplay.m
+@@ -139,7 +139,7 @@ typedef NS_ENUM(NSUInteger, VLCSampleBufferPixelFlip) {
+             kCVPixelBufferMetalCompatibilityKey,
+ #if TARGET_OS_OSX
+             kCVPixelBufferOpenGLCompatibilityKey,
+-#elif !defined(TARGET_OS_VISION) || !TARGET_OS_VISION
++#elif (!defined(TARGET_OS_VISION) || !TARGET_OS_VISION) && (!defined(TARGET_OS_MACCATALYST) || !TARGET_OS_MACCATALYST)
+             kCVPixelBufferOpenGLESCompatibilityKey,
+ #endif
+         };
+@@ -150,7 +150,7 @@ typedef NS_ENUM(NSUInteger, VLCSampleBufferPixelFlip) {
+             (__bridge CFNumberRef)(@(dstHeight)),
+             (__bridge CFDictionaryRef)@{},
+             kCFBooleanTrue,
+-#if !defined(TARGET_OS_VISION) || !TARGET_OS_VISION
++#if (!defined(TARGET_OS_VISION) || !TARGET_OS_VISION) && (!defined(TARGET_OS_MACCATALYST) || !TARGET_OS_MACCATALYST)
+             kCFBooleanTrue
+ #endif
+         };
