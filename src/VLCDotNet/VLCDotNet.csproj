@@ -54,6 +54,16 @@
     <SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
   </PropertyGroup>
 
+  <!-- VlcRuntime.Android.cs uses Java/Android interop and must compile only for
+       the Android head. The default glob would otherwise pull it into every TFM
+       (net8.0/ios/maccatalyst), where the Java types do not exist. -->
+  <ItemGroup>
+    <Compile Remove="VlcRuntime.Android.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="$(TargetFramework.EndsWith('-android'))">
+    <Compile Include="VlcRuntime.Android.cs" />
+  </ItemGroup>
+
   <!-- Package metadata / docs / consumer targets -->
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)../../PACKAGE-LICENSE.txt" Pack="true" PackagePath="PACKAGE-LICENSE.txt" />
