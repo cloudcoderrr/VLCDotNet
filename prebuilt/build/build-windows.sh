@@ -43,6 +43,9 @@ export PATH="${LLVM_MINGW_DIR}/bin:${PATH}"
 # -r release, -z libvlc-only (no GUI), -u UCRT, -S 0x0A000000 target Win10 API,
 # -a arch, -o install prefix. (No -p: contribs are built from source here.)
 BUILD_ARGS=(-r -z -u -S 0x0A000000 -a "${ARCH}")
+# VLC 4.0's win32 build.sh force-enables live555/dvdread for the default GPLv3
+# license; select LGPLv2+ad-clauses (-g a) so those are not required.
+[ "${VLC_SERIES}" = "3" ] || BUILD_ARGS+=(-g a)
 
 # Keep unrelated network/disc/UI modules out. Codec modules auto-enable from the
 # contrib set below.
