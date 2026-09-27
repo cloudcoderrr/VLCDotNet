@@ -329,6 +329,15 @@ CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
     export LDFLAGS="${LDFLAGS-} -Wl,-rpath-link,$(pwd)/src/.libs -Wl,-rpath-link,$(pwd)/lib/.libs"
   fi
   timeout --kill-after=30s "${MAKE_STEP_TIMEOUT}" stdbuf -oL -eL ../configure "${CONFIG_FLAGS[@]}"
+  if [ "${CROSS}" = "1" ] && ./libtool --config 2>/dev/null | grep -q '^build_libtool_libs=no$'; then
+    # Cross libtool otherwise emits libvlccore.la + dangling .so symlinks but
+    # never the real libvlccore.so.N. Force shared-library mode up front so the
+    # first link already produces the versioned object -- this avoids the -B
+    # relink fallback, which would re-run ./config.status --recheck (a full,
+    # ~40-minute reconfigure that the make-step timeout then kills).
+    log "Cross build: forcing build_libtool_libs=yes in libtool before building"
+    perl -0pi -e 's/^build_libtool_libs=no$/build_libtool_libs=yes/m; s/^build_old_libs=yes$/build_old_libs=no/m' libtool
+  fi
   # Build the support lib and libvlccore before the plugins. Under a single
   # "make -j" the recursive src/ and modules/ sub-makes overlap on the cross
   # toolchains, so a plugin can try to link ../src/.libs/libvlccore.so before
@@ -360,7 +369,8 @@ CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
       fi
       log "evaluated libtool shared-library mode before relink:"
       ./libtool --config 2>/dev/null | grep -E '^(build_libtool_libs|build_old_libs)=' || true
-      mk -C src V=1 -B libvlccore.la 2>&1 | tee "${WORK_DIR}/libvlccore-relink-${ARCH}.log" || true
+      rm -f src/libvlccore.la src/.libs/libvlccore.la src/.libs/libvlccore.lai src/.libs/libvlccore.a src/.libs/libvlccore.so* 2>/dev/null || true
+      mk -C src V=1 libvlccore.la 2>&1 | tee "${WORK_DIR}/libvlccore-relink-${ARCH}.log" || true
       shopt -s nullglob
       core_real=(src/.libs/libvlccore.so.*.*.*)
       shopt -u nullglob
@@ -400,7 +410,8 @@ CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
       warn "Cross build did not emit a versioned libvlc shared object after make -C lib; forcing a serial relink"
       log "evaluated libtool shared-library mode before libvlc relink:"
       ./libtool --config 2>/dev/null | grep -E '^(build_libtool_libs|build_old_libs)=' || true
-      mk -C lib V=1 -B libvlc.la 2>&1 | tee "${WORK_DIR}/libvlc-relink-${ARCH}.log" || true
+      rm -f lib/libvlc.la lib/.libs/libvlc.la lib/.libs/libvlc.lai lib/.libs/libvlc.a lib/.libs/libvlc.so* 2>/dev/null || true
+      mk -C lib V=1 libvlc.la 2>&1 | tee "${WORK_DIR}/libvlc-relink-${ARCH}.log" || true
       shopt -s nullglob
       libvlc_real=(lib/.libs/libvlc.so.*.*.*)
       shopt -u nullglob
