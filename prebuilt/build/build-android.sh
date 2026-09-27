@@ -75,9 +75,10 @@ if [ "${VLC_SERIES}" = "3" ]; then
   )
 else
   # VLC 4.0 removed schroedinger/sidplay2/mpcdec; ffmpeg covers the test codecs.
+  # libass is skipped too (its x86_64 cross assembly build fails on the NDK).
   ANDROID_CONTRIB_FLAGS=(
     --disable-all --enable-ffmpeg --enable-opus --enable-ogg --enable-matroska
-    --enable-dvbpsi --enable-ass --disable-net --disable-disc
+    --enable-dvbpsi --disable-net --disable-disc
   )
 fi
 contrib_prebuilt_or_build "${VLC_SRC}" "${TRIPLET}" "${CIJOB}" -- "${ANDROID_CONTRIB_FLAGS[@]}"
@@ -114,7 +115,9 @@ mkdir -p "${PTHREAD_STUB_DIR}"
 "${AR}" rc "${PTHREAD_STUB_DIR}/libpthread.a"
 export LDFLAGS="${LDFLAGS:-} -L${PTHREAD_STUB_DIR} -lm"
 
-if [ "${ARCH}" = "arm" ]; then
+if [ "${ARCH}" = "arm" ] || [ "${ARCH}" = "arm64" ]; then
+  # armv7 needs compiler-rt for 64-bit int<->float; aarch64 needs the
+  # outline-atomics helpers (__aarch64_ldadd8_*) VLC 4.0's vpx_alpha plugin uses.
   RT_BUILTINS="$(${CC} --print-libgcc-file-name 2>/dev/null || true)"
   if [ -f "${RT_BUILTINS}" ]; then
     export LDFLAGS="${LDFLAGS} -L$(dirname "${RT_BUILTINS}") -l:$(basename "${RT_BUILTINS}")"

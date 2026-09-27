@@ -63,7 +63,10 @@ clone_vlc "${VLC_SRC}"
 apply_patches "${VLC_SRC}"
 
 CONTRIB_ENV=(HAVE_ANDROID=1 ANDROID_API="${API}" ANDROID_ABI="${ABI}" ANDROID_NDK="${ANDROID_NDK_HOME}")
-BOOTSTRAP_FLAGS=($(minimal_local_playback_contrib_flags 1))
+# VLC 4.0's libass contrib fails the x86_64 cross assembly build; ffmpeg covers
+# decode and the tests only assert subtitle track detection, so skip it on 4.x.
+ANDROID_ASS=1; [ "${VLC_SERIES}" = "3" ] || ANDROID_ASS=0
+BOOTSTRAP_FLAGS=($(minimal_local_playback_contrib_flags "${ANDROID_ASS}"))
 CODEC_FLAGS=($(requested_codec_config_flags))
 
 # ---- 1. contribs --------------------------------------------------------------
@@ -122,11 +125,12 @@ mkdir -p "${PTHREAD_STUB_DIR}"
 "${AR}" rc "${PTHREAD_STUB_DIR}/libpthread.a"
 export LDFLAGS="${LDFLAGS:-} -L${PTHREAD_STUB_DIR} -lm"
 
-if [ "${ARCH}" = "arm" ]; then
+if [ "${ARCH}" = "arm" ] || [ "${ARCH}" = "arm64" ]; then
   # armv7 C++ modules (e.g. libmatroska in the mkv demux) reference the
   # compiler-rt builtins for 64-bit int<->float conversions (__aeabi_l2d,
-  # __aeabi_f2lz). The libtool C++ link does not pull them in implicitly on this
-  # arch, so append the compiler-rt builtins archive explicitly.
+  # __aeabi_f2lz). aarch64 needs the outline-atomics helpers (__aarch64_ldadd8_*)
+  # that VLC 4.0's vpx_alpha plugin pulls in. Neither is linked implicitly by the
+  # libtool C++ link, so append the compiler-rt builtins archive explicitly.
   RT_BUILTINS="$(${CC} --print-libgcc-file-name 2>/dev/null || true)"
   if [ -f "${RT_BUILTINS}" ]; then
     export LDFLAGS="${LDFLAGS} -L$(dirname "${RT_BUILTINS}") -l:$(basename "${RT_BUILTINS}")"
