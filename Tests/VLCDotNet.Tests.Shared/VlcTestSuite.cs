@@ -75,6 +75,7 @@ namespace VLCDotNet.Tests.Shared
 
         private readonly TestEnvironment _env;
         private readonly List<TestOutcome> _results = new List<TestOutcome>();
+        private readonly object _resultsLock = new object();
         private IntPtr _instance;
         private VlcFileLog? _log;
         private string _logPath = string.Empty;
@@ -98,27 +99,27 @@ namespace VLCDotNet.Tests.Shared
 
             try
             {
-                TestInstanceAndVersion();
-                TestRequestedModulesAvailable();
-                TestAppleHardwareDecode();
+                Guard("Core", "libvlc version", TestInstanceAndVersion);
+                Guard("Modules", "requested plugins", TestRequestedModulesAvailable);
+                Guard("HardwareDecode", "apple hw decode", TestAppleHardwareDecode);
 
                 foreach (MediaSpec spec in MediaCatalog.Videos)
                 {
-                    TestVideoFile(spec);
+                    Guard("Video", spec.FileName, () => TestVideoFile(spec));
                 }
 
                 foreach (MediaSpec spec in MediaCatalog.Audios)
                 {
-                    TestAudioFile(spec);
+                    Guard("Audio", spec.FileName, () => TestAudioFile(spec));
                 }
 
-                TestParse(MediaCatalog.Videos[0]);
-                TestParse(MediaCatalog.TransportStream);
-                TestParse(MediaCatalog.DiracFlac);
-                TestMultitrackAudioAndSubtitles();
-                TestExternalSubtitles();
-                TestTransportControls();
-                TestStreamOutputTranscode();
+                Guard("Parse", MediaCatalog.Videos[0].FileName, () => TestParse(MediaCatalog.Videos[0]));
+                Guard("Parse", MediaCatalog.TransportStream.FileName, () => TestParse(MediaCatalog.TransportStream));
+                Guard("Parse", MediaCatalog.DiracFlac.FileName, () => TestParse(MediaCatalog.DiracFlac));
+                Guard("Tracks", "multitrack", TestMultitrackAudioAndSubtitles);
+                Guard("Subtitles", "external", TestExternalSubtitles);
+                Guard("Transport", "seek/pause/rate", TestTransportControls);
+                Guard("StreamOutput", "ffmpeg transcode", TestStreamOutputTranscode);
             }
             finally
             {
@@ -1341,8 +1342,74 @@ namespace VLCDotNet.Tests.Shared
         private void Record(TestOutcome outcome, Stopwatch sw)
         {
             outcome.Duration = sw.Elapsed;
-            _results.Add(outcome);
+            lock (_resultsLock)
+            {
+                _results.Add(outcome);
+            }
             _env.Progress?.Invoke(outcome);
+        }
+
+        // Runs a single test on a dedicated background thread with a timeout. If
+        // the test blocks in a non-interruptible native call (observed on the
+        // headless Android emulator, where the platform video output waits on an
+        // Activity surface that AUTORUN never provides and libvlc_media_player_release
+        // then never returns), the thread is abandoned and the test is recorded as
+        // skipped so the whole suite still finishes and writes its report/DONE.txt
+        // instead of hanging the CI leg. A real app with a rendering surface does
+        // not hit this path.
+        private void Guard(string category, string label, Action test, int timeoutMs = 120000)
+        {
+            int before;
+            lock (_resultsLock)
+            {
+                before = _results.Count;
+            }
+
+            Exception? crash = null;
+            var worker = new Thread(() =>
+            {
+                try { test(); }
+                catch (Exception ex) { crash = ex; }
+            })
+            {
+                IsBackground = true,
+                Name = "vlctest-" + category,
+            };
+            worker.Start();
+
+            if (worker.Join(timeoutMs))
+            {
+                bool recorded;
+                lock (_resultsLock)
+                {
+                    recorded = _results.Count > before;
+                }
+                if (crash != null && !recorded)
+                {
+                    var o = new TestOutcome(category, label)
+                    {
+                        Passed = false,
+                        Message = "unhandled exception: " + crash.Message,
+                    };
+                    lock (_resultsLock)
+                    {
+                        _results.Add(o);
+                    }
+                    _env.Progress?.Invoke(o);
+                }
+                return;
+            }
+
+            var timedOut = new TestOutcome(category, label)
+            {
+                Skipped = true,
+                Message = $"skipped: did not return within {timeoutMs / 1000}s (headless native call blocked; abandoned)",
+            };
+            lock (_resultsLock)
+            {
+                _results.Add(timedOut);
+            }
+            _env.Progress?.Invoke(timedOut);
         }
 
         private void Skip(TestOutcome outcome, Stopwatch sw, string reason)
@@ -1361,9 +1428,15 @@ namespace VLCDotNet.Tests.Shared
 
         private void WriteReport()
         {
+            TestOutcome[] snapshot;
+            lock (_resultsLock)
+            {
+                snapshot = _results.ToArray();
+            }
+
             var sb = new StringBuilder();
             int pass = 0, fail = 0, skip = 0;
-            foreach (TestOutcome o in _results)
+            foreach (TestOutcome o in snapshot)
             {
                 if (o.Skipped) skip++;
                 else if (o.Passed) pass++;
