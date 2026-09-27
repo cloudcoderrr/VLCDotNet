@@ -71,6 +71,20 @@ namespace VLCDotNet
 
         /// <summary>Pointer to a NUL-terminated UTF-8 description; read with <see cref="LibVlc.Utf8ToString"/>.</summary>
         public IntPtr Description;
+
+#if VLC4
+        /// <summary>Stable string identifier used for selection in libvlc 4.0 (const char*).</summary>
+        public IntPtr StringId;
+
+        /// <summary>Whether <see cref="StringId"/> is stable across playback instances.</summary>
+        [MarshalAs(UnmanagedType.I1)] public bool IdStable;
+
+        /// <summary>Track name pointer (valid when fetched from a media player).</summary>
+        public IntPtr Name;
+
+        /// <summary>Whether the track is currently selected (valid when fetched from a media player).</summary>
+        [MarshalAs(UnmanagedType.I1)] public bool Selected;
+#endif
     }
 
     /// <summary>Linked-list node describing a selectable track (<c>libvlc_track_description_t</c>).</summary>

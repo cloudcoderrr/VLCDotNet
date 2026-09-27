@@ -7,6 +7,19 @@ namespace VLCDotNet
     {
         // ----- Lifecycle (libvlc_media_player.h) ---------------------------
 
+#if VLC4
+        // libvlc 4.0 added an optional callbacks struct + opaque to both player
+        // constructors, and new_from_media now also takes the instance. Pass
+        // IntPtr.Zero for the callbacks to keep the simple polling model.
+
+        /// <summary>Creates a new player bound to an instance. (<c>libvlc_media_player_new</c>)</summary>
+        [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+        public static extern IntPtr libvlc_media_player_new(IntPtr instance, IntPtr cbs, IntPtr cbsOpaque);
+
+        /// <summary>Creates a new player with a media already set. (<c>libvlc_media_player_new_from_media</c>)</summary>
+        [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+        public static extern IntPtr libvlc_media_player_new_from_media(IntPtr instance, IntPtr media, IntPtr cbs, IntPtr cbsOpaque);
+#else
         /// <summary>Creates a new player bound to an instance. (<c>libvlc_media_player_new</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern IntPtr libvlc_media_player_new(IntPtr instance);
@@ -14,6 +27,7 @@ namespace VLCDotNet
         /// <summary>Creates a new player with a media already set. (<c>libvlc_media_player_new_from_media</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern IntPtr libvlc_media_player_new_from_media(IntPtr media);
+#endif
 
         /// <summary>Releases (decrements ref count of) a player. (<c>libvlc_media_player_release</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
@@ -37,7 +51,12 @@ namespace VLCDotNet
 
         /// <summary>Returns non-zero if the player is currently playing. (<c>libvlc_media_player_is_playing</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+#if VLC4
+        [return: MarshalAs(UnmanagedType.I1)]
+        public static extern bool libvlc_media_player_is_playing(IntPtr player);
+#else
         public static extern int libvlc_media_player_is_playing(IntPtr player);
+#endif
 
         /// <summary>Starts playback. Returns 0 on success, -1 on error. (<c>libvlc_media_player_play</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
@@ -51,9 +70,15 @@ namespace VLCDotNet
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern void libvlc_media_player_pause(IntPtr player);
 
+#if VLC4
+        /// <summary>Requests an asynchronous stop. (<c>libvlc_media_player_stop_async</c>)</summary>
+        [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+        public static extern int libvlc_media_player_stop_async(IntPtr player);
+#else
         /// <summary>Stops playback. (<c>libvlc_media_player_stop</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern void libvlc_media_player_stop(IntPtr player);
+#endif
 
         /// <summary>Sets a renderer (e.g. Chromecast) to use. (<c>libvlc_media_player_set_renderer</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
@@ -112,6 +137,29 @@ namespace VLCDotNet
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern long libvlc_media_player_get_time(IntPtr player);
 
+#if VLC4
+        /// <summary>Sets the playback time in microseconds (4.0 units). (<c>libvlc_media_player_set_time</c>)</summary>
+        [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+        public static extern int libvlc_media_player_set_time(IntPtr player, long time, [MarshalAs(UnmanagedType.I1)] bool fast);
+
+        /// <summary>Returns the playback position in the range 0.0-1.0. (<c>libvlc_media_player_get_position</c>)</summary>
+        [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+        public static extern double libvlc_media_player_get_position(IntPtr player);
+
+        /// <summary>Sets the playback position in the range 0.0-1.0. (<c>libvlc_media_player_set_position</c>)</summary>
+        [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+        public static extern int libvlc_media_player_set_position(IntPtr player, double position, [MarshalAs(UnmanagedType.I1)] bool fast);
+
+        /// <summary>Returns true when the media is seekable. (<c>libvlc_media_player_is_seekable</c>)</summary>
+        [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        public static extern bool libvlc_media_player_is_seekable(IntPtr player);
+
+        /// <summary>Returns true when the media can be paused. (<c>libvlc_media_player_can_pause</c>)</summary>
+        [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        public static extern bool libvlc_media_player_can_pause(IntPtr player);
+#else
         /// <summary>Sets the playback time in milliseconds. (<c>libvlc_media_player_set_time</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern void libvlc_media_player_set_time(IntPtr player, long time);
@@ -135,6 +183,7 @@ namespace VLCDotNet
         /// <summary>Returns non-zero if playback will start (loading). (<c>libvlc_media_player_will_play</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern int libvlc_media_player_will_play(IntPtr player);
+#endif
 
         /// <summary>Displays the next video frame while paused. (<c>libvlc_media_player_next_frame</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
@@ -201,8 +250,36 @@ namespace VLCDotNet
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern int libvlc_video_get_size(IntPtr player, uint num, out uint px, out uint py);
 
-        // ----- Video tracks -------------------------------------------------
+        // ----- Video / audio / subtitle tracks -----------------------------
 
+#if VLC4
+        // libvlc 4.0 unified track selection across audio/video/spu behind the
+        // media player tracklist API (libvlc_media_track.h + media_player.h).
+
+        /// <summary>Returns the player track list for a type. (<c>libvlc_media_player_get_tracklist</c>)</summary>
+        [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+        public static extern IntPtr libvlc_media_player_get_tracklist(IntPtr player, VlcTrackType type, [MarshalAs(UnmanagedType.I1)] bool selected);
+
+        /// <summary>Returns the selected track of a type (release with libvlc_media_track_release). (<c>libvlc_media_player_get_selected_track</c>)</summary>
+        [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+        public static extern IntPtr libvlc_media_player_get_selected_track(IntPtr player, VlcTrackType type);
+
+        /// <summary>Returns a track by string id (release with libvlc_media_track_release). (<c>libvlc_media_player_get_track_from_id</c>)</summary>
+        [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+        public static extern IntPtr libvlc_media_player_get_track_from_id(IntPtr player, [MarshalAs(UnmanagedType.LPUTF8Str)] string id);
+
+        /// <summary>Selects a track (pointer from a tracklist). (<c>libvlc_media_player_select_track</c>)</summary>
+        [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+        public static extern void libvlc_media_player_select_track(IntPtr player, IntPtr track);
+
+        /// <summary>Unselects all tracks of a type. (<c>libvlc_media_player_unselect_track_type</c>)</summary>
+        [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+        public static extern void libvlc_media_player_unselect_track_type(IntPtr player, VlcTrackType type);
+
+        /// <summary>Selects tracks of a type by comma-separated string ids. (<c>libvlc_media_player_select_tracks_by_ids</c>)</summary>
+        [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+        public static extern void libvlc_media_player_select_tracks_by_ids(IntPtr player, VlcTrackType type, [MarshalAs(UnmanagedType.LPUTF8Str)] string? ids);
+#else
         /// <summary>Gets the number of available video tracks. (<c>libvlc_video_get_track_count</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern int libvlc_video_get_track_count(IntPtr player);
@@ -218,9 +295,11 @@ namespace VLCDotNet
         /// <summary>Selects a video track by id. (<c>libvlc_video_set_track</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern int libvlc_video_set_track(IntPtr player, int track);
+#endif
 
         // ----- Subtitles (SPU) ---------------------------------------------
 
+#if !VLC4
         /// <summary>Gets the current subtitle track id. (<c>libvlc_video_get_spu</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern int libvlc_video_get_spu(IntPtr player);
@@ -236,6 +315,7 @@ namespace VLCDotNet
         /// <summary>Selects a subtitle track by id. (<c>libvlc_video_set_spu</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern int libvlc_video_set_spu(IntPtr player, int spu);
+#endif
 
         /// <summary>Gets the subtitle delay in microseconds. (<c>libvlc_video_get_spu_delay</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
@@ -254,8 +334,10 @@ namespace VLCDotNet
 
         // ----- Track description list release ------------------------------
 
+#if !VLC4
         /// <summary>Releases a track description linked list. (<c>libvlc_track_description_list_release</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern void libvlc_track_description_list_release(IntPtr list);
+#endif
     }
 }

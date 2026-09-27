@@ -30,10 +30,13 @@
 
         <!-- NuGet packaging (shared by both build pipelines). -->
         <IsPackable>true</IsPackable>
-        <PackageId>VLCDotNet3</PackageId>
-        <Version>$(VlcVersion)</Version>
-        <Title>VLCDotNet3 - libvlc 3.x for .NET</Title>
-    <Description>Cross-platform libvlc 3.0.x P/Invoke bindings packaged with native VLC binaries for Windows, Linux, macOS, Mac Catalyst, iOS and Android. Usable from .NET MAUI, WinUI 3, Win32, Avalonia and console apps.</Description>
+        <PackageId>VLCDotNet$(VlcMajor)</PackageId>
+        <Version Condition="'$(VlcMajor)' == '4'">$(VlcVersion4)</Version>
+        <Version Condition="'$(VlcMajor)' != '4'">$(VlcVersion)</Version>
+        <Title Condition="'$(VlcMajor)' == '4'">VLCDotNet4 - libvlc 4.x (preview) for .NET</Title>
+        <Title Condition="'$(VlcMajor)' != '4'">VLCDotNet3 - libvlc 3.x for .NET</Title>
+    <Description Condition="'$(VlcMajor)' == '4'">Cross-platform libvlc 4.0.x (preview) P/Invoke bindings packaged with native VLC binaries for Windows, Linux, macOS, Mac Catalyst, iOS and Android. Usable from .NET MAUI, WinUI 3, Win32, Avalonia and console apps. Tracks the unreleased VLC 4.0 development branch.</Description>
+    <Description Condition="'$(VlcMajor)' != '4'">Cross-platform libvlc 3.0.x P/Invoke bindings packaged with native VLC binaries for Windows, Linux, macOS, Mac Catalyst, iOS and Android. Usable from .NET MAUI, WinUI 3, Win32, Avalonia and console apps.</Description>
     <PackageTags>vlc;libvlc;video;audio;media;player;maui;avalonia;winui;win32;pinvoke;interop</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
 
@@ -56,6 +59,14 @@
     <None Include="$(MSBuildThisFileDirectory)../../PACKAGE-LICENSE.txt" Pack="true" PackagePath="PACKAGE-LICENSE.txt" />
     <None Include="$(MSBuildThisFileDirectory)../../README.md" Pack="true" PackagePath="README.md" />
     <None Include="$(MSBuildThisFileDirectory)../../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="THIRD-PARTY-NOTICES.md" />
+  </ItemGroup>
+
+  <!-- Consumer targets: the file name must match the package id so NuGet auto-imports it. -->
+  <ItemGroup Condition="'$(VlcMajor)' == '4'">
+    <None Include="$(MSBuildThisFileDirectory)build/VLCDotNet4.targets" Pack="true" PackagePath="build/VLCDotNet4.targets" />
+    <None Include="$(MSBuildThisFileDirectory)build/VLCDotNet4.targets" Pack="true" PackagePath="buildTransitive/VLCDotNet4.targets" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(VlcMajor)' != '4'">
     <None Include="$(MSBuildThisFileDirectory)build/VLCDotNet3.targets" Pack="true" PackagePath="build/VLCDotNet3.targets" />
     <None Include="$(MSBuildThisFileDirectory)build/VLCDotNet3.targets" Pack="true" PackagePath="buildTransitive/VLCDotNet3.targets" />
   </ItemGroup>

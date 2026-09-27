@@ -8,6 +8,26 @@
     -->
     <VlcVersion>3.0.23</VlcVersion>
 
+    <!--
+      VLC 4.x (preview) coordinates for the VLCDotNet4 package. 4.0.0 is not yet
+      released, so the from-source and prebuilt-deps pipelines build libvlc from
+      the VideoLAN git ref below, and the NuGet package uses a SemVer prerelease
+      base (the pack workflow appends the running suffix -> 4.0.0-preview.N).
+        VlcVersion4  package base version (also the release-tag base v<base>.N).
+        VlcRef4      git ref (branch/tag/commit) the v4 build scripts check out.
+      Both are overridable from CI (env VLC_REF) so a broken master HEAD can be
+      pinned to a known-good commit without editing the tree.
+    -->
+    <VlcVersion4>4.0.0-preview</VlcVersion4>
+    <VlcRef4>master</VlcRef4>
+
+    <!--
+      Selects which package a build produces. Default 3 (VLCDotNet3). CI packs
+      the v4 package with -p:VlcMajor=4, which switches the package id, version,
+      the VLC4 compile symbol and the bundled MSBuild targets file.
+    -->
+    <VlcMajor Condition="'$(VlcMajor)' == ''">3</VlcMajor>
+
     <!-- Common language / build settings -->
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>

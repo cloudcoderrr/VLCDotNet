@@ -23,9 +23,20 @@ set -euo pipefail
 VLC_VERSION="${VLC_VERSION:-3.0.23}"
 VLC_GIT="${VLC_GIT:-https://code.videolan.org/videolan/vlc.git}"
 
+# Series selector: 3 (stable, default) or 4 (unreleased 4.0 preview). VLC_REF is
+# the git ref actually built (a tag for 3.x, a branch/sha for 4.x). The VideoLAN
+# prebuilt-contrib artifacts channel differs per series (vlc-3.0 vs vlc/master).
+VLC_SERIES="${VLC_SERIES:-3}"
+VLC_REF="${VLC_REF:-${VLC_VERSION}}"
+if [ "${VLC_SERIES}" = "3" ]; then
+  VLC_ARTIFACTS_CHANNEL="${VLC_ARTIFACTS_CHANNEL:-vlc-3.0}"
+else
+  VLC_ARTIFACTS_CHANNEL="${VLC_ARTIFACTS_CHANNEL:-vlc}"
+fi
+
 BUILD_LIB_DIR="$( cd "$(dirname "${BASH_SOURCE[0]}")" && pwd )"
 REPO_ROOT="$( cd "${BUILD_LIB_DIR}/../.." && pwd )"
-PATCH_DIR="${PATCH_DIR:-${REPO_ROOT}/prebuilt/patches/vlc-3.0}"
+PATCH_DIR="${PATCH_DIR:-${REPO_ROOT}/prebuilt/patches/vlc-${VLC_SERIES}.0}"
 WORK_DIR="${WORK_DIR:-${REPO_ROOT}/prebuilt/build/_work}"
 ARTIFACTS_DIR="${ARTIFACTS_DIR:-${REPO_ROOT}/artifacts}"
 
@@ -34,12 +45,16 @@ warn() { printf '\033[1;33m[vlcdotnet-prebuilt]\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31m[vlcdotnet-prebuilt]\033[0m %s\n' "$*" >&2; exit 1; }
 
 # clone_vlc <dest>
-# Shallow-clones the pinned VLC tag if not already present.
+# Shallow-clones the pinned VLC ref (tag for 3.x, branch/sha for 4.x).
 clone_vlc() {
   local dest="$1"
   if [ ! -d "${dest}/.git" ]; then
-    log "Cloning VLC ${VLC_VERSION} -> ${dest}"
-    git clone --depth 1 --branch "${VLC_VERSION}" "${VLC_GIT}" "${dest}"
+    log "Cloning VLC ${VLC_REF} -> ${dest}"
+    if ! git clone --depth 1 --branch "${VLC_REF}" "${VLC_GIT}" "${dest}" 2>/dev/null; then
+      log "Shallow branch clone failed; full clone then checkout ${VLC_REF}"
+      git clone "${VLC_GIT}" "${dest}"
+      git -C "${dest}" checkout "${VLC_REF}"
+    fi
   else
     log "Reusing existing VLC checkout at ${dest}"
     git -C "${dest}" reset --hard HEAD
@@ -113,7 +128,7 @@ contrib_prebuilt_or_build() {
     local sha=""
     sha="$( cd "${src}" && ./extras/ci/get-contrib-sha.sh "${cijob}" 2>/dev/null || true )"
     if [ -n "${sha}" ]; then
-      local url="https://artifacts.videolan.org/vlc-3.0/${cijob}/vlc-contrib-${triplet}-${sha}.tar.zst"
+      local url="https://artifacts.videolan.org/${VLC_ARTIFACTS_CHANNEL}/${cijob}/vlc-contrib-${triplet}-${sha}.tar.zst"
       if ( cd "${src}" && ./extras/ci/check-url.sh "${url}" ) >/dev/null 2>&1; then
         prebuilt_url="${url}"
       else

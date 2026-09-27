@@ -1,0 +1,12 @@
+<Project>
+
+  <!--
+    Opt every project (managed bindings + shared test suite + test apps) into the
+    libvlc 4.0 ABI when packing/building the VLCDotNet4 package (-p:VlcMajor=4).
+    Imported after the SDK targets so the constant survives the implicit defines.
+  -->
+  <PropertyGroup Condition="'$(VlcMajor)' == '4'">
+    <DefineConstants>$(DefineConstants);VLC4</DefineConstants>
+  </PropertyGroup>
+
+</Project>

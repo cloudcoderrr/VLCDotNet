@@ -1,0 +1,163 @@
+name: build-vlc4
+
+# Builds libvlc 4.0.x (preview, tracks VideoLAN master) from source for every
+# supported platform and uploads one artifact per RID (vlc4-<rid>). Trigger
+# manually; use "only" to build a single platform family while iterating, and
+# "ref" to pin a specific master commit/branch if HEAD is broken.
+#
+# VLC 4.0 is unreleased; expect from-source breaks and iterate via patches under
+# patches/vlc-4.0/. Kept fully separate from the VLCDotNet3 pipeline.
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Platform family to build"
+        type: choice
+        default: all
+        options: [all, windows, linux, apple, android]
+      ref:
+        description: "VLC git ref to build (blank = master)"
+        required: false
+
+concurrency:
+  group: build-vlc4-${{ github.ref }}-${{ inputs.only }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  VLC_SERIES: "4"
+  VLC_REF: ${{ inputs.ref || 'master' }}
+  VLC_VERSION: "4.0-master"
+
+jobs:
+  windows:
+    if: ${{ inputs.only == 'all' || inputs.only == 'windows' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install cross build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential automake autopoint libtool-bin pkg-config gettext \
+            git bison flex nasm yasm cmake ninja-build meson zip p7zip-full \
+            gperf help2man nsis dos2unix curl xz-utils
+      - name: Build (${{ matrix.arch }})
+        run: bash build/build-windows.sh ${{ matrix.arch }}
+      - name: Map arch to RID
+        id: rid
+        run: echo "rid=$([ '${{ matrix.arch }}' = 'x86_64' ] && echo win-x64 || echo win-arm64)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vlc4-${{ steps.rid.outputs.rid }}
+          path: artifacts/${{ steps.rid.outputs.rid }}
+          if-no-files-found: error
+
+  linux:
+    if: ${{ inputs.only == 'all' || inputs.only == 'linux' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64,  rid: linux-x64 }
+          - { arch: armv7,   rid: linux-arm }
+          - { arch: aarch64, rid: linux-arm64 }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential automake autopoint libtool-bin pkg-config gettext \
+            git bison flex nasm yasm cmake ninja-build meson curl xz-utils \
+            gperf help2man libxau-dev libpthread-stubs0-dev \
+            gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+      - name: Cache VLC source + contrib build
+        uses: actions/cache@v5
+        with:
+          path: build/_work
+          key: vlc4-linux-${{ matrix.arch }}-${{ env.VLC_VERSION }}-v1-${{ github.run_id }}
+          restore-keys: |
+            vlc4-linux-${{ matrix.arch }}-${{ env.VLC_VERSION }}-v1-
+      - name: Build (${{ matrix.arch }})
+        run: bash build/build-linux.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vlc4-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error
+
+  apple:
+    if: ${{ inputs.only == 'all' || inputs.only == 'apple' }}
+    runs-on: macos-14
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: macos,        arch: x86_64, rid: osx-x64 }
+          - { platform: macos,        arch: arm64,  rid: osx-arm64 }
+          - { platform: maccatalyst,  arch: x86_64, rid: maccatalyst-x64 }
+          - { platform: maccatalyst,  arch: arm64,  rid: maccatalyst-arm64 }
+          - { platform: ios,          arch: arm64,  rid: ios-arm64 }
+          - { platform: iossimulator, arch: x86_64, rid: iossimulator-x64 }
+          - { platform: iossimulator, arch: arm64,  rid: iossimulator-arm64 }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
+        run: |
+          brew install automake libtool pkg-config nasm yasm meson ninja gettext bison flex gperf help2man || true
+          PY_USER_BIN="$(python3 -c 'import sysconfig; print(sysconfig.get_path("scripts", "posix_user"))')"
+          python3 -m pip install --user --break-system-packages 'cmake<3.29'
+          export PATH="$PY_USER_BIN:$PATH"
+          cmake --version
+          echo "$PY_USER_BIN" >> "$GITHUB_PATH"
+          echo "/opt/homebrew/opt/bison/bin:/opt/homebrew/opt/gettext/bin:/opt/homebrew/opt/flex/bin" >> "$GITHUB_PATH"
+      - name: Build (${{ matrix.platform }}/${{ matrix.arch }})
+        run: bash build/build-apple.sh ${{ matrix.platform }} ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vlc4-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error
+
+  android:
+    if: ${{ inputs.only == 'all' || inputs.only == 'android' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: arm,    rid: android-arm }
+          - { arch: arm64,  rid: android-arm64 }
+          - { arch: x86_64, rid: android-x64 }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential automake autopoint libtool-bin pkg-config gettext \
+            git bison flex nasm yasm cmake ninja-build meson curl xz-utils unzip \
+            gperf help2man
+      - name: Resolve Android NDK
+        run: echo "ANDROID_NDK_HOME=${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}" >> "$GITHUB_ENV"
+      - name: Build (${{ matrix.arch }})
+        run: bash build/build-android.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vlc4-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error

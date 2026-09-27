@@ -1,0 +1,68 @@
+<Project>
+  <!--
+    Wires the packaged native VLC binaries into a consuming application.
+
+    Desktop (win-*, linux-*, osx-*) relies entirely on the NuGet
+    runtimes/<rid>/native convention and needs nothing here.
+
+    Mobile targets are staged under this package's build/native/<rid> folder and
+    injected below. This file is byte-for-byte equivalent to VLCDotNet3.targets;
+    only the file name differs so NuGet auto-imports it for the VLCDotNet4 id.
+  -->
+
+  <PropertyGroup>
+    <_VlcNativeRoot>$(MSBuildThisFileDirectory)native</_VlcNativeRoot>
+  </PropertyGroup>
+
+  <!-- ===================== Android ===================== -->
+  <!-- Ship every libvlc/libvlccore/plugin .so into lib/<abi> of the APK. -->
+  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'android'">
+    <AndroidNativeLibrary Include="$(_VlcNativeRoot)/android-arm64/**/*.so">
+      <Abi>arm64-v8a</Abi>
+      <Link>lib/arm64-v8a/%(Filename)%(Extension)</Link>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="$(_VlcNativeRoot)/android-arm/**/*.so">
+      <Abi>armeabi-v7a</Abi>
+      <Link>lib/armeabi-v7a/%(Filename)%(Extension)</Link>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="$(_VlcNativeRoot)/android-x64/**/*.so">
+      <Abi>x86_64</Abi>
+      <Link>lib/x86_64/%(Filename)%(Extension)</Link>
+    </AndroidNativeLibrary>
+  </ItemGroup>
+
+  <!-- ===================== iOS / Mac Catalyst ===================== -->
+  <!--
+    libvlc is a static archive on these platforms and is resolved through the
+    "__Internal" DllImport target. Link libvlc.a + libvlccore.a + every plugin
+    and contrib archive under static/, and force-load libvlcstaticmodules.a (the
+    generated vlc_static_modules[] table) so the statically linked plugins are
+    registered. The plugins pull the system frameworks/libraries they reference.
+  -->
+  <PropertyGroup Condition="('$(TargetPlatformIdentifier)' == 'ios' or '$(TargetPlatformIdentifier)' == 'maccatalyst') and Exists('$(_VlcNativeRoot)/$(RuntimeIdentifier)/static')">
+    <_VlcRid>$(_VlcNativeRoot)/$(RuntimeIdentifier)</_VlcRid>
+    <MtouchExtraArgs>$(MtouchExtraArgs) -gcc_flags "-lc++ -lbz2 -liconv -lz"</MtouchExtraArgs>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'ios' and Exists('$(_VlcNativeRoot)/$(RuntimeIdentifier)/static')">
+    <NativeReference Include="$(_VlcRid)/libvlc.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+      <Frameworks>Foundation CoreFoundation CFNetwork UIKit CoreGraphics CoreText QuartzCore CoreMedia CoreVideo CoreAudio AudioToolbox AVFoundation VideoToolbox OpenGLES Security SystemConfiguration</Frameworks>
+    </NativeReference>
+    <NativeReference Include="$(_VlcRid)/libvlccore.a"><Kind>Static</Kind><ForceLoad>true</ForceLoad></NativeReference>
+    <NativeReference Include="$(_VlcRid)/static/libvlcstaticmodules.a"><Kind>Static</Kind><ForceLoad>true</ForceLoad></NativeReference>
+    <NativeReference Include="$(_VlcRid)/static/*.a" Exclude="$(_VlcRid)/static/libvlcstaticmodules.a"><Kind>Static</Kind><ForceLoad>false</ForceLoad></NativeReference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'maccatalyst' and Exists('$(_VlcNativeRoot)/$(RuntimeIdentifier)/static')">
+    <NativeReference Include="$(_VlcRid)/libvlc.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+      <Frameworks>Foundation CoreFoundation CFNetwork AppKit CoreGraphics CoreText QuartzCore CoreMedia CoreVideo CoreAudio AudioToolbox AVFoundation VideoToolbox Security SystemConfiguration</Frameworks>
+    </NativeReference>
+    <NativeReference Include="$(_VlcRid)/libvlccore.a"><Kind>Static</Kind><ForceLoad>true</ForceLoad></NativeReference>
+    <NativeReference Include="$(_VlcRid)/static/libvlcstaticmodules.a"><Kind>Static</Kind><ForceLoad>true</ForceLoad></NativeReference>
+    <NativeReference Include="$(_VlcRid)/static/*.a" Exclude="$(_VlcRid)/static/libvlcstaticmodules.a"><Kind>Static</Kind><ForceLoad>false</ForceLoad></NativeReference>
+  </ItemGroup>
+</Project>

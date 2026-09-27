@@ -1,0 +1,162 @@
+name: build-vlc4-prebuilt
+
+# Builds libvlc 4.0.x (preview, tracks VideoLAN master) for every supported
+# platform using PREBUILT dependencies (distro apt packages on Linux; VideoLAN
+# prebuilt contrib bundles for cross targets, source fallback otherwise) and
+# uploads one artifact per RID (vlc4-prebuilt-<rid>).
+#
+# VLC 4.0 is unreleased; expect breaks and iterate via patches/prebuilt/vlc-4.0.
+# Manual trigger only; "ref" pins a specific master commit if HEAD is broken.
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Platform family to build"
+        type: choice
+        default: all
+        options: [all, windows, linux, apple, android]
+      ref:
+        description: "VLC git ref to build (blank = master)"
+        required: false
+
+concurrency:
+  group: build-vlc4-prebuilt-${{ github.ref }}-${{ inputs.only }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  VLC_SERIES: "4"
+  VLC_REF: ${{ inputs.ref || 'master' }}
+  VLC_VERSION: "4.0-master"
+
+jobs:
+  linux:
+    if: ${{ inputs.only == 'all' || inputs.only == 'linux' }}
+    # 24.04 ships FFmpeg 6.x, which libvlc 4.0 builds against; arm/arm64 build
+    # natively inside a QEMU-emulated ubuntu:24.04 container (same apt logic).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64,  rid: linux-x64,   emulated: false, platform: "" }
+          - { arch: aarch64, rid: linux-arm64, emulated: true,  platform: "linux/arm64" }
+          - { arch: armv7,   rid: linux-arm,   emulated: true,  platform: "linux/arm/v7" }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build + prebuilt distro dependencies (native)
+        if: ${{ !matrix.emulated }}
+        run: sudo bash prebuilt/build/deps-linux.sh
+      - name: Build (native ${{ matrix.arch }})
+        if: ${{ !matrix.emulated }}
+        run: bash prebuilt/build/build-linux.sh ${{ matrix.arch }}
+      - name: Set up QEMU
+        if: ${{ matrix.emulated }}
+        uses: docker/setup-qemu-action@v3
+      - name: Build (emulated ${{ matrix.arch }})
+        if: ${{ matrix.emulated }}
+        run: |
+          docker run --rm --platform ${{ matrix.platform }} \
+            -e VLC_SERIES -e VLC_REF -e VLC_VERSION \
+            -v "$PWD:/work" -w /work ubuntu:24.04 \
+            bash -c 'set -e; bash prebuilt/build/deps-linux.sh && bash prebuilt/build/build-linux.sh ${{ matrix.arch }}'
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vlc4-prebuilt-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error
+
+  windows:
+    if: ${{ inputs.only == 'all' || inputs.only == 'windows' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64,  rid: win-x64 }
+          - { arch: aarch64, rid: win-arm64 }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install cross build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential automake autopoint libtool-bin pkg-config gettext \
+            git bison flex nasm yasm cmake ninja-build meson zip p7zip-full \
+            gperf help2man nsis dos2unix curl xz-utils zstd file
+      - name: Build (${{ matrix.arch }})
+        run: bash prebuilt/build/build-windows.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vlc4-prebuilt-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error
+
+  android:
+    if: ${{ inputs.only == 'all' || inputs.only == 'android' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, rid: android-x64 }
+          - { arch: arm64,  rid: android-arm64 }
+          - { arch: arm,    rid: android-arm }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential automake autopoint libtool-bin pkg-config gettext \
+            git bison flex nasm yasm cmake ninja-build meson curl xz-utils zstd unzip \
+            gperf help2man
+      - name: Resolve Android NDK
+        run: echo "ANDROID_NDK_HOME=${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}" >> "$GITHUB_ENV"
+      - name: Build (${{ matrix.arch }})
+        run: bash prebuilt/build/build-android.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vlc4-prebuilt-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error
+
+  apple:
+    if: ${{ inputs.only == 'all' || inputs.only == 'apple' }}
+    runs-on: macos-14
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: macos,        arch: x86_64, rid: osx-x64 }
+          - { platform: macos,        arch: arm64,  rid: osx-arm64 }
+          - { platform: maccatalyst,  arch: x86_64, rid: maccatalyst-x64 }
+          - { platform: maccatalyst,  arch: arm64,  rid: maccatalyst-arm64 }
+          - { platform: ios,          arch: arm64,  rid: ios-arm64 }
+          - { platform: iossimulator, arch: x86_64, rid: iossimulator-x64 }
+          - { platform: iossimulator, arch: arm64,  rid: iossimulator-arm64 }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
+        run: |
+          brew install automake libtool pkg-config nasm yasm meson ninja gettext bison flex gperf help2man || true
+          PY_USER_BIN="$(python3 -c 'import sysconfig; print(sysconfig.get_path("scripts", "posix_user"))')"
+          python3 -m pip install --user --break-system-packages 'cmake<3.29'
+          export PATH="$PY_USER_BIN:$PATH"
+          cmake --version
+          echo "$PY_USER_BIN" >> "$GITHUB_PATH"
+          echo "/opt/homebrew/opt/bison/bin:/opt/homebrew/opt/gettext/bin:/opt/homebrew/opt/flex/bin" >> "$GITHUB_PATH"
+      - name: Build (${{ matrix.platform }}/${{ matrix.arch }})
+        run: bash prebuilt/build/build-apple.sh ${{ matrix.platform }} ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vlc4-prebuilt-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error

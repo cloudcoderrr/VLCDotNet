@@ -8,9 +8,14 @@ set -euo pipefail
 VLC_VERSION="${VLC_VERSION:-3.0.23}"
 VLC_GIT="${VLC_GIT:-https://code.videolan.org/videolan/vlc.git}"
 
+# Series selector: 3 (stable 3.0.x, default) or 4 (unreleased 4.0 preview).
+# VLC_REF is the git ref actually built (a tag for 3.x, a branch/sha for 4.x).
+VLC_SERIES="${VLC_SERIES:-3}"
+VLC_REF="${VLC_REF:-${VLC_VERSION}}"
+
 BUILD_LIB_DIR="$( cd "$(dirname "${BASH_SOURCE[0]}")" && pwd )"
 REPO_ROOT="$( cd "${BUILD_LIB_DIR}/.." && pwd )"
-PATCH_DIR="${REPO_ROOT}/patches/vlc-3.0"
+PATCH_DIR="${REPO_ROOT}/patches/vlc-${VLC_SERIES}.0"
 WORK_DIR="${WORK_DIR:-${REPO_ROOT}/build/_work}"
 ARTIFACTS_DIR="${ARTIFACTS_DIR:-${REPO_ROOT}/artifacts}"
 
@@ -19,12 +24,17 @@ warn() { printf '\033[1;33m[vlcdotnet]\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31m[vlcdotnet]\033[0m %s\n' "$*" >&2; exit 1; }
 
 # clone_vlc <dest>
-# Shallow-clones the pinned VLC tag if not already present.
+# Shallow-clones the pinned VLC ref (tag for 3.x, branch/sha for 4.x) if not
+# already present.
 clone_vlc() {
   local dest="$1"
   if [ ! -d "${dest}/.git" ]; then
-    log "Cloning VLC ${VLC_VERSION} -> ${dest}"
-    git clone --depth 1 --branch "${VLC_VERSION}" "${VLC_GIT}" "${dest}"
+    log "Cloning VLC ${VLC_REF} -> ${dest}"
+    if ! git clone --depth 1 --branch "${VLC_REF}" "${VLC_GIT}" "${dest}" 2>/dev/null; then
+      log "Shallow branch clone failed; full clone then checkout ${VLC_REF}"
+      git clone "${VLC_GIT}" "${dest}"
+      git -C "${dest}" checkout "${VLC_REF}"
+    fi
   else
     log "Reusing existing VLC checkout at ${dest}"
     git -C "${dest}" reset --hard HEAD
@@ -304,6 +314,13 @@ minimal_local_playback_contrib_flags() {
 # Failures are non-fatal: VLC's own rules.mak download runs as the fallback.
 prefetch_contrib_tarballs() {
   local dir="$1"
+  # The pinned tarball versions/SHA512s below match VLC 3.0.x's contrib
+  # rules.mak. For other series, let the contrib 'make fetch' download the
+  # correct versions itself.
+  if [ "${VLC_SERIES}" != "3" ]; then
+    warn "contrib prefetch skipped for VLC series ${VLC_SERIES} (contrib make fetch will download)"
+    return 0
+  fi
   mkdir -p "${dir}"
   local pf_one
   pf_one() {

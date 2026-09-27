@@ -62,6 +62,19 @@ namespace VLCDotNet
 
         // ----- Audio tracks -------------------------------------------------
 
+#if VLC4
+        // libvlc 4.0 removed the per-kind audio track selectors; use the unified
+        // media player tracklist API (see LibVlc.MediaPlayer.cs). Stereo mode
+        // replaced the old channel down-mix selector.
+
+        /// <summary>Gets the current audio stereo mode. (<c>libvlc_audio_get_stereomode</c>)</summary>
+        [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+        public static extern int libvlc_audio_get_stereomode(IntPtr player);
+
+        /// <summary>Sets the audio stereo mode. (<c>libvlc_audio_set_stereomode</c>)</summary>
+        [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
+        public static extern int libvlc_audio_set_stereomode(IntPtr player, int mode);
+#else
         /// <summary>Gets the number of audio tracks. (<c>libvlc_audio_get_track_count</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern int libvlc_audio_get_track_count(IntPtr player);
@@ -85,6 +98,7 @@ namespace VLCDotNet
         /// <summary>Sets the audio channel down-mix mode. (<c>libvlc_audio_set_channel</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]
         public static extern int libvlc_audio_set_channel(IntPtr player, int channel);
+#endif
 
         /// <summary>Gets the audio delay in microseconds. (<c>libvlc_audio_get_delay</c>)</summary>
         [DllImport(Lib, CallingConvention = Cc, ExactSpelling = true)]

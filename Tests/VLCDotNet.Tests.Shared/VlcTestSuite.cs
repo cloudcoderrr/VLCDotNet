@@ -61,6 +61,18 @@ namespace VLCDotNet.Tests.Shared
             "stream_out_transcode",
         };
 
+#if VLC4
+        // The VLC 4.0 contrib set is still stabilising; require only the core
+        // decode/transcode modules the tests exercise everywhere.
+        private static readonly string[] V4RequiredModules =
+        {
+            "access_output_file",
+            "avcodec",
+            "stream_out_standard",
+            "stream_out_transcode",
+        };
+#endif
+
         private readonly TestEnvironment _env;
         private readonly List<TestOutcome> _results = new List<TestOutcome>();
         private IntPtr _instance;
@@ -196,8 +208,13 @@ namespace VLCDotNet.Tests.Shared
             var sw = Stopwatch.StartNew();
             string? version = LibVlc.Utf8ToString(LibVlc.libvlc_get_version());
             outcome.Details.Add("version: " + version);
+#if VLC4
+            outcome.Passed = version != null && version.StartsWith("4.", StringComparison.Ordinal);
+            outcome.Message = outcome.Passed ? "libvlc 4.x confirmed" : "unexpected version: " + version;
+#else
             outcome.Passed = version != null && version.StartsWith("3.", StringComparison.Ordinal);
             outcome.Message = outcome.Passed ? "libvlc 3.x confirmed" : "unexpected version: " + version;
+#endif
             Record(outcome, sw);
         }
 
@@ -261,8 +278,8 @@ namespace VLCDotNet.Tests.Shared
                     return;
                 }
 
-                media = LibVlc.libvlc_media_new_path(_instance, path);
-                mp = LibVlc.libvlc_media_player_new_from_media(media);
+                media = NewMedia(path);
+                mp = NewPlayerFromMedia(media);
                 cap = new VideoFrameCapture(mp, 320, 180);
 
                 if (!PlayAndWaitPlaying(mp))
@@ -272,8 +289,8 @@ namespace VLCDotNet.Tests.Shared
                 }
 
                 Thread.Sleep(1500);
-                DescribeTracks(media, outcome);
-                LibVlc.libvlc_media_player_set_position(mp, 0.4f);
+                DescribeTracks(media, mp, outcome);
+                SetPosition(mp, 0.4);
                 Thread.Sleep(800);
 
                 FrameStats stats = cap.Analyze();
@@ -332,8 +349,8 @@ namespace VLCDotNet.Tests.Shared
                     return;
                 }
 
-                media = LibVlc.libvlc_media_new_path(_instance, path);
-                mp = LibVlc.libvlc_media_player_new_from_media(media);
+                media = NewMedia(path);
+                mp = NewPlayerFromMedia(media);
                 probe = new AudioProbe(mp, 44100, (uint)Math.Max(1, spec.AudioChannels));
 
                 if (!PlayAndWaitPlaying(mp))
@@ -343,7 +360,7 @@ namespace VLCDotNet.Tests.Shared
                 }
 
                 Thread.Sleep(1600);
-                DescribeTracks(media, outcome);
+                DescribeTracks(media, mp, outcome);
 
                 double rms = probe.Rms;
                 outcome.Details.Add($"captured {probe.SampleValues} samples; RMS={rms:F1}");
@@ -391,7 +408,14 @@ namespace VLCDotNet.Tests.Shared
                     return;
                 }
 
-                media = LibVlc.libvlc_media_new_path(_instance, path);
+                media = NewMedia(path);
+#if VLC4
+                (int trackCount, long duration) = ProbeByPlayback(media);
+                outcome.Details.Add($"duration={duration}us, tracks={trackCount}");
+                bool ok = trackCount >= 2;
+                outcome.Passed = ok;
+                outcome.Message = ok ? "played and enumerated expected tracks" : "track probe incomplete";
+#else
                 LibVlc.libvlc_media_parse_with_options(media, VlcMediaParseFlag.ParseLocal, 5000);
                 Wait(() => LibVlc.libvlc_media_get_parsed_status(media) == VlcMediaParsedStatus.Done, 6000);
 
@@ -403,6 +427,7 @@ namespace VLCDotNet.Tests.Shared
                 bool ok = status == VlcMediaParsedStatus.Done && tracks.Count >= 2;
                 outcome.Passed = ok;
                 outcome.Message = ok ? "parsed with expected track count" : "parse incomplete";
+#endif
             }
             catch (Exception ex)
             {
@@ -436,8 +461,8 @@ namespace VLCDotNet.Tests.Shared
                     return;
                 }
 
-                media = LibVlc.libvlc_media_new_path(_instance, path);
-                mp = LibVlc.libvlc_media_player_new_from_media(media);
+                media = NewMedia(path);
+                mp = NewPlayerFromMedia(media);
                 if (!PlayAndWaitPlaying(mp))
                 {
                     Fail(outcome, sw, "did not reach Playing state");
@@ -445,6 +470,16 @@ namespace VLCDotNet.Tests.Shared
                 }
                 Thread.Sleep(1200);
 
+#if VLC4
+                int audioCount = CountPlayerTracks(mp, VlcTrackType.Audio);
+                int spuCount = CountPlayerTracks(mp, VlcTrackType.Text);
+                outcome.Details.Add($"audio tracks={audioCount}, spu tracks={spuCount}");
+
+                bool audioSwitch = SwitchToLastTrack(mp, VlcTrackType.Audio);
+                outcome.Details.Add("audio switch ok=" + audioSwitch);
+                bool spuSwitch = SwitchToLastTrack(mp, VlcTrackType.Text);
+                outcome.Details.Add("spu switch ok=" + spuSwitch);
+#else
                 int audioCount = LibVlc.libvlc_audio_get_track_count(mp);
                 int spuCount = LibVlc.libvlc_video_get_spu_count(mp);
                 outcome.Details.Add($"audio tracks={audioCount}, spu tracks={spuCount}");
@@ -469,6 +504,7 @@ namespace VLCDotNet.Tests.Shared
                     spuSwitch = LibVlc.libvlc_video_get_spu(mp) == target;
                     outcome.Details.Add("spu switch ok=" + spuSwitch);
                 }
+#endif
 
                 // audioCount/spuCount may or may not count the "disable" entry; require >= expected.
                 bool ok = audioCount >= 2 && spuCount >= 2 && audioSwitch && spuSwitch;
@@ -511,9 +547,9 @@ namespace VLCDotNet.Tests.Shared
                         continue;
                     }
 
-                    media = LibVlc.libvlc_media_new_path(_instance, path);
+                    media = NewMedia(path);
                     LibVlc.libvlc_media_add_option(media, ":codec=videotoolbox");
-                    mp = LibVlc.libvlc_media_player_new_from_media(media);
+                    mp = NewPlayerFromMedia(media);
                     cap = new VideoFrameCapture(mp, 320, 180);
 
                     if (!PlayAndWaitPlaying(mp))
@@ -563,8 +599,8 @@ namespace VLCDotNet.Tests.Shared
                         continue;
                     }
 
-                    media = LibVlc.libvlc_media_new_path(_instance, video);
-                    mp = LibVlc.libvlc_media_player_new_from_media(media);
+                    media = NewMedia(video);
+                    mp = NewPlayerFromMedia(media);
                     if (!PlayAndWaitPlaying(mp))
                     {
                         Fail(outcome, sw, "did not reach Playing state");
@@ -572,12 +608,21 @@ namespace VLCDotNet.Tests.Shared
                     }
                     Thread.Sleep(600);
 
+#if VLC4
+                    int before = CountPlayerTracks(mp, VlcTrackType.Text);
+                    string uri = new Uri(subPath).AbsoluteUri;
+                    int added = LibVlc.libvlc_media_player_add_slave(mp, VlcMediaSlaveType.Subtitle, uri, true);
+                    Thread.Sleep(700);
+                    int after = CountPlayerTracks(mp, VlcTrackType.Text);
+                    outcome.Details.Add($"add_slave rc={added}, spu {before} -> {after}, selected spu={SelectedTrackLabel(mp, VlcTrackType.Text)}");
+#else
                     int before = LibVlc.libvlc_video_get_spu_count(mp);
                     string uri = new Uri(subPath).AbsoluteUri;
                     int added = LibVlc.libvlc_media_player_add_slave(mp, VlcMediaSlaveType.Subtitle, uri, true);
                     Thread.Sleep(700);
                     int after = LibVlc.libvlc_video_get_spu_count(mp);
                     outcome.Details.Add($"add_slave rc={added}, spu {before} -> {after}, selected spu={LibVlc.libvlc_video_get_spu(mp)}");
+#endif
 
                     bool ok = added == 0 && after > before;
                     outcome.Passed = ok;
@@ -612,8 +657,8 @@ namespace VLCDotNet.Tests.Shared
                     return;
                 }
 
-                media = LibVlc.libvlc_media_new_path(_instance, path);
-                mp = LibVlc.libvlc_media_player_new_from_media(media);
+                media = NewMedia(path);
+                mp = NewPlayerFromMedia(media);
                 if (!PlayAndWaitPlaying(mp))
                 {
                     Fail(outcome, sw, "did not reach Playing state");
@@ -622,8 +667,8 @@ namespace VLCDotNet.Tests.Shared
                 Thread.Sleep(600);
 
                 long length = LibVlc.libvlc_media_player_get_length(mp);
-                bool seekable = LibVlc.libvlc_media_player_is_seekable(mp) != 0;
-                LibVlc.libvlc_media_player_set_position(mp, 0.5f);
+                bool seekable = IsSeekable(mp);
+                SetPosition(mp, 0.5);
                 Thread.Sleep(700);
                 long time = LibVlc.libvlc_media_player_get_time(mp);
 
@@ -673,11 +718,11 @@ namespace VLCDotNet.Tests.Shared
                     File.Delete(output);
                 }
 
-                media = LibVlc.libvlc_media_new_path(_instance, input);
+                media = NewMedia(input);
                 LibVlc.libvlc_media_add_option(media, ":sout-avformat-mux=mp4");
                 LibVlc.libvlc_media_add_option(media,
                     ":sout=#transcode{vcodec=mp4v,vb=900,acodec=mp4a,ab=128}:std{access=file,mux=avformat,dst='" + EscapeSoutPath(output) + "'}");
-                mp = LibVlc.libvlc_media_player_new_from_media(media);
+                mp = NewPlayerFromMedia(media);
                 long logCursor = CaptureLogCursor();
 
                 if (LibVlc.libvlc_media_player_play(mp) != 0)
@@ -714,13 +759,19 @@ namespace VLCDotNet.Tests.Shared
                 bool parsedOk = false;
                 if (size > 0)
                 {
-                    outputMedia = LibVlc.libvlc_media_new_path(_instance, output);
+                    outputMedia = NewMedia(output);
+#if VLC4
+                    (int trackCount, long duration) = ProbeByPlayback(outputMedia);
+                    outcome.Details.Add($"output tracks={trackCount}, duration={duration}us");
+                    parsedOk = trackCount >= 2 && duration > 0;
+#else
                     LibVlc.libvlc_media_parse_with_options(outputMedia, VlcMediaParseFlag.ParseLocal, 5000);
                     Wait(() => LibVlc.libvlc_media_get_parsed_status(outputMedia) == VlcMediaParsedStatus.Done, 6000);
                     int trackCount = GetTracks(outputMedia).Count;
                     long duration = LibVlc.libvlc_media_get_duration(outputMedia);
                     outcome.Details.Add($"output tracks={trackCount}, duration={duration}ms");
                     parsedOk = trackCount >= 2 && duration > 0;
+#endif
                 }
 
                 bool ok = completed && finalState != VlcState.Error && size > 0 && parsedOk && sawTranscode && sawFfmpegMux;
@@ -780,15 +831,108 @@ namespace VLCDotNet.Tests.Shared
 
         // ----- Helpers -----------------------------------------------------
 
-        private void DescribeTracks(IntPtr media, TestOutcome outcome)
+        private void DescribeTracks(IntPtr media, IntPtr mp, TestOutcome outcome)
         {
-            foreach (VlcMediaTrack t in GetTracks(media))
+#if VLC4
+            List<VlcMediaTrack> tracks = GetPlayerTracks(mp);
+#else
+            List<VlcMediaTrack> tracks = GetTracks(media);
+#endif
+            foreach (VlcMediaTrack t in tracks)
             {
                 string codec = LibVlc.Utf8ToString(LibVlc.libvlc_media_get_codec_description(t.Type, t.Codec)) ?? "?";
                 outcome.Details.Add($"track {t.Id}: {t.Type} {codec} (0x{t.Codec:X8})");
             }
         }
 
+#if VLC4
+        // Enumerate a media player's tracks via the libvlc 4.0 tracklist API.
+        private static List<VlcMediaTrack> GetPlayerTracks(IntPtr mp)
+        {
+            var list = new List<VlcMediaTrack>();
+            if (mp == IntPtr.Zero)
+            {
+                return list;
+            }
+            foreach (VlcTrackType type in new[] { VlcTrackType.Video, VlcTrackType.Audio, VlcTrackType.Text })
+            {
+                IntPtr tl = LibVlc.libvlc_media_player_get_tracklist(mp, type, false);
+                if (tl == IntPtr.Zero)
+                {
+                    continue;
+                }
+                ulong n = (ulong)LibVlc.libvlc_media_tracklist_count(tl);
+                for (ulong i = 0; i < n; i++)
+                {
+                    IntPtr tp = LibVlc.libvlc_media_tracklist_at(tl, (UIntPtr)i);
+                    if (tp != IntPtr.Zero)
+                    {
+                        list.Add(Marshal.PtrToStructure<VlcMediaTrack>(tp));
+                    }
+                }
+                LibVlc.libvlc_media_tracklist_delete(tl);
+            }
+            return list;
+        }
+
+        private static int CountPlayerTracks(IntPtr mp, VlcTrackType type)
+        {
+            IntPtr tl = LibVlc.libvlc_media_player_get_tracklist(mp, type, false);
+            if (tl == IntPtr.Zero)
+            {
+                return 0;
+            }
+            int n = (int)(ulong)LibVlc.libvlc_media_tracklist_count(tl);
+            LibVlc.libvlc_media_tracklist_delete(tl);
+            return n;
+        }
+
+        // Selects the last track of a type and confirms the switch took effect.
+        private static bool SwitchToLastTrack(IntPtr mp, VlcTrackType type)
+        {
+            IntPtr tl = LibVlc.libvlc_media_player_get_tracklist(mp, type, false);
+            if (tl == IntPtr.Zero)
+            {
+                return false;
+            }
+            bool ok = false;
+            try
+            {
+                int n = (int)(ulong)LibVlc.libvlc_media_tracklist_count(tl);
+                if (n >= 2)
+                {
+                    IntPtr last = LibVlc.libvlc_media_tracklist_at(tl, (UIntPtr)(uint)(n - 1));
+                    string? lastId = LibVlc.Utf8ToString(Marshal.PtrToStructure<VlcMediaTrack>(last).StringId);
+                    LibVlc.libvlc_media_player_select_track(mp, last);
+                    Thread.Sleep(300);
+                    IntPtr sel = LibVlc.libvlc_media_player_get_selected_track(mp, type);
+                    if (sel != IntPtr.Zero)
+                    {
+                        string? selId = LibVlc.Utf8ToString(Marshal.PtrToStructure<VlcMediaTrack>(sel).StringId);
+                        ok = lastId != null && lastId == selId;
+                        LibVlc.libvlc_media_track_release(sel);
+                    }
+                }
+            }
+            finally
+            {
+                LibVlc.libvlc_media_tracklist_delete(tl);
+            }
+            return ok;
+        }
+
+        private static string SelectedTrackLabel(IntPtr mp, VlcTrackType type)
+        {
+            IntPtr sel = LibVlc.libvlc_media_player_get_selected_track(mp, type);
+            if (sel == IntPtr.Zero)
+            {
+                return "none";
+            }
+            string label = LibVlc.Utf8ToString(Marshal.PtrToStructure<VlcMediaTrack>(sel).StringId) ?? "?";
+            LibVlc.libvlc_media_track_release(sel);
+            return label;
+        }
+#else
         private static List<VlcMediaTrack> GetTracks(IntPtr media)
         {
             var list = new List<VlcMediaTrack>();
@@ -807,7 +951,9 @@ namespace VLCDotNet.Tests.Shared
             }
             return list;
         }
+#endif
 
+#if !VLC4
         private static List<int> GetTrackIds(IntPtr descriptionList)
         {
             var ids = new List<int>();
@@ -824,6 +970,7 @@ namespace VLCDotNet.Tests.Shared
             }
             return ids;
         }
+#endif
 
         private static string GetArtifactStem(string fileName) =>
             Path.GetFileName(fileName).Replace('.', '_');
@@ -892,11 +1039,15 @@ namespace VLCDotNet.Tests.Shared
         }
 
         private static IReadOnlyList<string> GetRequiredModules() =>
+#if VLC4
+            V4RequiredModules;
+#else
             IsAppleMobileOrCatalyst()
                 ? AppleMobileRequiredModules
                 : RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
                     ? WindowsRequiredModules
                     : RequiredModules;
+#endif
 
         private HashSet<string> DiscoverAvailableModules()
         {
@@ -992,7 +1143,7 @@ namespace VLCDotNet.Tests.Shared
         {
             if (mp != IntPtr.Zero)
             {
-                LibVlc.libvlc_media_player_stop(mp);
+                StopPlayer(mp);
                 LibVlc.libvlc_media_player_release(mp);
             }
             if (media != IntPtr.Zero)
@@ -1000,6 +1151,93 @@ namespace VLCDotNet.Tests.Shared
                 LibVlc.libvlc_media_release(media);
             }
         }
+
+        // ----- Version-specific ABI shims (v3 vs v4 libvlc) ----------------
+
+        // libvlc 4.0 dropped the instance argument from the media constructors,
+        // added callbacks/opaque to the player constructors, renamed stop, and
+        // gave set_position/is_seekable new signatures. These shims keep the test
+        // bodies identical across both bindings.
+
+        private IntPtr NewMedia(string path) =>
+#if VLC4
+            LibVlc.libvlc_media_new_path(path);
+#else
+            LibVlc.libvlc_media_new_path(_instance, path);
+#endif
+
+        private IntPtr NewPlayer() =>
+#if VLC4
+            LibVlc.libvlc_media_player_new(_instance, IntPtr.Zero, IntPtr.Zero);
+#else
+            LibVlc.libvlc_media_player_new(_instance);
+#endif
+
+        // Player-with-media using new()+set_media(), which is identical on 3.x/4.x.
+        private IntPtr NewPlayerFromMedia(IntPtr media)
+        {
+            IntPtr mp = NewPlayer();
+            if (mp != IntPtr.Zero && media != IntPtr.Zero)
+            {
+                LibVlc.libvlc_media_player_set_media(mp, media);
+            }
+            return mp;
+        }
+
+        private static int SetPosition(IntPtr mp, double pos)
+        {
+#if VLC4
+            return LibVlc.libvlc_media_player_set_position(mp, pos, false);
+#else
+            LibVlc.libvlc_media_player_set_position(mp, (float)pos);
+            return 0;
+#endif
+        }
+
+        private static bool IsSeekable(IntPtr mp) =>
+#if VLC4
+            LibVlc.libvlc_media_player_is_seekable(mp);
+#else
+            LibVlc.libvlc_media_player_is_seekable(mp) != 0;
+#endif
+
+        private static void StopPlayer(IntPtr mp)
+        {
+#if VLC4
+            LibVlc.libvlc_media_player_stop_async(mp);
+#else
+            LibVlc.libvlc_media_player_stop(mp);
+#endif
+        }
+
+#if VLC4
+        // libvlc 4.0 preparsing moved to the parser task API; the tests instead
+        // start playback and read tracks/length from the running player.
+        private (int Tracks, long Duration) ProbeByPlayback(IntPtr media)
+        {
+            IntPtr mp = NewPlayerFromMedia(media);
+            int tracks = 0;
+            long duration = 0;
+            try
+            {
+                if (PlayAndWaitPlaying(mp))
+                {
+                    Thread.Sleep(1200);
+                    tracks = GetPlayerTracks(mp).Count;
+                    duration = LibVlc.libvlc_media_player_get_length(mp);
+                }
+            }
+            finally
+            {
+                if (mp != IntPtr.Zero)
+                {
+                    StopPlayer(mp);
+                    LibVlc.libvlc_media_player_release(mp);
+                }
+            }
+            return (tracks, duration);
+        }
+#endif
 
         private void Record(TestOutcome outcome, Stopwatch sw)
         {
