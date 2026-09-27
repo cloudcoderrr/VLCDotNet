@@ -27,6 +27,9 @@ namespace VLCDotNet
         /// <returns><see langword="true"/> if a plugin directory was located.</returns>
         public static bool Configure(string? baseDirectory = null)
         {
+#if ANDROID
+            EnsureAndroidCoreLoaded();
+#endif
             // iOS statically links libvlc and its plugins; nothing to locate.
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Create("IOS")))
             {
@@ -67,6 +70,39 @@ namespace VLCDotNet
 
             return false;
         }
+
+#if ANDROID
+        private static bool s_androidCoreLoaded;
+
+        // VLC 4.0's libvlccore captures the JavaVM in its JNI_OnLoad, which the
+        // Android runtime only invokes when the library is loaded through
+        // java.lang.System.loadLibrary. .NET resolves native libraries with
+        // dlopen (which does not call JNI_OnLoad), so libvlc_new would abort in
+        // system_Configure on "s_jvm != NULL". Load the C++ runtime and
+        // libvlccore explicitly so JNI_OnLoad runs and registers the JavaVM
+        // before the first P/Invoke into libvlc.
+        private static void EnsureAndroidCoreLoaded()
+        {
+            if (s_androidCoreLoaded)
+            {
+                return;
+            }
+
+            s_androidCoreLoaded = true;
+            foreach (string lib in new[] { "c++_shared", "vlccore" })
+            {
+                try
+                {
+                    Java.Lang.JavaSystem.LoadLibrary(lib);
+                }
+                catch (Exception)
+                {
+                    // Best effort: a consumer may bundle these differently, and a
+                    // missing optional dependency must not abort configuration.
+                }
+            }
+        }
+#endif
 
         private static bool LooksLikeFlattenedPluginDirectory(string directory)
         {
