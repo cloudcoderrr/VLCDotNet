@@ -1,0 +1,41 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] apple: detect Mac Catalyst (HAVE_MACCATALYST)
+
+VLC 4 treats Mac Catalyst as iOS (TARGET_OS_IPHONE=1) and has no dedicated
+Catalyst conditional. Add a HAVE_MACCATALYST probe so the iOS OpenGLES/EAGL
+vout and filter plugins can be skipped on Catalyst, which ships no OpenGL ES.
+---
+diff --git a/configure.ac b/configure.ac
+index 876a0ec..d0c8478 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -132,6 +132,7 @@ HAVE_TVOS="0"
+ HAVE_IOS_OR_TVOS="0"
+ HAVE_XROS="0"
+ HAVE_WATCHOS="0"
++HAVE_MACCATALYST="0"
+ 
+ HAVE_PROCESS_SPAWN="1"
+ 
+@@ -288,6 +289,13 @@ int foo() { return my_array[0]; }
+              ac_cv_func_fork=no
+              ],)
+ 
++    AC_EGREP_CPP(yes,
++            [#import <TargetConditionals.h>
++             #if defined(TARGET_OS_MACCATALYST) && TARGET_OS_MACCATALYST
++             yes
++             #endif],
++             [HAVE_MACCATALYST="1"],)
++
+     AS_IF([test "${HAVE_OSX}" = "1"],[VLC_ADD_LIBS([libvlccore],[-Wl,-framework,CoreServices])])
+ 
+     dnl
+@@ -566,6 +574,7 @@ AM_CONDITIONAL([HAVE_TVOS],    [test "${HAVE_TVOS}" = "1"])
+ AM_CONDITIONAL([HAVE_IOS_OR_TVOS], [test "${HAVE_IOS_OR_TVOS}" = "1"])
+ AM_CONDITIONAL([HAVE_XROS],    [test "${HAVE_XROS}" = "1"])
+ AM_CONDITIONAL([HAVE_WATCHOS],    [test "${HAVE_WATCHOS}" = "1"])
++AM_CONDITIONAL([HAVE_MACCATALYST], [test "${HAVE_MACCATALYST}" = "1"])
+ 
+ AM_CONDITIONAL([HAVE_LIBANL],  [test "${HAVE_LIBANL}" = "1"])
+ 

@@ -1,0 +1,21 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] apple: skip Core Image filter on Mac Catalyst
+
+ci_filters.m uses EAGL/OpenGL ES, absent on Mac Catalyst. Don't build it there.
+---
+diff --git a/modules/video_filter/Makefile.am b/modules/video_filter/Makefile.am
+index 23c5038..378a416 100644
+--- a/modules/video_filter/Makefile.am
++++ b/modules/video_filter/Makefile.am
+@@ -145,9 +145,11 @@ video_filter_PLUGINS += libci_filters_plugin.la
+ endif
+ 
+ if HAVE_IOS_OR_TVOS
++if !HAVE_MACCATALYST
+ libci_filters_plugin_la_LDFLAGS += -Wl,-framework,OpenGLES
+ video_filter_PLUGINS += libci_filters_plugin.la
+ endif
++endif
+ 
+ libopengl_filter_plugin_la_SOURCES = video_filter/opengl.c
+ libopengl_filter_plugin_la_LIBADD = $(GL_PLUGIN_LIBADD)

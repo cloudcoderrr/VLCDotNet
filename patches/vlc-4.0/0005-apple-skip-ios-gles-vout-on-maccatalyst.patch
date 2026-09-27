@@ -1,0 +1,48 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] apple: skip iOS OpenGLES vout plugins on Mac Catalyst
+
+The iOS GLES vout/interop plugins (vout_ios, caeagl_ios, cvpx_gl,
+glinterop_cvpx) link -framework OpenGLES and use EAGL, which Mac Catalyst does
+not provide. Skip them on Catalyst; the Metal samplebufferdisplay vout and the
+app's vmem callbacks remain.
+---
+diff --git a/modules/video_output/Makefile.am b/modules/video_output/Makefile.am
+index 4488d6b..1b45c81 100644
+--- a/modules/video_output/Makefile.am
++++ b/modules/video_output/Makefile.am
+@@ -57,10 +57,12 @@ vout_PLUGINS += libglinterop_cvpx_plugin.la
+ libglinterop_cvpx_plugin_la_LDFLAGS += -Wl,-framework,OpenGL
+ endif
+ if HAVE_IOS_OR_TVOS
++if !HAVE_MACCATALYST
+ vout_PLUGINS += libglinterop_cvpx_plugin.la
+ libglinterop_cvpx_plugin_la_CPPFLAGS += -DUSE_OPENGL_ES2
+ libglinterop_cvpx_plugin_la_LDFLAGS += -Wl,-framework,OpenGLES
+ endif
++endif
+ 
+ if HAVE_OSX
+ libwindow_macosx_plugin_la_SOURCES = video_output/window_macosx.m
+@@ -139,18 +141,22 @@ libcvpx_gl_plugin_la_LDFLAGS += -Wl,-framework,OpenGL
+ libcvpx_gl_plugin_la_LIBADD += libvlc_opengl.la
+ endif
+ if HAVE_IOS_OR_TVOS
++if !HAVE_MACCATALYST
+ vout_PLUGINS += libcvpx_gl_plugin.la
+ libcvpx_gl_plugin_la_CPPFLAGS += -DUSE_OPENGL_ES2
+ libcvpx_gl_plugin_la_LDFLAGS += -Wl,-framework,OpenGLES
+ libcvpx_gl_plugin_la_LIBADD += libvlc_opengles.la
+ endif
++endif
+ 
+ if HAVE_IOS_OR_TVOS
++if !HAVE_MACCATALYST
+ vout_PLUGINS += \
+ 	libvout_ios_plugin.la \
+ 	libuiview_window_plugin.la \
+ 	libcaeagl_ios_plugin.la
+ endif
++endif
+ if HAVE_XROS
+ vout_PLUGINS += libuiview_window_plugin.la
+ endif
