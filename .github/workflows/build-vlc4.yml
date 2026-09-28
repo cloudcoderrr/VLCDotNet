@@ -69,29 +69,50 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { arch: x86_64,  rid: linux-x64 }
-          - { arch: armv7,   rid: linux-arm }
-          - { arch: aarch64, rid: linux-arm64 }
+          - { arch: x86_64,  rid: linux-x64,   emulated: false }
+          - { arch: armv7,   rid: linux-arm,   emulated: true,  platform: linux/arm/v7 }
+          - { arch: aarch64, rid: linux-arm64, emulated: true,  platform: linux/arm64 }
     steps:
       - uses: actions/checkout@v5
-      - name: Install build dependencies
+      - name: Install build dependencies (native)
+        if: ${{ !matrix.emulated }}
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential automake autopoint libtool-bin pkg-config gettext \
             git bison flex nasm yasm cmake ninja-build meson curl xz-utils \
-            gperf help2man libxau-dev libpthread-stubs0-dev \
-            gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf \
-            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+            gperf help2man libxau-dev libpthread-stubs0-dev
       - name: Cache VLC source + contrib build
         uses: actions/cache@v5
         with:
           path: build/_work
-          key: vlc4-linux-${{ matrix.arch }}-${{ env.VLC_VERSION }}-v1-${{ github.run_id }}
+          key: vlc4-linux-${{ matrix.arch }}-${{ env.VLC_VERSION }}-v2-${{ github.run_id }}
           restore-keys: |
-            vlc4-linux-${{ matrix.arch }}-${{ env.VLC_VERSION }}-v1-
-      - name: Build (${{ matrix.arch }})
+            vlc4-linux-${{ matrix.arch }}-${{ env.VLC_VERSION }}-v2-
+      - name: Build (native ${{ matrix.arch }})
+        if: ${{ !matrix.emulated }}
         run: bash build/build-linux.sh ${{ matrix.arch }}
+      - name: Set up QEMU
+        if: ${{ matrix.emulated }}
+        uses: docker/setup-qemu-action@v3
+      # arm/arm64 build natively inside a QEMU-emulated container so libvlc links
+      # with a stock libtool (the cross toolchains never emit the versioned .so).
+      # Still built from source: contrib is compiled from source in the container.
+      - name: Build (emulated ${{ matrix.arch }})
+        if: ${{ matrix.emulated }}
+        run: |
+          docker run --rm --platform ${{ matrix.platform }} \
+            -e VLC_SERIES -e VLC_REF -e VLC_VERSION \
+            -v "$PWD:/work" -w /work ubuntu:24.04 \
+            bash -c 'set -e
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                build-essential automake autoconf autopoint libtool-bin pkg-config gettext \
+                git bison flex nasm yasm cmake ninja-build meson curl ca-certificates \
+                xz-utils zstd gperf help2man patchelf libxau-dev libpthread-stubs0-dev \
+                perl file python3
+              bash build/build-linux.sh ${{ matrix.arch }}'
       - uses: actions/upload-artifact@v6
         with:
           name: vlc4-${{ matrix.rid }}

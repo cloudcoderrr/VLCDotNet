@@ -11,23 +11,35 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 ARCH="${1:?arch required: x86_64 | armv7 | aarch64}"
 case "${ARCH}" in
-  x86_64)  RID="linux-x64";   TRIPLET="x86_64-linux-gnu";      CROSS=0 ;;
-  armv7)   RID="linux-arm";   TRIPLET="arm-linux-gnueabihf";   CROSS=1 ;;
-  aarch64) RID="linux-arm64"; TRIPLET="aarch64-linux-gnu";     CROSS=1 ;;
+  x86_64)  RID="linux-x64";   TRIPLET="x86_64-linux-gnu" ;;
+  armv7)   RID="linux-arm";   TRIPLET="arm-linux-gnueabihf" ;;
+  aarch64) RID="linux-arm64"; TRIPLET="aarch64-linux-gnu" ;;
   *) die "Unsupported Linux arch: ${ARCH}" ;;
+esac
+# Native when the host arch already matches the target -- e.g. armv7/aarch64
+# built inside a QEMU-emulated ubuntu container (as the prebuilt pipeline does).
+# Native builds take the same reliable path as linux-x64, with a stock libtool
+# that emits the versioned .so directly, so none of the cross workarounds below
+# run. Cross-compilation stays as a fallback for a mismatched host.
+case "${ARCH}:$(uname -m)" in
+  x86_64:x86_64|aarch64:aarch64|armv7:armv7l|armv7:armv7|armv7:arm) CROSS=0 ;;
+  *) CROSS=1 ;;
 esac
 
 VLC_SRC="${WORK_DIR}/vlc-linux-${ARCH}"
 INSTALL_PREFIX="${WORK_DIR}/install-linux-${ARCH}"
 mkdir -p "${WORK_DIR}"
 
-# Cross builds have stalled for hours inside a single sub-make emitting no
-# output: default block buffering (worsened by `| tee`) hides the command that
-# hangs, and the build/_work cache then resumes straight back into it. Run every
-# make step line-buffered and under a wall-clock cap so a wedged compiler/linker
-# aborts quickly with the offending command visible instead of stalling the job.
+# Line-buffer make so build progress is visible in real time. On cross builds
+# also cap each step so a wedged compiler/linker aborts fast (cross libtool has
+# historically stalled in reconfigure loops); native/emulated builds are the
+# reliable path and only need the job-level wall-clock timeout.
 MAKE_STEP_TIMEOUT="${MAKE_STEP_TIMEOUT:-40m}"
-mk() { timeout --kill-after=30s "${MAKE_STEP_TIMEOUT}" stdbuf -oL -eL make "$@"; }
+if [ "${CROSS}" = "1" ]; then
+  mk() { timeout --kill-after=30s "${MAKE_STEP_TIMEOUT}" stdbuf -oL -eL make "$@"; }
+else
+  mk() { stdbuf -oL -eL make "$@"; }
+fi
 
 # sidplay2's xsid tables trigger narrowing diagnostics on the Linux cross
 # toolchains; keep the contrib build lenient enough to compile that legacy C++.
