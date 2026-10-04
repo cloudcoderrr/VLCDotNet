@@ -37,6 +37,18 @@ apply_patches "${VLC_SRC}"
 
 # ---- Phase 1: build + cache the full contrib set ----------------------------
 if [ "${PHASE}" = "contrib" ]; then
+  # Cross-compile the contrib set when the runner architecture differs from the
+  # target (building arm/arm64 contribs on an x86_64 runner). A full contrib
+  # closure under QEMU emulation is far too slow; the contrib build needs no
+  # target execution, so cross-compiling is both fast and reliable. (The libvlc
+  # phase still runs on the target under QEMU for its ldd-based bundling.)
+  if [ "${ARCH}" != "x86_64" ] && [ "$(uname -m)" = "x86_64" ]; then
+    log "Cross-compiling ${RID} contribs with the ${TRIPLET} toolchain"
+    export CC="${TRIPLET}-gcc" CXX="${TRIPLET}-g++" \
+           AR="${TRIPLET}-ar" RANLIB="${TRIPLET}-ranlib" \
+           STRIP="${TRIPLET}-strip" NM="${TRIPLET}-nm" LD="${TRIPLET}-ld"
+    command -v "${CC}" >/dev/null 2>&1 || die "cross toolchain ${CC} not installed"
+  fi
   build_full_contrib "${VLC_SRC}" "contrib-linux-${ARCH}" "${TRIPLET}" \
     ${CACHED_CONTRIB_PRUNE:+-- ${CACHED_CONTRIB_PRUNE}}
   pack_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"

@@ -18,3 +18,13 @@ ${SUDO} apt-get install -y --no-install-recommends \
   git bison flex nasm yasm cmake ninja-build meson curl wget xz-utils zstd ca-certificates \
   gperf help2man patchelf python3 python3-setuptools ragel \
   ant default-jdk-headless unzip zip
+
+# Cross toolchains for building the arm/arm64 contribs on an x86_64 runner. The
+# cached pipeline cross-compiles the linux arm/arm64 CONTRIB phase (a full
+# closure under QEMU emulation is far too slow); QEMU is used only for the
+# lighter libvlc phase. These packages exist only for an x86_64 host.
+if [ "$(uname -m)" = "x86_64" ]; then
+  ${SUDO} apt-get install -y --no-install-recommends \
+    gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+    gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf || true
+fi

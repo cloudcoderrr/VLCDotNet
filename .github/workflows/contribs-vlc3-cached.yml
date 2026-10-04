@@ -44,9 +44,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { arch: x86_64,  rid: linux-x64,   emulated: false, platform: "" }
-          - { arch: aarch64, rid: linux-arm64, emulated: true,  platform: "linux/arm64" }
-          - { arch: armv7,   rid: linux-arm,   emulated: true,  platform: "linux/arm/v7" }
+          - { arch: x86_64,  rid: linux-x64 }
+          - { arch: aarch64, rid: linux-arm64 }
+          - { arch: armv7,   rid: linux-arm }
     steps:
       - uses: actions/checkout@v5
       - name: Gate RID
@@ -65,22 +65,15 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost "${AGENT_TOOLSDIRECTORY:-}" || true
           sudo docker system prune -af || true
           df -h || true
-      - name: Build contrib (native ${{ matrix.arch }})
-        if: steps.f.outputs.run == 'true' && !matrix.emulated
+      # arm/arm64 contribs are cross-compiled natively on the x86_64 runner (a
+      # full contrib closure under QEMU emulation is far too slow). build-linux.sh
+      # selects the cross toolchain when the target arch differs from the runner.
+      - name: Build contrib (${{ matrix.arch }})
+        if: steps.f.outputs.run == 'true'
         env: { CACHED_PHASE: contrib }
         run: |
           sudo bash cached/build/deps-linux.sh
           bash cached/build/build-linux.sh ${{ matrix.arch }}
-      - name: Set up QEMU
-        if: steps.f.outputs.run == 'true' && matrix.emulated
-        uses: docker/setup-qemu-action@v3
-      - name: Build contrib (emulated ${{ matrix.arch }})
-        if: steps.f.outputs.run == 'true' && matrix.emulated
-        run: |
-          docker run --rm --platform ${{ matrix.platform }} \
-            -e CACHED_PHASE=contrib -e VLC_VERSION -e VLC_SERIES \
-            -v "$PWD:/work" -w /work ubuntu:22.04 \
-            bash -c 'set -e; bash cached/build/deps-linux.sh && bash cached/build/build-linux.sh ${{ matrix.arch }}'
       - uses: actions/upload-artifact@v6
         if: steps.f.outputs.run == 'true'
         with:
