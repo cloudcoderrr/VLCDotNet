@@ -80,9 +80,15 @@ if [ "${PLATFORM}" = "maccatalyst" ]; then
 fi
 
 APPLE_CFLAGS="-arch ${VLCARCH} -isysroot ${SDKROOT} ${MINVER} ${EXTRA_CFLAGS}"
-export CFLAGS="${APPLE_CFLAGS}"
+# VLC 4.0's older contrib sources trip modern clang's stricter defaults (e.g.
+# libgcrypt calls getentropy() with no visible declaration). The symbols exist on
+# the target at runtime (iOS 12+/macOS), so downgrade the new -Werror defaults to
+# warnings for the contrib build, mirroring the Android pipeline. VLC 3 unaffected.
+APPLE_LENIENT=""
+[ "${VLC_SERIES}" != "3" ] && APPLE_LENIENT=" -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types -Wno-error=int-conversion"
+export CFLAGS="${APPLE_CFLAGS}${APPLE_LENIENT}"
 export CXXFLAGS="${APPLE_CFLAGS}"
-export OBJCFLAGS="${APPLE_CFLAGS}"
+export OBJCFLAGS="${APPLE_CFLAGS}${APPLE_LENIENT}"
 export CPPFLAGS="${APPLE_CFLAGS}"
 export LDFLAGS="-arch ${VLCARCH} -isysroot ${SDKROOT} ${MINVER} ${EXTRA_CFLAGS}"
 if [ "${ARCH}" = "x86_64" ]; then
