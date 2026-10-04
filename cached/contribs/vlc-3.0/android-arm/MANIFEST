@@ -1,0 +1,13 @@
+rid=android-arm
+triplet=arm-linux-androideabi
+series=3
+vlc_version=3.0.23
+vlc_ref=3.0.23
+build_prefix=/home/runner/work/VLCDotNet/VLCDotNet/cached/build/_work/vlc-android-arm/contrib/arm-linux-androideabi
+archive=contrib.tar.zst
+parts=1
+part_size=95000000
+sha256=f7f0ee323bc2b1ec1890115505006f59e83e2f6df1494e70287b8f92fc4f5302
+bytes=78549284
+created=2026-10-04T08:05:42Z
+restore=cat contrib.tar.zst.* | zstd -d | tar -x
