@@ -118,8 +118,14 @@ esac
 
 # ---- Phase 1: build + cache the full contrib set ----------------------------
 if [ "${PHASE}" = "contrib" ]; then
-  build_full_contrib "${VLC_SRC}" "contrib-apple-${PLATFORM}-${ARCH}" "${TRIPLET}" \
-    -- "${APPLE_PRUNE[@]+"${APPLE_PRUNE[@]}"}" ${CACHED_CONTRIB_PRUNE:-}
+  PRUNE=()
+  [ "${#APPLE_PRUNE[@]}" -gt 0 ] && PRUNE+=("${APPLE_PRUNE[@]}")
+  [ -n "${CACHED_CONTRIB_PRUNE:-}" ] && PRUNE+=(${CACHED_CONTRIB_PRUNE})
+  if [ "${#PRUNE[@]}" -gt 0 ]; then
+    build_full_contrib "${VLC_SRC}" "contrib-apple-${PLATFORM}-${ARCH}" "${TRIPLET}" -- "${PRUNE[@]}"
+  else
+    build_full_contrib "${VLC_SRC}" "contrib-apple-${PLATFORM}-${ARCH}" "${TRIPLET}"
+  fi
   pack_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
   exit 0
 fi

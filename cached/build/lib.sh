@@ -103,6 +103,29 @@ have_cached_contrib() {
   [ -f "${CONTRIB_CACHE_DIR}/$1/MANIFEST" ]
 }
 
+# build_vlc_tools <vlc-src>
+# Builds VLC's pinned bootstrap toolchain under extras/tools (autoconf, automake,
+# libtool, pkg-config, nasm, gas-preprocessor, ...). The full contrib set needs
+# consistent build tools; the host's autotools otherwise trip package autoreconf
+# steps (e.g. mpg123's `undefined macro: LT_SYS_MODULE_EXT`). The contrib
+# main.mak automatically prepends extras/tools/build/bin to PATH, so building
+# these here is all that is required. Best-effort: on partial failure we fall
+# back to host tools and let the affected package surface during the build.
+build_vlc_tools() {
+  local src="$1"
+  [ -d "${src}/extras/tools" ] || { warn "no extras/tools in VLC source; using host tools"; return 0; }
+  if [ -x "${src}/extras/tools/build/bin/libtoolize" ] || [ -x "${src}/extras/tools/build/bin/autoconf" ]; then
+    log "VLC extras/tools already built"
+    return 0
+  fi
+  log "Building VLC extras/tools (pinned autotools/pkg-config/nasm)"
+  (
+    cd "${src}/extras/tools"
+    ./bootstrap
+    make -j"$(jobs)" || make || warn "extras/tools build incomplete; continuing with host tools"
+  )
+}
+
 # build_full_contrib <vlc-src> <build-subdir> <triplet> [-- <bootstrap-flag>...]
 #
 # Builds the FULL default VLC contrib set (every package VLC enables for the
@@ -115,22 +138,27 @@ build_full_contrib() {
   local src="$1" subdir="$2" triplet="$3"; shift 3
   local -a bootstrap_flags=()
   if [ "${1:-}" = "--" ]; then shift; bootstrap_flags=("$@"); fi
+  # macOS runners ship bash 3.2, where expanding an empty array under set -u
+  # errors; guard assignments by length and expand with the ${a[@]+"${a[@]}"} idiom.
   local -a cenv=() cmk=()
-  declare -p CONTRIB_ENV >/dev/null 2>&1 && cenv=("${CONTRIB_ENV[@]}")
-  declare -p CONTRIB_MK  >/dev/null 2>&1 && cmk=("${CONTRIB_MK[@]}")
+  if declare -p CONTRIB_ENV >/dev/null 2>&1 && [ "${#CONTRIB_ENV[@]}" -gt 0 ]; then cenv=("${CONTRIB_ENV[@]}"); fi
+  if declare -p CONTRIB_MK  >/dev/null 2>&1 && [ "${#CONTRIB_MK[@]}"  -gt 0 ]; then cmk=("${CONTRIB_MK[@]}"); fi
+
+  # Build the pinned host toolchain first so every package autoreconfs cleanly.
+  build_vlc_tools "${src}"
 
   local cbuild="${src}/contrib/${subdir}"
   mkdir -p "${cbuild}"
   log "Bootstrapping full contrib set for ${triplet}"
   (
     cd "${cbuild}"
-    env "${cenv[@]}" ../bootstrap --host="${triplet}" ${bootstrap_flags[@]+"${bootstrap_flags[@]}"}
+    env ${cenv[@]+"${cenv[@]}"} ../bootstrap --host="${triplet}" ${bootstrap_flags[@]+"${bootstrap_flags[@]}"}
   )
   log "Fetching contrib sources for ${triplet}"
-  ( cd "${cbuild}" && env "${cenv[@]}" make ${cmk[@]+"${cmk[@]}"} -j"$(jobs)" fetch )
+  ( cd "${cbuild}" && env ${cenv[@]+"${cenv[@]}"} make ${cmk[@]+"${cmk[@]}"} -j"$(jobs)" fetch )
   log "Building full contrib set for ${triplet} (long pole)"
-  ( cd "${cbuild}" && { env "${cenv[@]}" make ${cmk[@]+"${cmk[@]}"} -j"$(jobs)" \
-      || env "${cenv[@]}" make ${cmk[@]+"${cmk[@]}"} -j1 ; } )
+  ( cd "${cbuild}" && { env ${cenv[@]+"${cenv[@]}"} make ${cmk[@]+"${cmk[@]}"} -j"$(jobs)" \
+      || env ${cenv[@]+"${cenv[@]}"} make ${cmk[@]+"${cmk[@]}"} -j1 ; } )
   [ -d "${src}/contrib/${triplet}/lib" ] || [ -d "${src}/contrib/${triplet}/lib64" ] \
     || die "Contrib build produced no lib dir at ${src}/contrib/${triplet}"
   log "Full contrib set installed at ${src}/contrib/${triplet}"
