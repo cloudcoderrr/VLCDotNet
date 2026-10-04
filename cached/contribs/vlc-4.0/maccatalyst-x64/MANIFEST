@@ -1,0 +1,13 @@
+rid=maccatalyst-x64
+triplet=x86_64-apple-darwin
+series=4
+vlc_version=4.0-master
+vlc_ref=e77e49b5dff7484dbf70cd1540a6a568e1890280
+build_prefix=/Users/runner/work/VLCDotNet/VLCDotNet/cached/build/_work/vlc-apple-maccatalyst-x86_64/contrib/x86_64-apple-darwin
+archive=contrib.tar.zst
+parts=1
+part_size=95000000
+sha256=21172e527ac94775c0c2c74f0fafa19d89d7a1b5f8a8e603164810a902ffc3cf
+bytes=88904251
+created=2026-10-04T19:18:24Z
+restore=cat contrib.tar.zst.* | zstd -d | tar -x
