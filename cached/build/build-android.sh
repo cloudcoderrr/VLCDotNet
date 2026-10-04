@@ -121,6 +121,13 @@ mkdir -p "${PTHREAD_STUB_DIR}"
 "${AR}" rc "${PTHREAD_STUB_DIR}/libpthread.a"
 export LDFLAGS="${LDFLAGS:-} -L${PTHREAD_STUB_DIR} -lm"
 
+# VLC 4.0: the libass/fontconfig text plugins need the contrib gettext/iconv
+# archives (LIBS=-lintl -liconv, set above). Put the contrib lib dir on the
+# search path so those resolve everywhere, including configure's own link checks.
+if [ "${VLC_SERIES}" != "3" ]; then
+  export LDFLAGS="${LDFLAGS} -L${CONTRIB_PREFIX}/lib"
+fi
+
 if [ "${ARCH}" = "arm" ] || [ "${ARCH}" = "arm64" ]; then
   # armv7 needs compiler-rt for 64-bit int<->float; aarch64 needs the
   # outline-atomics helpers (__aarch64_ldadd8_*) VLC 4.0's vpx_alpha plugin uses.
