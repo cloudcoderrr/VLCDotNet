@@ -1,0 +1,169 @@
+name: build-vlc3-cached
+
+# Phase 2 of the cached-contrib pipeline. Builds libvlc 3.0.x for every platform
+# by RESTORING the full contrib set committed to cached/contribs/vlc-3.0/<rid>/
+# by contribs-vlc3-cached, then linking libvlc against it. Uploads one artifact
+# per RID (vlc3-cached-<rid>). Run contribs-vlc3-cached for a family first.
+#
+# Trigger: workflow_dispatch with "only", or push to main/master with a commit
+# message tag [build:<family>] / [build:all].
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "cached/build/**"
+      - "cached/patches/**"
+      - ".github/workflows/build-vlc3-cached.yml"
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Platform family to build"
+        type: choice
+        default: all
+        options: [all, windows, linux, apple, android]
+
+concurrency:
+  group: build-vlc3-cached-${{ github.ref }}-${{ inputs.only || github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  VLC_VERSION: "3.0.23"
+  VLC_SERIES: "3"
+
+jobs:
+  linux:
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && (inputs.only == 'all' || inputs.only == 'linux'))
+       || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[build:linux]') || contains(github.event.head_commit.message, '[build:all]'))) }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64,  rid: linux-x64,   emulated: false, platform: "" }
+          - { arch: aarch64, rid: linux-arm64, emulated: true,  platform: "linux/arm64" }
+          - { arch: armv7,   rid: linux-arm,   emulated: true,  platform: "linux/arm/v7" }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build libvlc (native ${{ matrix.arch }})
+        if: ${{ !matrix.emulated }}
+        run: |
+          sudo bash cached/build/deps-linux.sh
+          bash cached/build/build-linux.sh ${{ matrix.arch }}
+      - name: Set up QEMU
+        if: ${{ matrix.emulated }}
+        uses: docker/setup-qemu-action@v3
+      - name: Build libvlc (emulated ${{ matrix.arch }})
+        if: ${{ matrix.emulated }}
+        run: |
+          docker run --rm --platform ${{ matrix.platform }} \
+            -e VLC_VERSION -e VLC_SERIES \
+            -v "$PWD:/work" -w /work ubuntu:22.04 \
+            bash -c 'set -e; bash cached/build/deps-linux.sh && bash cached/build/build-linux.sh ${{ matrix.arch }}'
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vlc3-cached-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error
+
+  windows:
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && (inputs.only == 'all' || inputs.only == 'windows'))
+       || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[build:windows]') || contains(github.event.head_commit.message, '[build:all]'))) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64,  rid: win-x64 }
+          - { arch: aarch64, rid: win-arm64 }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install cross build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential automake autopoint libtool-bin pkg-config gettext \
+            git bison flex nasm yasm cmake ninja-build meson zip p7zip-full \
+            gperf help2man dos2unix curl xz-utils zstd file
+      - name: Build libvlc (${{ matrix.arch }})
+        run: bash cached/build/build-windows.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vlc3-cached-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error
+
+  android:
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && (inputs.only == 'all' || inputs.only == 'android'))
+       || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[build:android]') || contains(github.event.head_commit.message, '[build:all]'))) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, rid: android-x64 }
+          - { arch: arm64,  rid: android-arm64 }
+          - { arch: arm,    rid: android-arm }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential automake autopoint libtool-bin pkg-config gettext \
+            git bison flex nasm yasm cmake ninja-build meson curl xz-utils zstd unzip \
+            gperf help2man
+      - name: Resolve Android NDK
+        run: echo "ANDROID_NDK_HOME=${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}" >> "$GITHUB_ENV"
+      - name: Build libvlc (${{ matrix.arch }})
+        run: bash cached/build/build-android.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vlc3-cached-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error
+
+  apple:
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && (inputs.only == 'all' || inputs.only == 'apple'))
+       || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[build:apple]') || contains(github.event.head_commit.message, '[build:all]'))) }}
+    runs-on: macos-14
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: macos,        arch: x86_64, rid: osx-x64 }
+          - { platform: macos,        arch: arm64,  rid: osx-arm64 }
+          - { platform: maccatalyst,  arch: x86_64, rid: maccatalyst-x64 }
+          - { platform: maccatalyst,  arch: arm64,  rid: maccatalyst-arm64 }
+          - { platform: ios,          arch: arm64,  rid: ios-arm64 }
+          - { platform: iossimulator, arch: x86_64, rid: iossimulator-x64 }
+          - { platform: iossimulator, arch: arm64,  rid: iossimulator-arm64 }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
+        run: |
+          brew install automake libtool pkg-config nasm yasm meson ninja gettext bison flex gperf help2man zstd || true
+          PY_USER_BIN="$(python3 -c 'import sysconfig; print(sysconfig.get_path("scripts", "posix_user"))')"
+          python3 -m pip install --user --break-system-packages 'cmake<3.29'
+          export PATH="$PY_USER_BIN:$PATH"
+          cmake --version
+          echo "$PY_USER_BIN" >> "$GITHUB_PATH"
+          echo "/opt/homebrew/opt/bison/bin:/opt/homebrew/opt/gettext/bin:/opt/homebrew/opt/flex/bin" >> "$GITHUB_PATH"
+      - name: Build libvlc (${{ matrix.platform }}/${{ matrix.arch }})
+        run: bash cached/build/build-apple.sh ${{ matrix.platform }} ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vlc3-cached-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error

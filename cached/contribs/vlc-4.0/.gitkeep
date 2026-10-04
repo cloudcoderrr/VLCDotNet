@@ -1,0 +1,2 @@
+# Placeholder so the empty cache directory is tracked. CI commits
+# cached contrib archives (MANIFEST + contrib.tar.zst.*) alongside this file.

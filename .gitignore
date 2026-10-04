@@ -436,6 +436,8 @@ FodyWeavers.xsd
 /build/_work/
 /build/vlc-src/
 /build/contrib-cache/
+/cached/build/_work/
+/prebuilt/build/_work/
 vlc-*.tar.xz
 vlc-*.tar.gz
 

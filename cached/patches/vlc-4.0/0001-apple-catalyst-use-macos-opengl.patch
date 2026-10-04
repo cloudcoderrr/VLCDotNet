@@ -1,0 +1,23 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] apple: use desktop OpenGL headers on Mac Catalyst
+
+Mac Catalyst defines TARGET_OS_IPHONE=1 (together with TARGET_OS_MACCATALYST=1),
+so the OpenGL vout header pulls in <OpenGLES/ES1/gl.h>, which does not exist on
+Catalyst -- it uses the macOS OpenGL framework, not OpenGL ES. Take the desktop
+OpenGL path on Catalyst so the GL vout compiles. Headless playback in the test
+apps goes through vmem, so no GL output is actually exercised.
+---
+ modules/video_output/opengl/gl_common.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/modules/video_output/opengl/gl_common.h b/modules/video_output/opengl/gl_common.h
+--- a/modules/video_output/opengl/gl_common.h
++++ b/modules/video_output/opengl/gl_common.h
+@@ -30,6 +30,6 @@
+ #ifdef __APPLE__
+ # include <TargetConditionals.h>
+-# if !TARGET_OS_IPHONE
++# if !TARGET_OS_IPHONE || TARGET_OS_MACCATALYST
+ #  define MACOS_OPENGL
+ #  include <OpenGL/gl.h>
+ # else /* Force ESv2 on iOS */

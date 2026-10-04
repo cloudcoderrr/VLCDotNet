@@ -1,0 +1,288 @@
+name: contribs-vlc3-cached
+
+# Phase 1 of the cached-contrib pipeline. For each selected runtime ID it builds
+# the FULL VLC 3.0.x contrib dependency closure from source inside the runner
+# image, compresses + splits it into <100 MB parts, and commits the result to
+# cached/contribs/vlc-3.0/<rid>/ so the libvlc build (build-vlc3-cached) can
+# restore it. One target per job keeps each runner within its disk budget.
+#
+# Dispatch one family at a time (or an explicit RID allowlist) to spread the
+# work across multiple runs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Platform family to build contribs for"
+        type: choice
+        default: all
+        options: [all, windows, linux, apple, android]
+      rids:
+        description: "Optional comma-separated RID allowlist (e.g. linux-x64,win-x64). Blank = all in family."
+        required: false
+
+concurrency:
+  group: contribs-vlc3-cached-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  VLC_VERSION: "3.0.23"
+  VLC_SERIES: "3"
+
+jobs:
+  linux:
+    if: ${{ inputs.only == 'all' || inputs.only == 'linux' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64,  rid: linux-x64,   emulated: false, platform: "" }
+          - { arch: aarch64, rid: linux-arm64, emulated: true,  platform: "linux/arm64" }
+          - { arch: armv7,   rid: linux-arm,   emulated: true,  platform: "linux/arm/v7" }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Gate RID
+        id: f
+        shell: bash
+        env: { ALLOW: "${{ inputs.rids }}", RID: "${{ matrix.rid }}" }
+        run: |
+          run=true
+          if [ -n "$ALLOW" ]; then case ",$ALLOW," in *",$RID,"*) run=true ;; *) run=false ;; esac; fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - name: Reclaim disk
+        if: steps.f.outputs.run == 'true'
+        shell: bash
+        run: |
+          rm -rf cached/contribs || true
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost "${AGENT_TOOLSDIRECTORY:-}" || true
+          sudo docker system prune -af || true
+          df -h || true
+      - name: Build contrib (native ${{ matrix.arch }})
+        if: steps.f.outputs.run == 'true' && !matrix.emulated
+        env: { CACHED_PHASE: contrib }
+        run: |
+          sudo bash cached/build/deps-linux.sh
+          bash cached/build/build-linux.sh ${{ matrix.arch }}
+      - name: Set up QEMU
+        if: steps.f.outputs.run == 'true' && matrix.emulated
+        uses: docker/setup-qemu-action@v3
+      - name: Build contrib (emulated ${{ matrix.arch }})
+        if: steps.f.outputs.run == 'true' && matrix.emulated
+        run: |
+          docker run --rm --platform ${{ matrix.platform }} \
+            -e CACHED_PHASE=contrib -e VLC_VERSION -e VLC_SERIES \
+            -v "$PWD:/work" -w /work ubuntu:22.04 \
+            bash -c 'set -e; bash cached/build/deps-linux.sh && bash cached/build/build-linux.sh ${{ matrix.arch }}'
+      - uses: actions/upload-artifact@v6
+        if: steps.f.outputs.run == 'true'
+        with:
+          name: contrib-${{ matrix.rid }}
+          path: cached/contribs/vlc-3.0/${{ matrix.rid }}
+          if-no-files-found: error
+
+  windows:
+    if: ${{ inputs.only == 'all' || inputs.only == 'windows' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64,  rid: win-x64 }
+          - { arch: aarch64, rid: win-arm64 }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Gate RID
+        id: f
+        shell: bash
+        env: { ALLOW: "${{ inputs.rids }}", RID: "${{ matrix.rid }}" }
+        run: |
+          run=true
+          if [ -n "$ALLOW" ]; then case ",$ALLOW," in *",$RID,"*) run=true ;; *) run=false ;; esac; fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - name: Reclaim disk
+        if: steps.f.outputs.run == 'true'
+        run: |
+          rm -rf cached/contribs || true
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL "${AGENT_TOOLSDIRECTORY:-}" || true
+          sudo docker system prune -af || true
+          df -h || true
+      - name: Install cross build dependencies
+        if: steps.f.outputs.run == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential automake autopoint libtool-bin pkg-config gettext \
+            git bison flex nasm yasm cmake ninja-build meson zip p7zip-full \
+            gperf help2man dos2unix curl xz-utils zstd file ragel
+      - name: Build contrib (${{ matrix.arch }})
+        if: steps.f.outputs.run == 'true'
+        env: { CACHED_PHASE: contrib }
+        run: bash cached/build/build-windows.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        if: steps.f.outputs.run == 'true'
+        with:
+          name: contrib-${{ matrix.rid }}
+          path: cached/contribs/vlc-3.0/${{ matrix.rid }}
+          if-no-files-found: error
+
+  android:
+    if: ${{ inputs.only == 'all' || inputs.only == 'android' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, rid: android-x64 }
+          - { arch: arm64,  rid: android-arm64 }
+          - { arch: arm,    rid: android-arm }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Gate RID
+        id: f
+        shell: bash
+        env: { ALLOW: "${{ inputs.rids }}", RID: "${{ matrix.rid }}" }
+        run: |
+          run=true
+          if [ -n "$ALLOW" ]; then case ",$ALLOW," in *",$RID,"*) run=true ;; *) run=false ;; esac; fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - name: Reclaim disk
+        if: steps.f.outputs.run == 'true'
+        run: |
+          rm -rf cached/contribs || true
+          sudo rm -rf /usr/share/dotnet /usr/local/share/boost "${AGENT_TOOLSDIRECTORY:-}" || true
+          sudo docker system prune -af || true
+          df -h || true
+      - name: Install build dependencies
+        if: steps.f.outputs.run == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential automake autopoint libtool-bin pkg-config gettext \
+            git bison flex nasm yasm cmake ninja-build meson curl xz-utils zstd unzip \
+            gperf help2man ragel
+      - name: Resolve Android NDK
+        if: steps.f.outputs.run == 'true'
+        run: echo "ANDROID_NDK_HOME=${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}" >> "$GITHUB_ENV"
+      - name: Build contrib (${{ matrix.arch }})
+        if: steps.f.outputs.run == 'true'
+        env: { CACHED_PHASE: contrib }
+        run: bash cached/build/build-android.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        if: steps.f.outputs.run == 'true'
+        with:
+          name: contrib-${{ matrix.rid }}
+          path: cached/contribs/vlc-3.0/${{ matrix.rid }}
+          if-no-files-found: error
+
+  apple:
+    if: ${{ inputs.only == 'all' || inputs.only == 'apple' }}
+    runs-on: macos-14
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: macos,        arch: x86_64, rid: osx-x64 }
+          - { platform: macos,        arch: arm64,  rid: osx-arm64 }
+          - { platform: maccatalyst,  arch: x86_64, rid: maccatalyst-x64 }
+          - { platform: maccatalyst,  arch: arm64,  rid: maccatalyst-arm64 }
+          - { platform: ios,          arch: arm64,  rid: ios-arm64 }
+          - { platform: iossimulator, arch: x86_64, rid: iossimulator-x64 }
+          - { platform: iossimulator, arch: arm64,  rid: iossimulator-arm64 }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Gate RID
+        id: f
+        shell: bash
+        env: { ALLOW: "${{ inputs.rids }}", RID: "${{ matrix.rid }}" }
+        run: |
+          run=true
+          if [ -n "$ALLOW" ]; then case ",$ALLOW," in *",$RID,"*) run=true ;; *) run=false ;; esac; fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - name: Reclaim disk
+        if: steps.f.outputs.run == 'true'
+        run: |
+          rm -rf cached/contribs || true
+          df -h || true
+      - name: Install build tools
+        if: steps.f.outputs.run == 'true'
+        run: |
+          brew install automake libtool pkg-config nasm yasm meson ninja gettext bison flex gperf help2man zstd ragel || true
+          PY_USER_BIN="$(python3 -c 'import sysconfig; print(sysconfig.get_path("scripts", "posix_user"))')"
+          python3 -m pip install --user --break-system-packages 'cmake<3.29'
+          export PATH="$PY_USER_BIN:$PATH"
+          cmake --version
+          echo "$PY_USER_BIN" >> "$GITHUB_PATH"
+          echo "/opt/homebrew/opt/bison/bin:/opt/homebrew/opt/gettext/bin:/opt/homebrew/opt/flex/bin" >> "$GITHUB_PATH"
+      - name: Build contrib (${{ matrix.platform }}/${{ matrix.arch }})
+        if: steps.f.outputs.run == 'true'
+        env: { CACHED_PHASE: contrib }
+        run: bash cached/build/build-apple.sh ${{ matrix.platform }} ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        if: steps.f.outputs.run == 'true'
+        with:
+          name: contrib-${{ matrix.rid }}
+          path: cached/contribs/vlc-3.0/${{ matrix.rid }}
+          if-no-files-found: error
+
+  commit:
+    needs: [linux, windows, android, apple]
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download built contrib caches
+        uses: actions/download-artifact@v6
+        with:
+          pattern: contrib-*
+          path: dl
+      - name: Stage, commit and push contrib caches
+        shell: bash
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          staged=0
+          for d in dl/contrib-*; do
+            [ -d "$d" ] || continue
+            rid="$(basename "$d" | sed 's/^contrib-//')"
+            dest="cached/contribs/vlc-3.0/${rid}"
+            mkdir -p "${dest}"
+            # Replace any previous cache for this RID (part count may differ).
+            rm -f "${dest}"/contrib.tar.zst.* "${dest}/MANIFEST"
+            cp -a "$d"/. "${dest}/"
+            echo "staged ${rid} ($(ls "${dest}"/contrib.tar.zst.* 2>/dev/null | wc -l | tr -d ' ') part(s))"
+            staged=$((staged + 1))
+          done
+          if [ "${staged}" -eq 0 ]; then
+            echo "No contrib artifacts were produced; nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add cached/contribs/vlc-3.0
+          if git diff --cached --quiet; then
+            echo "Contrib cache unchanged; nothing to commit."
+            exit 0
+          fi
+          git commit -m "cached(vlc3): update contrib cache for ${staged} target(s) [skip ci]"
+          # Rebase-retry: concurrent RID jobs touch disjoint paths, so pulls merge
+          # cleanly; retry guards against a racing push to the same branch.
+          for i in $(seq 1 8); do
+            if git pull --rebase --autostash origin "${BRANCH}" && git push origin "HEAD:${BRANCH}"; then
+              echo "Pushed contrib cache."
+              exit 0
+            fi
+            echo "push attempt ${i} failed; retrying"
+            sleep $(( (RANDOM % 10) + 3 ))
+          done
+          echo "::error::Failed to push contrib cache after retries" >&2
+          exit 1

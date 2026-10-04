@@ -1,0 +1,27 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] avcodec: define HEVC RExt DXVA GUIDs for v13 mingw snapshots
+
+VLC only defines the HEVC Range Extension DXVA GUIDs (Main12, Main10_422,
+Main12_422, Main_444, Main10_444, Main12_444) when __MINGW64_VERSION_MAJOR < 13,
+assuming every v13 toolchain ships them in <dxva.h>. The mingw-w64 bundled in
+llvm-mingw 20240619 (which we pin for the up-to-date d3d11/DXGI headers) reports
+major version 13 but predates the commit that added these GUIDs, so directx_va.c
+references undeclared identifiers on both win-x64 and win-arm64.
+
+Raise the guard to < 14 so the fallback definitions cover our pinned v13
+snapshot. A toolchain whose <dxva.h> already provides them reports >= 14, so no
+redefinition occurs for the toolchain we build with.
+---
+diff --git a/modules/codec/avcodec/directx_va.c b/modules/codec/avcodec/directx_va.c
+index 7c893a5..3bac561 100644
+--- a/modules/codec/avcodec/directx_va.c
++++ b/modules/codec/avcodec/directx_va.c
+@@ -75,7 +75,7 @@ static const int PROF_AV1_HIGH[]    = { AVPROFILE(AV1_HIGH), AVPROFILE(AV1_MAIN)
+ 
+ #if defined(__MINGW64_VERSION_MAJOR) // mingw-w64 doesn't have all the standard GUIDs
+ 
+-#if __MINGW64_VERSION_MAJOR < 13
++#if __MINGW64_VERSION_MAJOR < 14
+ // define missing GUIDs added in mingw-w64 v13 and not mapped to other guids
+ DEFINE_GUID(DXVA_ModeHEVC_VLD_Main12,        0x1a72925f, 0x0c2c, 0x4f15, 0x96, 0xfb, 0xb1, 0x7d, 0x14, 0x73, 0x60, 0x3f);
+ DEFINE_GUID(DXVA_ModeHEVC_VLD_Main10_422,    0x0bac4fe5, 0x1532, 0x4429, 0xa8, 0x54, 0xf8, 0x4d, 0xe0, 0x49, 0x53, 0xdb);
