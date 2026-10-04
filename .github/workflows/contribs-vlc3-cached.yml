@@ -22,7 +22,10 @@ on:
         required: false
 
 concurrency:
-  group: contribs-vlc3-cached-${{ github.ref }}
+  # Scope by family so different families can build in parallel; the commit job
+  # rebases + retries, so their disjoint-path pushes do not clobber each other.
+  # Re-dispatching the same family serializes (avoids self-races on one path).
+  group: contribs-vlc3-cached-${{ github.ref }}-${{ inputs.only }}
   cancel-in-progress: false
 
 permissions:
