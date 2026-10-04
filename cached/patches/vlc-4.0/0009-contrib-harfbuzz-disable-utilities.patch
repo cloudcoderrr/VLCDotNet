@@ -1,0 +1,21 @@
+From: GitHub Copilot <copilot@github.com>
+Subject: [PATCH] contrib: disable harfbuzz utilities (Apple meson cross file lacks objcpp)
+
+HarfBuzz 14.x util/ requires an 'objcpp' binary in the meson cross file on
+Darwin, which VLC's generated cross file does not define, failing the Apple
+contrib build (harfbuzz/util/meson.build: 'objcpp' compiler binary not
+defined). The utilities are CLI tools libvlc never links; disable them so
+only the library (incl. coretext shaping) is built.
+---
+--- a/contrib/src/harfbuzz/rules.mak
++++ b/contrib/src/harfbuzz/rules.mak
+@@ -25,7 +25,8 @@ HARFBUZZ_CONF := -Dfreetype=enabled \
+ 	-Dgobject=disabled \
+ 	-Ddocs=disabled \
+ 	-Dtests=disabled \
+-	-Dgpu_demo=disabled
++	-Dgpu_demo=disabled \
++	-Dutilities=disabled
+ 
+ ifdef HAVE_DARWIN_OS
+ HARFBUZZ_CONF += -Dcoretext=enabled

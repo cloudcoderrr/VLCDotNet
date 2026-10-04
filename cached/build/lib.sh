@@ -69,6 +69,13 @@ CONTRIB_ZSTD_LEVEL="${CONTRIB_ZSTD_LEVEL:-19}"
 # The full codec/demux/subtitle/audio closure is kept. Override to change the set.
 CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE:---disable-disc --disable-net --disable-mpg123 --disable-opencv4 --disable-opencv --disable-protobuf --disable-chromaprint --disable-libplacebo --disable-projectM --disable-goom --disable-qt --disable-qtdeclarative --disable-qtshadertools --disable-qtsvg --disable-qtwayland --disable-medialibrary --disable-breakpad --disable-xcb --disable-x264 --disable-x265 --disable-x262 --disable-lua --disable-luac --disable-taglib --disable-gpg-error --disable-gcrypt --disable-aom}"
 
+# VLC 4.0-only additional prune. sidplay2 (SID) does not compile against NDK r29's
+# libc++ (<fstream> references ::fseeko/::ftello) on android-arm, and SID is not a
+# VLC 4 required test module (see V4RequiredModules in the test suite), so drop it.
+if [ "${VLC_SERIES}" = "4" ]; then
+  CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE} --disable-sidplay2"
+fi
+
 log()  { printf '\033[1;36m[vlcdotnet-cached]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[vlcdotnet-cached]\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31m[vlcdotnet-cached]\033[0m %s\n' "$*" >&2; exit 1; }
@@ -148,6 +155,18 @@ build_vlc_tools() {
   log "Building VLC extras/tools (pinned autotools/pkg-config/nasm)"
   (
     cd "${src}/extras/tools"
+    # extras/tools are HOST executables (meson, ninja, cmake, nasm, pkg-config all
+    # run on the build machine). Cross targets (Apple/Android) export the TARGET
+    # CC/CXX/CFLAGS globally for the contrib set; inheriting them here cross-builds
+    # the tools for the target, which then cannot run on the host (e.g. VLC 4.0's
+    # cmake zlib probes `ninja --version` and the iOS ninja is "Subprocess killed").
+    # When the caller provides a build-machine toolchain (*_FOR_BUILD), use it.
+    if [ -n "${CC_FOR_BUILD:-}" ]; then
+      export CC="${CC_FOR_BUILD}" CXX="${CXX_FOR_BUILD:-${CC_FOR_BUILD}}"
+      export CFLAGS="${CFLAGS_FOR_BUILD:-}" CXXFLAGS="${CXXFLAGS_FOR_BUILD:-}"
+      export LDFLAGS="${LDFLAGS_FOR_BUILD:-}" CPPFLAGS="${CPPFLAGS_FOR_BUILD:-}"
+      unset OBJCFLAGS OBJC
+    fi
     ./bootstrap
     make -j"$(jobs)" || make || warn "extras/tools build incomplete; continuing with host tools"
   )
