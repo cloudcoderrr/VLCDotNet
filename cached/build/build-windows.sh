@@ -53,6 +53,12 @@ EXTRA_LINK_FLAGS=""
 # x86_64 UCRT contribs (freetype, SDL_image) emit _setjmp references; resolve
 # them via mingw-w64's support library at cross-link time.
 [ "${ARCH}" = "x86_64" ] && EXTRA_LINK_FLAGS="-lmingwex"
+# VLC plugins are linked as modules; libtool drops the default libraries, so the
+# compiler-rt builtins that provide __chkstk (the stack-probe helper the
+# compiler emits for large frames) go missing and the plugin link fails with
+# "undefined symbol: __chkstk". Append the builtins archive to every link step.
+RT_BUILTINS="$("${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-clang" --print-libgcc-file-name 2>/dev/null || true)"
+[ -f "${RT_BUILTINS}" ] && EXTRA_LINK_FLAGS="${EXTRA_LINK_FLAGS} ${RT_BUILTINS}"
 for pair in "gcc:clang" "g++:clang++" "clang:clang" "clang++:clang++" ; do
   name="${pair%%:*}"; realt="${pair##*:}"
   cat > "${WRAP_DIR}/${ARCH}-w64-mingw32-${name}" <<EOF
