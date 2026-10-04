@@ -42,6 +42,21 @@ CONTRIB_CACHE_DIR="${CONTRIB_CACHE_DIR:-${REPO_ROOT}/cached/contribs/vlc-${VLC_S
 CONTRIB_PART_SIZE="${CONTRIB_PART_SIZE:-95000000}"
 CONTRIB_ZSTD_LEVEL="${CONTRIB_ZSTD_LEVEL:-19}"
 
+# Baseline contrib bootstrap prune applied on every target. Drops package GROUPS
+# and individual packages that are NOT used by a libvlc file-playback runtime and
+# that otherwise fail / are fragile on the GitHub runners:
+#   --disable-disc / --disable-net  disc + network groups (cddb, cdio, dvd*,
+#                                   bluray, gnutls, srt, live555, smb2, ...)
+#   mpg123                          MP3 is decoded by ffmpeg (autoreconf/link fails)
+#   opencv4/opencv/protobuf         video analysis (pulls protobuf/protoc)
+#   chromaprint                     audio fingerprinting (libvlc --disable-chromaprint)
+#   libplacebo/projectM/goom        GPU render + visualizations (need vulkan/GL/FFTW)
+#   qt/qtdeclarative/qtsvg/...      Qt GUI (libvlc --disable-qt)
+#   medialibrary                    media database (needs sqlite; not used by tests)
+#   breakpad                        crash reporting
+# The full codec/demux/subtitle/audio closure is kept. Override to change the set.
+CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE:---disable-disc --disable-net --disable-mpg123 --disable-opencv4 --disable-opencv --disable-protobuf --disable-chromaprint --disable-libplacebo --disable-projectM --disable-goom --disable-qt --disable-qtdeclarative --disable-qtshadertools --disable-qtsvg --disable-qtwayland --disable-medialibrary --disable-breakpad}"
+
 log()  { printf '\033[1;36m[vlcdotnet-cached]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[vlcdotnet-cached]\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31m[vlcdotnet-cached]\033[0m %s\n' "$*" >&2; exit 1; }
@@ -142,7 +157,7 @@ build_full_contrib() {
   local -a bootstrap_flags=()
   if [ "${1:-}" = "--" ]; then shift; bootstrap_flags=("$@"); fi
   # Baseline prune on every target (prepended so callers' prunes still apply).
-  local -a default_prune=(${CONTRIB_DEFAULT_PRUNE:---disable-disc --disable-net --disable-mpg123})
+  local -a default_prune=(${CONTRIB_DEFAULT_PRUNE})
   bootstrap_flags=(${default_prune[@]+"${default_prune[@]}"} ${bootstrap_flags[@]+"${bootstrap_flags[@]}"})
   # macOS runners ship bash 3.2, where expanding an empty array under set -u
   # errors; guard assignments by length and expand with the ${a[@]+"${a[@]}"} idiom.

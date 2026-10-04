@@ -15,12 +15,13 @@ reproducible with a GitHub-Actions-compatible toolchain.
 The build covers the full VLC contrib codec/demux/subtitle closure (ffmpeg,
 x264/x265, dav1d, aom, vpx, theora, vorbis, opus, flac, faad2, mad, libass,
 freetype/harfbuzz/fribidi, matroska, dvbpsi, ...). A baseline prune
-(`CONTRIB_DEFAULT_PRUNE`, default `--disable-disc --disable-net --disable-mpg123`)
-drops the **disc** and **network** package groups (cddb, libcdio, dvd*, bluray,
-gnutls, srt, ...) and **mpg123**: none are used for local file playback (libvlc
-is configured with `--disable-bluray/--disable-gnutls/...`, and MP3 is decoded
-by ffmpeg), and all fail to build cleanly on the GitHub runners. Override the
-knob to change the set.
+(`CONTRIB_DEFAULT_PRUNE`) drops packages that a libvlc **file-playback** runtime
+does not use and that fail / are fragile on the GitHub runners: the **disc** and
+**network** groups (cddb, libcdio, dvd*, bluray, gnutls, srt, live555, smb2, ...),
+**mpg123** (MP3 is decoded by ffmpeg), **opencv/protobuf** (video analysis),
+**chromaprint**, **libplacebo/projectM/goom** (GPU render + visualizations),
+**Qt** (GUI), **medialibrary**, and **breakpad**. The full
+codec/demux/subtitle/audio closure is kept. Override the knob to change the set.
 
 ## Two phases
 
