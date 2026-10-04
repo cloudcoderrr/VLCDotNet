@@ -113,7 +113,9 @@ case "${PLATFORM}" in
   ios|iossimulator)
     APPLE_PRUNE=(--disable-schroedinger --disable-vpx --disable-ass --disable-harfbuzz --disable-fribidi) ;;
   maccatalyst)
-    APPLE_PRUNE=(--disable-schroedinger) ;;
+    # Catalyst requires only avcodec+sout+videotoolbox; libvpx's VP9 RTC C++ does
+    # not compile for the macabi arm64 target, and schroedinger/orc are unstable.
+    APPLE_PRUNE=(--disable-schroedinger --disable-vpx) ;;
 esac
 
 # macOS host autoreconf needs gettext's iconv.m4 (AM_ICONV) and libtool's m4 on
