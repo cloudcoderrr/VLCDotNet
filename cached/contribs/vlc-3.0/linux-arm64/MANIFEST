@@ -1,0 +1,13 @@
+rid=linux-arm64
+triplet=aarch64-linux-gnu
+series=3
+vlc_version=3.0.23
+vlc_ref=3.0.23
+build_prefix=/home/runner/work/VLCDotNet/VLCDotNet/cached/build/_work/vlc-linux-aarch64/contrib/aarch64-linux-gnu
+archive=contrib.tar.zst
+parts=2
+part_size=95000000
+sha256=09cd8ce267b6c83789a632c117907b5eb8cdbcf51b2e5d465acc1e6bb449a4a8
+bytes=165154264
+created=2026-10-04T13:36:47Z
+restore=cat contrib.tar.zst.* | zstd -d | tar -x
