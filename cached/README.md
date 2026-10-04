@@ -20,7 +20,9 @@ does not use and that fail / are fragile on the GitHub runners: the **disc** and
 **network** groups (cddb, libcdio, dvd*, bluray, gnutls, srt, live555, smb2, ...),
 **mpg123** (MP3 is decoded by ffmpeg), **opencv/protobuf** (video analysis),
 **chromaprint**, **libplacebo/projectM/goom** (GPU render + visualizations),
-**Qt** (GUI), **medialibrary**, and **breakpad**. The full
+**Qt** (GUI), **medialibrary**, **breakpad**, **xcb/X11** (libvlc is headless),
+and the **x264/x265/x262 encoders** (the tests transcode to mp4v/mp4a via ffmpeg;
+H.26x is decoded by ffmpeg/VideoToolbox/MediaCodec). The full
 codec/demux/subtitle/audio closure is kept. Override the knob to change the set.
 
 ## Two phases

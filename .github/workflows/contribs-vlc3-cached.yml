@@ -252,19 +252,24 @@ jobs:
           BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          shopt -s nullglob
+          # download-artifact may place each artifact in dl/contrib-<rid>/ (when
+          # several match) or flatten a single artifact's files directly into
+          # dl/. Locate every cache by its MANIFEST (which records rid=) so both
+          # layouts work and multi-RID runs never collide.
           staged=0
-          for d in dl/contrib-*; do
-            [ -d "$d" ] || continue
-            rid="$(basename "$d" | sed 's/^contrib-//')"
+          while IFS= read -r m; do
+            rid="$(sed -n 's/^rid=//p' "$m")"
+            [ -n "${rid}" ] || continue
+            src="$(dirname "$m")"
             dest="cached/contribs/vlc-3.0/${rid}"
             mkdir -p "${dest}"
             # Replace any previous cache for this RID (part count may differ).
             rm -f "${dest}"/contrib.tar.zst.* "${dest}/MANIFEST"
-            cp -a "$d"/. "${dest}/"
+            cp -a "${src}/MANIFEST" "${dest}/"
+            cp -a "${src}"/contrib.tar.zst.* "${dest}/"
             echo "staged ${rid} ($(ls "${dest}"/contrib.tar.zst.* 2>/dev/null | wc -l | tr -d ' ') part(s))"
             staged=$((staged + 1))
-          done
+          done < <(find dl -name MANIFEST 2>/dev/null)
           if [ "${staged}" -eq 0 ]; then
             echo "No contrib artifacts were produced; nothing to commit."
             exit 0
