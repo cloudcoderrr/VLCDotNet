@@ -128,16 +128,22 @@ build_vlc_tools() {
 
 # build_full_contrib <vlc-src> <build-subdir> <triplet> [-- <bootstrap-flag>...]
 #
-# Builds the FULL default VLC contrib set (every package VLC enables for the
-# host triplet - no --disable-all) from source into <vlc-src>/contrib/<triplet>.
-# Reads an optional CONTRIB_ENV array for platform selectors (HAVE_ANDROID=1,
-# BUILDFORIOS=1, HAVE_MACOSX=1, ...) and an optional CONTRIB_MK array for extra
-# make variables. Extra bootstrap flags may be passed after a literal --; use
-# them only to prune packages that cannot cross-build for a given target.
+# Builds the full VLC contrib set from source into <vlc-src>/contrib/<triplet>.
+# A baseline prune (CONTRIB_DEFAULT_PRUNE) drops the disc + network package
+# GROUPS and mpg123, none of which are used for local file playback and all of
+# which fail to build cleanly on the GitHub runners (cddb AM_ICONV, mpg123
+# LT_SYS_MODULE_EXT / link). Everything else VLC enables for the host triplet is
+# built. Reads an optional CONTRIB_ENV array for platform selectors
+# (HAVE_ANDROID=1, BUILDFORIOS=1, HAVE_MACOSX=1, ...) and an optional CONTRIB_MK
+# array for extra make variables. Extra bootstrap flags may be passed after a
+# literal -- to prune additional packages that cannot cross-build for a target.
 build_full_contrib() {
   local src="$1" subdir="$2" triplet="$3"; shift 3
   local -a bootstrap_flags=()
   if [ "${1:-}" = "--" ]; then shift; bootstrap_flags=("$@"); fi
+  # Baseline prune on every target (prepended so callers' prunes still apply).
+  local -a default_prune=(${CONTRIB_DEFAULT_PRUNE:---disable-disc --disable-net --disable-mpg123})
+  bootstrap_flags=(${default_prune[@]+"${default_prune[@]}"} ${bootstrap_flags[@]+"${bootstrap_flags[@]}"})
   # macOS runners ship bash 3.2, where expanding an empty array under set -u
   # errors; guard assignments by length and expand with the ${a[@]+"${a[@]}"} idiom.
   local -a cenv=() cmk=()

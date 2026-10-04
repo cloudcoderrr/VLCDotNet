@@ -10,6 +10,18 @@ against the GitHub-hosted runner images for most targets. Building the contribs
 *in* the runner images and caching them makes every one of the 15 runtime IDs
 reproducible with a GitHub-Actions-compatible toolchain.
 
+### Contrib scope
+
+The build covers the full VLC contrib codec/demux/subtitle closure (ffmpeg,
+x264/x265, dav1d, aom, vpx, theora, vorbis, opus, flac, faad2, mad, libass,
+freetype/harfbuzz/fribidi, matroska, dvbpsi, ...). A baseline prune
+(`CONTRIB_DEFAULT_PRUNE`, default `--disable-disc --disable-net --disable-mpg123`)
+drops the **disc** and **network** package groups (cddb, libcdio, dvd*, bluray,
+gnutls, srt, ...) and **mpg123**: none are used for local file playback (libvlc
+is configured with `--disable-bluray/--disable-gnutls/...`, and MP3 is decoded
+by ffmpeg), and all fail to build cleanly on the GitHub runners. Override the
+knob to change the set.
+
 ## Two phases
 
 A full contrib closure plus a libvlc build will not co-reside within a single
@@ -69,6 +81,7 @@ prefix (in `*.pc` / `*.la` / `*-config`) to the current location.
 |----------|---------|
 | `CACHED_PHASE` | `contrib` (build + cache) or `libvlc` (restore + build, default). |
 | `VLC_VERSION` / `VLC_SERIES` / `VLC_REF` | VLC version / series / git ref (defaults from `Directory.Build.props`). |
+| `CONTRIB_DEFAULT_PRUNE` | Baseline contrib bootstrap prune applied on every target (default `--disable-disc --disable-net --disable-mpg123`). |
 | `CACHED_CONTRIB_PRUNE` | Extra `--disable-<pkg>` bootstrap flags to drop packages that cannot cross-build for a target. |
 | `CONTRIB_PART_SIZE` | Max committed part size in bytes (default 95 MB; GitHub rejects files >100 MiB). |
 | `CONTRIB_ZSTD_LEVEL` | zstd compression level for the cache (default 19). |
