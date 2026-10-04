@@ -102,6 +102,9 @@ CONFIG_FLAGS=(
   --disable-shout --disable-zvbi --disable-dvdread --disable-dvdnav
   --disable-bluray --disable-gnutls --disable-srt --disable-aribcam
   --disable-fontconfig
+  --disable-taglib       # metadata reader: not a required test module
+  --disable-sid          # SID is not a required module on Windows and the
+                         # llvm-mingw aarch64 link fails (undefined __chkstk)
   --enable-avcodec --enable-swscale
   --enable-shared --disable-static
 )

@@ -57,8 +57,11 @@ CONTRIB_ZSTD_LEVEL="${CONTRIB_ZSTD_LEVEL:-19}"
 #   xcb + X11                       X11 video output (libvlc is headless --disable-xcb)
 #   x264/x265/x262                  H.26x ENCODERS (tests transcode to mp4v/mp4a via
 #                                   ffmpeg; decode is ffmpeg/VideoToolbox/MediaCodec)
+#   lua                             VLC scripting (not a required test module; fails
+#                                   the cross builds on the arm64 macOS runner)
+#   taglib                          metadata reader (not a required test module)
 # The full codec/demux/subtitle/audio closure is kept. Override to change the set.
-CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE:---disable-disc --disable-net --disable-mpg123 --disable-opencv4 --disable-opencv --disable-protobuf --disable-chromaprint --disable-libplacebo --disable-projectM --disable-goom --disable-qt --disable-qtdeclarative --disable-qtshadertools --disable-qtsvg --disable-qtwayland --disable-medialibrary --disable-breakpad --disable-xcb --disable-x264 --disable-x265 --disable-x262}"
+CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE:---disable-disc --disable-net --disable-mpg123 --disable-opencv4 --disable-opencv --disable-protobuf --disable-chromaprint --disable-libplacebo --disable-projectM --disable-goom --disable-qt --disable-qtdeclarative --disable-qtshadertools --disable-qtsvg --disable-qtwayland --disable-medialibrary --disable-breakpad --disable-xcb --disable-x264 --disable-x265 --disable-x262 --disable-lua --disable-taglib}"
 
 log()  { printf '\033[1;36m[vlcdotnet-cached]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[vlcdotnet-cached]\033[0m %s\n' "$*" >&2; }

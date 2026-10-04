@@ -93,6 +93,7 @@ CONFIG_FLAGS=(
   "--with-contrib=${CONTRIB_PREFIX}"
   --disable-vlc --disable-qt --disable-skins2 --disable-nls
   --disable-lua --disable-a52
+  --disable-taglib
   --disable-sdl-image
   --disable-bluray
   --disable-xcb --disable-alsa --disable-pulse --disable-vdpau

@@ -163,6 +163,7 @@ CONFIG_FLAGS=(
   --disable-nls --disable-lua --disable-a52 --disable-sparkle
   --disable-bluray --disable-gnutls --disable-srt --disable-libxml2
   --disable-screen --disable-vcd --disable-live555 --disable-realrtsp
+  --disable-taglib
   --enable-avcodec --enable-swscale
 )
 case "${PLATFORM}" in

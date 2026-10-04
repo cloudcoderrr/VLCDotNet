@@ -65,6 +65,7 @@ CONFIG_FLAGS=(
   --disable-alsa         # headless: audio verified via amem callbacks
   --disable-pulse
   --disable-bluray --disable-vnc --disable-gnutls --disable-srt --disable-chromaprint
+  --disable-taglib       # metadata reader: not a required test module
   --enable-shared --disable-static
 )
 
