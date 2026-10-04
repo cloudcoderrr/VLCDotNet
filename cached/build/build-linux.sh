@@ -44,10 +44,13 @@ if [ "${PHASE}" = "contrib" ]; then
   # phase still runs on the target under QEMU for its ldd-based bundling.)
   if [ "${ARCH}" != "x86_64" ] && [ "$(uname -m)" = "x86_64" ]; then
     log "Cross-compiling ${RID} contribs with the ${TRIPLET} toolchain"
-    export CC="${TRIPLET}-gcc" CXX="${TRIPLET}-g++" \
-           AR="${TRIPLET}-ar" RANLIB="${TRIPLET}-ranlib" \
-           STRIP="${TRIPLET}-strip" NM="${TRIPLET}-nm" LD="${TRIPLET}-ld"
-    command -v "${CC}" >/dev/null 2>&1 || die "cross toolchain ${CC} not installed"
+    command -v "${TRIPLET}-gcc" >/dev/null 2>&1 || die "cross toolchain ${TRIPLET}-gcc not installed"
+    # Deliberately do NOT export CC/CXX here: VLC's contrib bootstrap detects the
+    # BUILD triplet via `cc -dumpmachine` and derives the cross compiler
+    # ($(HOST)-gcc) from --host itself. Exporting CC=<triplet>-gcc would make it
+    # detect BUILD==HOST, disable cross mode, and configure would then try to run
+    # target binaries ("cannot run C compiled programs"). extras/tools must also
+    # build as native host tools, which relies on the native cc.
   fi
   build_full_contrib "${VLC_SRC}" "contrib-linux-${ARCH}" "${TRIPLET}" \
     ${CACHED_CONTRIB_PRUNE:+-- ${CACHED_CONTRIB_PRUNE}}
