@@ -59,9 +59,13 @@ CONTRIB_ZSTD_LEVEL="${CONTRIB_ZSTD_LEVEL:-19}"
 #                                   ffmpeg; decode is ffmpeg/VideoToolbox/MediaCodec)
 #   lua                             VLC scripting (not a required test module; fails
 #                                   the cross builds on the arm64 macOS runner)
+#   luac                            lua's host compiler tool (cross-build only runs
+#                                   on native; PKGS_TOOLS, not covered by disable-lua)
 #   taglib                          metadata reader (not a required test module)
+#   gpg-error/gcrypt                crypto (unconditional PKGS; only net packages use
+#                                   them; gpg-error's mkheader OOMs on the iOS build)
 # The full codec/demux/subtitle/audio closure is kept. Override to change the set.
-CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE:---disable-disc --disable-net --disable-mpg123 --disable-opencv4 --disable-opencv --disable-protobuf --disable-chromaprint --disable-libplacebo --disable-projectM --disable-goom --disable-qt --disable-qtdeclarative --disable-qtshadertools --disable-qtsvg --disable-qtwayland --disable-medialibrary --disable-breakpad --disable-xcb --disable-x264 --disable-x265 --disable-x262 --disable-lua --disable-taglib}"
+CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE:---disable-disc --disable-net --disable-mpg123 --disable-opencv4 --disable-opencv --disable-protobuf --disable-chromaprint --disable-libplacebo --disable-projectM --disable-goom --disable-qt --disable-qtdeclarative --disable-qtshadertools --disable-qtsvg --disable-qtwayland --disable-medialibrary --disable-breakpad --disable-xcb --disable-x264 --disable-x265 --disable-x262 --disable-lua --disable-luac --disable-taglib --disable-gpg-error --disable-gcrypt}"
 
 log()  { printf '\033[1;36m[vlcdotnet-cached]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[vlcdotnet-cached]\033[0m %s\n' "$*" >&2; }
