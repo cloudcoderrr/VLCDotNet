@@ -106,6 +106,14 @@ CONFIG_FLAGS=(
 # API 21's sys/shm.h is a stub; force VLC's non-shm fallback path in block.c.
 CONFIG_ENV=("${CONTRIB_ENV[@]}" ac_cv_header_sys_shm_h=no)
 
+# VLC 4.0 pulls in libass/fontconfig text plugins whose (static) link references
+# the contrib gettext wrappers (libintl_dgettext/newlocale/freelocale) and
+# libiconv. Append them via autoconf LIBS so they land after the referencing
+# archives on the plugin link line (order-sensitive with lld). VLC 3 unaffected.
+if [ "${VLC_SERIES}" != "3" ]; then
+  CONFIG_ENV+=("LIBS=-lintl -liconv")
+fi
+
 # NDK r29 no longer implicitly links libm into module plugins and folds pthread
 # into libc; provide -lm plus an empty libpthread.a for modules linking it.
 PTHREAD_STUB_DIR="${WORK_DIR}/pthread-stub-${ARCH}"
