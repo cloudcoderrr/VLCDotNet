@@ -111,7 +111,12 @@ fi
 APPLE_PRUNE=()
 case "${PLATFORM}" in
   ios|iossimulator)
-    APPLE_PRUNE=(--disable-schroedinger --disable-vpx --disable-ass --disable-harfbuzz --disable-fribidi) ;;
+    APPLE_PRUNE=(--disable-schroedinger --disable-vpx --disable-ass --disable-harfbuzz --disable-fribidi)
+    # VLC 4.0 only: gmp's build-machine compiler self-test fails under the iOS
+    # cross environment (the exported CC_FOR_BUILD resolves the target CPPFLAGS).
+    # gmp is only pulled in by nettle <- gnutls (network, already disabled) and
+    # asdcplib (Digital Cinema); neither is a VLC 4 required test module.
+    [ "${VLC_SERIES}" != "3" ] && APPLE_PRUNE+=(--disable-asdcplib --disable-gnutls --disable-nettle --disable-gmp) ;;
   maccatalyst)
     # Catalyst requires only avcodec+sout+videotoolbox; libvpx's VP9 RTC C++ does
     # not compile for the macabi arm64 target, and schroedinger/orc are unstable.
