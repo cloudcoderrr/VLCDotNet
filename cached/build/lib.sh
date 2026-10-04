@@ -219,8 +219,13 @@ restore_contrib() {
   if [ -n "${build_prefix}" ] && [ "${build_prefix}" != "${new_prefix}" ]; then
     log "Rewriting contrib prefix ${build_prefix} -> ${new_prefix}"
     # Only text metadata embeds the absolute prefix: *.pc, *.la, *-config.
+    # Pass both paths through %ENV so their '/' never lands in the perl s///
+    # source as a delimiter, and \Q-quote the pattern. Exported so find -exec's
+    # child perl inherits them.
+    export CONTRIB_OLD_PREFIX="${build_prefix}" CONTRIB_NEW_PREFIX="${new_prefix}"
     find "${new_prefix}" -type f \( -name '*.pc' -o -name '*.la' -o -name '*-config' \) \
-      -exec perl -pi -e "s/\Q${build_prefix}\E/${new_prefix}/g" {} +
+      -exec perl -pi -e 's/\Q$ENV{CONTRIB_OLD_PREFIX}\E/$ENV{CONTRIB_NEW_PREFIX}/g' {} +
+    unset CONTRIB_OLD_PREFIX CONTRIB_NEW_PREFIX
   fi
   log "Restored contrib prefix at ${new_prefix}"
 }
