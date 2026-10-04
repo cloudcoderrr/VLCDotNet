@@ -116,6 +116,17 @@ case "${PLATFORM}" in
     APPLE_PRUNE=(--disable-schroedinger) ;;
 esac
 
+# macOS host autoreconf needs gettext's iconv.m4 (AM_ICONV) and libtool's m4 on
+# aclocal's search path, but Homebrew installs them in keg-only prefixes not
+# searched by default. Add them so full-set packages (libcddb, ...) autoreconf.
+if command -v brew >/dev/null 2>&1; then
+  for _p in gettext libtool automake autoconf-archive; do
+    _d="$(brew --prefix "${_p}" 2>/dev/null)/share/aclocal"
+    [ -d "${_d}" ] && export ACLOCAL_PATH="${_d}:${ACLOCAL_PATH:-}"
+  done
+  unset _p _d
+fi
+
 # ---- Phase 1: build + cache the full contrib set ----------------------------
 if [ "${PHASE}" = "contrib" ]; then
   PRUNE=()
