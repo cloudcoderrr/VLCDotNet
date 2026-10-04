@@ -1,0 +1,13 @@
+rid=ios-arm64
+triplet=aarch64-apple-darwin
+series=4
+vlc_version=4.0-master
+vlc_ref=e77e49b5dff7484dbf70cd1540a6a568e1890280
+build_prefix=/Users/runner/work/VLCDotNet/VLCDotNet/cached/build/_work/vlc-apple-ios-arm64/contrib/aarch64-apple-darwin
+archive=contrib.tar.zst
+parts=1
+part_size=95000000
+sha256=b32a6f0923a1ca7f7151c843075f331677f52df36a93940b4365f6a1fc007be7
+bytes=60016591
+created=2026-10-04T20:21:03Z
+restore=cat contrib.tar.zst.* | zstd -d | tar -x
