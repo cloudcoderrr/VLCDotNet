@@ -25,6 +25,6 @@ ${SUDO} apt-get install -y --no-install-recommends \
 # lighter libvlc phase. These packages exist only for an x86_64 host.
 if [ "$(uname -m)" = "x86_64" ]; then
   ${SUDO} apt-get install -y --no-install-recommends \
-    gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-    gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf || true
+    gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross \
+    gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf libc6-dev-armhf-cross || true
 fi

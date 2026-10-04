@@ -74,6 +74,12 @@ jobs:
         run: |
           sudo bash cached/build/deps-linux.sh
           bash cached/build/build-linux.sh ${{ matrix.arch }}
+      - name: Dump ffmpeg config.log on failure
+        if: failure() && steps.f.outputs.run == 'true'
+        shell: bash
+        run: |
+          f=$(find cached/build/_work -path '*ffmpeg*' -name config.log 2>/dev/null | head -1)
+          [ -n "$f" ] && { echo "=== $f (tail) ==="; tail -n 80 "$f"; } || echo "no ffmpeg config.log found"
       - uses: actions/upload-artifact@v6
         if: steps.f.outputs.run == 'true'
         with:
