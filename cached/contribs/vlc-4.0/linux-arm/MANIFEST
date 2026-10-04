@@ -1,0 +1,13 @@
+rid=linux-arm
+triplet=arm-linux-gnueabihf
+series=4
+vlc_version=4.0-master
+vlc_ref=e77e49b5dff7484dbf70cd1540a6a568e1890280
+build_prefix=/home/runner/work/VLCDotNet/VLCDotNet/cached/build/_work/vlc-linux-armv7/contrib/arm-linux-gnueabihf
+archive=contrib.tar.zst
+parts=2
+part_size=95000000
+sha256=bebde6dff0c1cb81f37a9f1331a356fc5bd9f9ecacc200ea323ab786e36f470b
+bytes=145421416
+created=2026-10-04T18:21:25Z
+restore=cat contrib.tar.zst.* | zstd -d | tar -x
