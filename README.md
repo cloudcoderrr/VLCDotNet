@@ -132,6 +132,12 @@ Each pipeline has its own `build` → `pack-release` → `test` workflow trilogy
 one artifact per RID; pack-release downloads them, packs the NuGet, and publishes
 a GitHub Release; the test workflows consume the same artifacts.
 
+The CI-cached pipeline adds a phase-1 `contribs-*` workflow that builds the full
+contrib closure per RID and commits the split archives into the repo; the
+`build-*-cached` workflow then restores them to link libvlc. Both VLC series are
+covered — `contribs-vlc{3,4}-cached`, `build-vlc{3,4}-cached`,
+`pack-release-vlc{3,4}-cached`, and `test-{desktop,mobile}-vlc{3,4}-cached`.
+
 ## Building locally
 
 The per-platform scripts can also run on a suitable host. Example (from-source
