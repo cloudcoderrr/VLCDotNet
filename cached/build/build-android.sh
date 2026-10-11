@@ -146,9 +146,11 @@ if [ "${VLC_SERIES}" != "3" ]; then
   export LDFLAGS="${LDFLAGS} -L${CONTRIB_PREFIX}/lib"
 fi
 
-if [ "${ARCH}" = "arm" ] || [ "${ARCH}" = "arm64" ]; then
-  # armv7 needs compiler-rt for 64-bit int<->float; aarch64 needs the
-  # outline-atomics helpers (__aarch64_ldadd8_*) VLC 4.0's vpx_alpha plugin uses.
+if [ "${ARCH}" = "arm" ] || [ "${ARCH}" = "arm64" ] || [ "${ARCH}" = "x86_64" ]; then
+  # All Android ABIs need the compiler-rt builtins for some plugins: armv7 for
+  # 64-bit int<->float, aarch64 for the outline-atomics helpers
+  # (__aarch64_ldadd8_*), and x86_64 for the 128-bit long-double soft-float
+  # routines (__floatunditf/__divtf3/...) that taglib's C++ pulls in.
   RT_BUILTINS="$(${CC} --print-libgcc-file-name 2>/dev/null || true)"
   if [ -f "${RT_BUILTINS}" ]; then
     export LDFLAGS="${LDFLAGS} -L$(dirname "${RT_BUILTINS}") -l:$(basename "${RT_BUILTINS}")"
