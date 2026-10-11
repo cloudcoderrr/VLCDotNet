@@ -128,7 +128,10 @@ case "${PLATFORM}" in
     # Catalyst requires only avcodec+sout+videotoolbox; libvpx's VP9 RTC C++ does
     # not compile for the macabi arm64 target, and schroedinger/orc are unstable.
     # Catalyst uses the iOS API family, so the optical-disc stack is dropped too.
-    APPLE_PRUNE=(--disable-disc --disable-schroedinger --disable-vpx) ;;
+    # x264/x265's asm objects are tagged 'macOS' (not 'macabi'), so their static
+    # libs fail to link into a Catalyst app; H.264/H.265 ENCODE on Catalyst uses
+    # VideoToolbox instead.
+    APPLE_PRUNE=(--disable-disc --disable-x264 --disable-x265 --disable-schroedinger --disable-vpx) ;;
 esac
 
 # macOS host autoreconf needs gettext's iconv.m4 (AM_ICONV) and libtool's m4 on

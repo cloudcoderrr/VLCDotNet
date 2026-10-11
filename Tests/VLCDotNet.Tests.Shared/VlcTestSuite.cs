@@ -646,6 +646,15 @@ namespace VLCDotNet.Tests.Shared
                         continue;
                     }
 
+                    // Styled ASS/SSA rendering needs libass; platforms that ship
+                    // without it (e.g. iOS/simulator) cannot add the ASS track, so
+                    // skip rather than fail. SRT/WebVTT use subsdec everywhere.
+                    if (sub.EndsWith(".ass", StringComparison.OrdinalIgnoreCase) && !HasModule("libass"))
+                    {
+                        Skip(outcome, sw, "libass not present; styled ASS rendering unavailable on this platform");
+                        continue;
+                    }
+
                     media = NewMedia(video);
                     mp = NewPlayerFromMedia(media);
                     if (!PlayAndWaitPlaying(mp))
