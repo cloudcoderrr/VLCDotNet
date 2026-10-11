@@ -114,12 +114,13 @@ CONFIG_FLAGS=(
   "--with-contrib=${CONTRIB_PREFIX}"
   --disable-vlc --disable-lua --disable-nls --disable-update-check
   --disable-live555 --disable-realrtsp --disable-goom --disable-libcddb
-  --disable-shout --disable-zvbi --disable-dvdread --disable-dvdnav
-  --disable-bluray --disable-gnutls --disable-srt --disable-aribcam
-  --disable-fontconfig
-  --disable-taglib       # metadata reader: not a required test module
-  --disable-sid          # SID is not a required module on Windows and the
-                         # llvm-mingw aarch64 link fails (undefined __chkstk)
+  --disable-shout --disable-gnutls --disable-srt
+  --disable-fontconfig   # Windows uses the DirectWrite font provider, not fontconfig
+  # Feature parity (contrib-provided; --enable so a missing contrib fails loud):
+  --enable-taglib                                    # metadata read/write
+  --enable-dvdread --enable-dvdnav --enable-bluray   # local disc stack
+  # zvbi (teletext), aribcam (ARIB B25) and sid (SID music) auto-detect from the
+  # contrib set; left as auto so a target that cannot build one does not hard-fail.
   --enable-avcodec --enable-swscale
   --enable-shared --disable-static
 )
