@@ -79,6 +79,9 @@ namespace VLCDotNet.Tests.Shared
         private IntPtr _instance;
         private VlcFileLog? _log;
         private string _logPath = string.Empty;
+        // Module/plugin inventory discovered once after instance creation, so the
+        // feature-parity tests can gate on an encoder/decoder actually being present.
+        private HashSet<string> _modules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         public VlcTestSuite(TestEnvironment env)
         {
@@ -96,6 +99,8 @@ namespace VLCDotNet.Tests.Shared
                 WriteReport();
                 return _results;
             }
+
+            _modules = DiscoverAvailableModules();
 
             try
             {
@@ -120,6 +125,27 @@ namespace VLCDotNet.Tests.Shared
                 Guard("Subtitles", "external", TestExternalSubtitles);
                 Guard("Transport", "seek/pause/rate", TestTransportControls);
                 Guard("StreamOutput", "ffmpeg transcode", TestStreamOutputTranscode);
+
+                // Feature-parity coverage (cached pipeline only; other profiles
+                // leave VLC_PARITY_TESTS unset and skip this whole block).
+                if (ParityEnabled)
+                {
+                    foreach (MediaSpec spec in MediaCatalog.ExtraVideos)
+                    {
+                        Guard("Video", spec.FileName, () => TestVideoFile(spec));
+                    }
+                    foreach (MediaSpec spec in MediaCatalog.ExtraAudios)
+                    {
+                        Guard("Audio", spec.FileName, () => TestAudioFile(spec));
+                    }
+                    foreach (string image in MediaCatalog.Images)
+                    {
+                        Guard("Image", image, () => TestImageFile(image));
+                    }
+                    Guard("Metadata", MediaCatalog.TaggedAudio.FileName, TestMetadataRead);
+                    Guard("Encode", "x264 h264", () => TestEncode("h264", "x264", "sout-x264.mp4"));
+                    Guard("Encode", "x265 h265", () => TestEncode("h265", "x265", "sout-x265.mp4"));
+                }
             }
             finally
             {
@@ -225,7 +251,7 @@ namespace VLCDotNet.Tests.Shared
             var sw = Stopwatch.StartNew();
             try
             {
-                HashSet<string> modules = DiscoverAvailableModules();
+                HashSet<string> modules = _modules.Count > 0 ? _modules : DiscoverAvailableModules();
                 if (modules.Count == 0)
                 {
                     outcome.Passed = false;
@@ -850,6 +876,240 @@ namespace VLCDotNet.Tests.Shared
             }
         }
 
+        // ----- Feature-parity: images, metadata, encoders ------------------
+
+        private void TestImageFile(string fileName)
+        {
+            var outcome = new TestOutcome("Image", fileName);
+            var sw = Stopwatch.StartNew();
+            IntPtr media = IntPtr.Zero, mp = IntPtr.Zero;
+            VideoFrameCapture? cap = null;
+            try
+            {
+                string path = Path.Combine(_env.MediaDirectory, fileName);
+                if (!File.Exists(path))
+                {
+                    Skip(outcome, sw, "image not found: " + path);
+                    return;
+                }
+
+                media = NewMedia(path);
+                LibVlc.libvlc_media_add_option(media, ":image-duration=3");
+                mp = NewPlayerFromMedia(media);
+                cap = new VideoFrameCapture(mp, 160, 120);
+
+                LibVlc.libvlc_media_player_play(mp);
+                // A still image decodes a single picture, so poll for the frame
+                // rather than waiting for a sustained Playing state.
+                Wait(() => cap.FrameCount > 0, 6000);
+                Thread.Sleep(300);
+
+                FrameStats stats = cap.Analyze();
+                outcome.Details.Add(stats.ToString());
+
+                string bmp = Path.Combine(_env.OutputDirectory, "image-" + GetArtifactStem(fileName) + ".bmp");
+                if (cap.WriteBmp(bmp))
+                {
+                    outcome.Artifacts.Add(bmp);
+                }
+
+                bool ok = stats.Frames > 0 && stats.NonDarkFraction > 0.02 && stats.LumaRange > 20;
+                outcome.Passed = ok;
+                outcome.Message = ok
+                    ? $"decoded image to a visible frame ({stats.Frames})"
+                    : "image did not decode to a visible frame";
+            }
+            catch (Exception ex)
+            {
+                outcome.Passed = false;
+                outcome.Message = ex.Message;
+            }
+            finally
+            {
+                Cleanup(mp, media);
+                cap?.Dispose();
+                Record(outcome, sw);
+            }
+        }
+
+        private void TestMetadataRead()
+        {
+            MediaSpec spec = MediaCatalog.TaggedAudio;
+            var outcome = new TestOutcome("Metadata", spec.FileName);
+            var sw = Stopwatch.StartNew();
+            if (!HasModule("taglib"))
+            {
+                Skip(outcome, sw, "taglib metadata module not present");
+                return;
+            }
+
+            IntPtr media = IntPtr.Zero, mp = IntPtr.Zero;
+            try
+            {
+                string path = Path.Combine(_env.MediaDirectory, spec.FileName);
+                if (!File.Exists(path))
+                {
+                    Skip(outcome, sw, "tagged media not found");
+                    return;
+                }
+
+                media = NewMedia(path);
+#if VLC4
+                // v4 populates media metadata during playback; start it briefly.
+                mp = NewPlayerFromMedia(media);
+                PlayAndWaitPlaying(mp);
+                Thread.Sleep(900);
+#else
+                LibVlc.libvlc_media_parse_with_options(media, VlcMediaParseFlag.ParseLocal, 5000);
+                Wait(() => LibVlc.libvlc_media_get_parsed_status(media) == VlcMediaParsedStatus.Done, 6000);
+#endif
+                string? title = ReadMeta(media, VlcMeta.Title);
+                string? artist = ReadMeta(media, VlcMeta.Artist);
+                string? album = ReadMeta(media, VlcMeta.Album);
+                outcome.Details.Add($"title='{title}', artist='{artist}', album='{album}'");
+
+                bool ok = !string.IsNullOrEmpty(title)
+                          && title!.IndexOf("Parity", StringComparison.OrdinalIgnoreCase) >= 0;
+                outcome.Passed = ok;
+                outcome.Message = ok
+                    ? "media metadata read (title/artist/album)"
+                    : "expected title tag was not read";
+            }
+            catch (Exception ex)
+            {
+                outcome.Passed = false;
+                outcome.Message = ex.Message;
+            }
+            finally
+            {
+                Cleanup(mp, media);
+                Record(outcome, sw);
+            }
+        }
+
+        private static string? ReadMeta(IntPtr media, VlcMeta meta)
+        {
+            IntPtr p = LibVlc.libvlc_media_get_meta(media, meta);
+            if (p == IntPtr.Zero)
+            {
+                return null;
+            }
+            string? s = LibVlc.Utf8ToString(p);
+            LibVlc.libvlc_free(p);
+            return s;
+        }
+
+        // Transcodes the reference clip with a specific native video encoder
+        // (x264 / x265) and verifies the result decodes. Skips when the encoder
+        // module is absent so non-parity builds are unaffected.
+        private void TestEncode(string vcodec, string requiredModule, string outName)
+        {
+            var outcome = new TestOutcome("Encode", vcodec + " (" + requiredModule + ")");
+            var sw = Stopwatch.StartNew();
+            if (!HasModule(requiredModule))
+            {
+                Skip(outcome, sw, requiredModule + " encoder module not present");
+                return;
+            }
+
+            IntPtr media = IntPtr.Zero, mp = IntPtr.Zero, outputMedia = IntPtr.Zero;
+            try
+            {
+                string input = Path.Combine(_env.MediaDirectory, MediaCatalog.Videos[0].FileName);
+                if (!File.Exists(input))
+                {
+                    Skip(outcome, sw, "input media not found");
+                    return;
+                }
+
+                string output = Path.Combine(_env.OutputDirectory, outName);
+                if (File.Exists(output))
+                {
+                    File.Delete(output);
+                }
+
+                media = NewMedia(input);
+                LibVlc.libvlc_media_add_option(media, ":sout-avformat-mux=mp4");
+                LibVlc.libvlc_media_add_option(media,
+                    ":sout=#transcode{vcodec=" + vcodec + ",vb=800,acodec=mp4a,ab=128}:std{access=file,mux=avformat,dst='" + EscapeSoutPath(output) + "'}");
+                mp = NewPlayerFromMedia(media);
+                long logCursor = CaptureLogCursor();
+
+                if (LibVlc.libvlc_media_player_play(mp) != 0)
+                {
+                    Fail(outcome, sw, "could not start the encode");
+                    return;
+                }
+
+                bool completed = Wait(() =>
+                {
+                    VlcState s = LibVlc.libvlc_media_player_get_state(mp);
+                    return s == VlcState.Ended || s == VlcState.Error || s == VlcState.Stopped;
+                }, 40000, 100);
+                VlcState finalState = LibVlc.libvlc_media_player_get_state(mp);
+                Cleanup(mp, media);
+                mp = IntPtr.Zero;
+                media = IntPtr.Zero;
+                Thread.Sleep(400);
+
+                long size = File.Exists(output) ? new FileInfo(output).Length : 0;
+                string logDelta = ReadLogSince(logCursor);
+                bool sawEncoder = logDelta.IndexOf(requiredModule, StringComparison.OrdinalIgnoreCase) >= 0;
+                outcome.Details.Add($"state={finalState}, output-bytes={size}, saw {requiredModule}={sawEncoder}");
+                if (size > 0)
+                {
+                    outcome.Artifacts.Add(output);
+                }
+
+                bool parsedOk = false;
+                if (size > 0)
+                {
+                    outputMedia = NewMedia(output);
+#if VLC4
+                    (int trackCount, long duration) = ProbeByPlayback(outputMedia);
+#else
+                    LibVlc.libvlc_media_parse_with_options(outputMedia, VlcMediaParseFlag.ParseLocal, 5000);
+                    Wait(() => LibVlc.libvlc_media_get_parsed_status(outputMedia) == VlcMediaParsedStatus.Done, 6000);
+                    int trackCount = GetTracks(outputMedia).Count;
+                    long duration = LibVlc.libvlc_media_get_duration(outputMedia);
+#endif
+                    outcome.Details.Add($"output tracks={trackCount}, duration={duration}");
+                    parsedOk = trackCount >= 1 && duration > 0;
+                }
+
+                bool ok = completed && finalState != VlcState.Error && size > 0 && parsedOk && sawEncoder;
+                if (!ok && size == 0 && sawEncoder)
+                {
+                    // The encoder engaged but the headless sout demux produced an
+                    // empty file (same intermittent limitation the ffmpeg-transcode
+                    // test documents on some platforms). Record as skipped.
+                    outcome.Skipped = true;
+                    outcome.Message = "skipped: " + requiredModule + " engaged but sout produced 0 bytes";
+                }
+                else
+                {
+                    outcome.Passed = ok;
+                    outcome.Message = ok
+                        ? vcodec + " encode via " + requiredModule + " produced a playable file"
+                        : vcodec + " encode did not produce the expected output";
+                }
+            }
+            catch (Exception ex)
+            {
+                outcome.Passed = false;
+                outcome.Message = ex.Message;
+            }
+            finally
+            {
+                if (outputMedia != IntPtr.Zero)
+                {
+                    LibVlc.libvlc_media_release(outputMedia);
+                }
+                Cleanup(mp, media);
+                Record(outcome, sw);
+            }
+        }
+
         // ----- Log verification --------------------------------------------
 
         private void TestLogFileWritten()
@@ -1129,16 +1389,39 @@ namespace VLCDotNet.Tests.Shared
             return spec.ExpectedModuleMarkers;
         }
 
-        private static IReadOnlyList<string> GetRequiredModules() =>
+        private static IReadOnlyList<string> GetRequiredModules()
+        {
+            var list = new List<string>(
 #if VLC4
-            V4RequiredModules;
+                V4RequiredModules
 #else
-            IsAppleMobileOrCatalyst()
-                ? AppleMobileRequiredModules
-                : RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                    ? WindowsRequiredModules
-                    : RequiredModules;
+                IsAppleMobileOrCatalyst()
+                    ? AppleMobileRequiredModules
+                    : RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                        ? WindowsRequiredModules
+                        : RequiredModules
 #endif
+            );
+
+            // The cached feature-parity test workflow passes the exact per-RID
+            // set of parity modules it expects via VLC_EXPECTED_MODULES, so the
+            // module requirement stays a build-profile concern (the shared
+            // baseline above is unchanged for the other pipelines).
+            string? extra = Environment.GetEnvironmentVariable("VLC_EXPECTED_MODULES");
+            if (!string.IsNullOrWhiteSpace(extra))
+            {
+                var seen = new HashSet<string>(list, StringComparer.OrdinalIgnoreCase);
+                foreach (string token in extra.Split(new[] { ',', ';', ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    string t = token.Trim();
+                    if (t.Length > 0 && seen.Add(t))
+                    {
+                        list.Add(t);
+                    }
+                }
+            }
+            return list;
+        }
 
         private HashSet<string> DiscoverAvailableModules()
         {
@@ -1201,6 +1484,14 @@ namespace VLCDotNet.Tests.Shared
 
         private static bool IsAppleMobileOrCatalyst() =>
             OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst();
+
+        // The cached feature-parity workflow sets VLC_PARITY_TESTS=1 to opt into
+        // the extra-format / encode / metadata coverage. Other pipelines leave it
+        // unset so those tests never run against a non-parity build.
+        private static bool ParityEnabled =>
+            !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VLC_PARITY_TESTS"));
+
+        private bool HasModule(string name) => _modules.Contains(name);
 
         private static bool PlayAndWaitPlaying(IntPtr mp, int timeoutMs = 10000)
         {

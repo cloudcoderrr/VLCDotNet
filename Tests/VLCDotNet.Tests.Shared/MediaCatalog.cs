@@ -111,6 +111,56 @@ namespace VLCDotNet.Tests.Shared
             new MediaSpec("audio_opus_stereo.ogg")  { HasAudio = true, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 5006, AudioCodecHint = "opus" },
         };
 
+        /// <summary>
+        /// Extra containers/codecs enabled by the feature-parity contrib closure
+        /// (see cached/FEATURE-PARITY-TASK.md). Only exercised when the parity
+        /// profile is active (VLC_PARITY_TESTS); other pipelines skip them.
+        /// </summary>
+        public static readonly IReadOnlyList<MediaSpec> ExtraVideos = new List<MediaSpec>
+        {
+            new MediaSpec("video_mpeg2_ps.mpg")  { HasVideo = true, HasAudio = true, VideoWidth = 640, VideoHeight = 360, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 6000, VideoCodecHint = "mpgv", AudioCodecHint = "mpga" },
+            new MediaSpec("video_mpeg1_mp2.mpg") { HasVideo = true, HasAudio = true, VideoWidth = 640, VideoHeight = 360, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 6000, VideoCodecHint = "mp1v", AudioCodecHint = "mpga" },
+            new MediaSpec("video_mjpeg_pcm.avi") { HasVideo = true, HasAudio = true, VideoWidth = 640, VideoHeight = 360, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 3000, VideoCodecHint = "mjpg", AudioCodecHint = "araw" },
+            new MediaSpec("video_wmv2_wma.wmv")  { HasVideo = true, HasAudio = true, VideoWidth = 640, VideoHeight = 360, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 6000, VideoCodecHint = "wmv2", AudioCodecHint = "wma2" },
+            new MediaSpec("video_h264_aac.mov")  { HasVideo = true, HasAudio = true, VideoWidth = 640, VideoHeight = 360, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 8000, VideoCodecHint = "h264", AudioCodecHint = "mp4a" },
+            new MediaSpec("video_h263_aac.3gp")  { HasVideo = true, HasAudio = true, VideoWidth = 352, VideoHeight = 288, AudioChannels = 1, AudioSampleRate = 48000, DurationMs = 6000, VideoCodecHint = "h263", AudioCodecHint = "mp4a" },
+        };
+
+        /// <summary>Extra audio codecs enabled by the feature-parity contrib closure.</summary>
+        public static readonly IReadOnlyList<MediaSpec> ExtraAudios = new List<MediaSpec>
+        {
+            new MediaSpec("audio_ac3_stereo.ac3")    { HasAudio = true, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 5000, AudioCodecHint = "a52" },
+            new MediaSpec("audio_eac3_stereo.eac3")  { HasAudio = true, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 5000, AudioCodecHint = "eac3" },
+            new MediaSpec("audio_dts_stereo.dts")    { HasAudio = true, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 5000, AudioCodecHint = "dts" },
+            new MediaSpec("audio_alac_stereo.m4a")   { HasAudio = true, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 5000, AudioCodecHint = "alac" },
+            new MediaSpec("audio_wavpack_stereo.wv") { HasAudio = true, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 5000, AudioCodecHint = "WV" },
+            new MediaSpec("audio_vorbis_stereo.ogg") { HasAudio = true, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 5000, AudioCodecHint = "vorb" },
+            new MediaSpec("audio_mp2_stereo.mp2")    { HasAudio = true, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 5000, AudioCodecHint = "mpga" },
+            new MediaSpec("audio_wma_stereo.wma")    { HasAudio = true, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 5000, AudioCodecHint = "wma2" },
+            new MediaSpec("audio_g711_mulaw.wav")    { HasAudio = true, AudioChannels = 1, AudioSampleRate = 48000, DurationMs = 5000, AudioCodecHint = "ulaw" },
+            new MediaSpec("audio_tta_stereo.tta")    { HasAudio = true, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 5000, AudioCodecHint = "TTA1" },
+            new MediaSpec("audio_pcm_s16be.aiff")    { HasAudio = true, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 5000, AudioCodecHint = "twos" },
+            new MediaSpec("audio_pcm_s16le.caf")     { HasAudio = true, AudioChannels = 2, AudioSampleRate = 48000, DurationMs = 5000, AudioCodecHint = "araw" },
+            new MediaSpec("audio_pcm_s16be.au")      { HasAudio = true, AudioChannels = 1, AudioSampleRate = 48000, DurationMs = 5000, AudioCodecHint = "twos" },
+        };
+
+        /// <summary>Still images for the image-decode parity tests.</summary>
+        public static readonly IReadOnlyList<string> Images = new List<string>
+        {
+            "image_test.png",
+            "image_test.jpg",
+            "image_test.bmp",
+            "image_test.gif",
+            "image_test.tiff",
+        };
+
+        /// <summary>Audio file carrying title/artist/album tags for the metadata (taglib) test.</summary>
+        public static readonly MediaSpec TaggedAudio = new MediaSpec("audio_tagged.mp3")
+        {
+            HasAudio = true, AudioChannels = 2, AudioSampleRate = 44100, DurationMs = 5000, AudioCodecHint = "mpga",
+        };
+
+
         /// <summary>External subtitle files to attach as slaves.</summary>
         public static readonly IReadOnlyList<string> ExternalSubtitles = new List<string>
         {
