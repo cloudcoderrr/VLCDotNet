@@ -893,6 +893,22 @@ namespace VLCDotNet.Tests.Shared
                     return;
                 }
 
+                // JPEG/PNG still images are decoded by their dedicated libvlc
+                // module; BMP/GIF go through avcodec. Skip a format when its
+                // decoder is absent on this platform (e.g. macOS ships no 'jpeg'
+                // module) rather than failing the suite.
+                string? dec = Path.GetExtension(fileName).ToLowerInvariant() switch
+                {
+                    ".jpg" or ".jpeg" => "jpeg",
+                    ".png" => "png",
+                    _ => null,
+                };
+                if (dec != null && !HasModule(dec))
+                {
+                    Skip(outcome, sw, dec + " image decoder module not present on this platform");
+                    return;
+                }
+
                 media = NewMedia(path);
                 LibVlc.libvlc_media_add_option(media, ":image-duration=3");
                 mp = NewPlayerFromMedia(media);
