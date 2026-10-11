@@ -95,6 +95,16 @@ if [ "${ARCH}" = "x86_64" ]; then
   export LDFLAGS="${LDFLAGS} -Wl,-ld_classic"
 fi
 
+# VLC 4.0's x265 cmake derives the arm64 assembler's -mmacosx-version-min from
+# CMAKE_OSX_DEPLOYMENT_TARGET; without MACOSX_DEPLOYMENT_TARGET exported it emits
+# an empty "-mmacosx-version-min=" and clang rejects it ("invalid version
+# number in '-mmacosx-version-min='"). Export it (parsed from MINVER) so
+# cmake/clang see the macOS target. macOS only: iOS/simulator disable x265 and
+# Catalyst prunes it, so neither reaches this x265 ASM path.
+case "${PLATFORM}" in
+  macos) export MACOSX_DEPLOYMENT_TARGET="${MINVER##*=}" ;;
+esac
+
 CONTRIB_ENV=()
 case "${PLATFORM}" in
   ios|iossimulator) CONTRIB_ENV=(BUILDFORIOS=1 HAVE_IOS=1 HAVE_DARWIN_OS=1 VLCSDKROOT="${SDKROOT}") ;;
