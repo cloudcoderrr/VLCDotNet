@@ -186,12 +186,18 @@ CONFIG_FLAGS=(
   --disable-nls --disable-lua --disable-a52 --disable-sparkle
   --disable-bluray --disable-gnutls --disable-srt --disable-libxml2
   --disable-screen --disable-vcd --disable-live555 --disable-realrtsp
-  --disable-taglib
+  --enable-taglib        # metadata read/write (feature parity, contrib-provided)
   --enable-avcodec --enable-swscale
 )
 case "${PLATFORM}" in
   ios|iossimulator) CONFIG_FLAGS+=(--disable-fribidi --disable-harfbuzz --disable-libass --disable-macosx-avfoundation) ;;
   maccatalyst)      CONFIG_FLAGS+=(--disable-macosx-avfoundation) ;;
+esac
+# macOS is a reference-supported desktop: enable the local optical-disc stack and
+# libxml2 (the mobile disc stack was pruned from their contrib closures). Later
+# --enable flags win over the base --disable-bluray/--disable-libxml2 above.
+case "${PLATFORM}" in
+  macos) CONFIG_FLAGS+=(--enable-bluray --enable-dvdread --enable-dvdnav --enable-libxml2) ;;
 esac
 case "${PLATFORM}" in
   ios|iossimulator|maccatalyst) CONFIG_FLAGS+=(--enable-static --disable-shared --enable-static-modules) ;;

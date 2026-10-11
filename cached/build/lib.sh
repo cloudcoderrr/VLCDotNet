@@ -554,7 +554,7 @@ stage_static_vlc() {
       base="$(basename "$a" .a)"
       cat="$(basename "$(dirname "$a")")"
       case "${cat}" in
-        access|audio_filter|audio_output|codec|demux|packetizer|spu|text_renderer|video_chroma|video_output)
+        access|audio_filter|audio_output|codec|demux|meta_engine|packetizer|spu|text_renderer|video_chroma|video_output)
           stage_module=1
           ;;
         access_output)
