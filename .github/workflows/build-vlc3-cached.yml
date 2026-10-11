@@ -22,6 +22,9 @@ on:
         type: choice
         default: all
         options: [all, windows, linux, apple, android]
+      rids:
+        description: "Optional comma-separated RID allowlist (e.g. linux-x64). Blank = all in family."
+        required: false
 
 concurrency:
   group: build-vlc3-cached-${{ github.ref }}-${{ inputs.only || github.sha }}
@@ -50,22 +53,31 @@ jobs:
           - { arch: armv7,   rid: linux-arm,   emulated: true,  platform: "linux/arm/v7" }
     steps:
       - uses: actions/checkout@v5
+      - name: Gate RID
+        id: f
+        shell: bash
+        env: { ALLOW: "${{ inputs.rids }}", RID: "${{ matrix.rid }}" }
+        run: |
+          run=true
+          if [ -n "$ALLOW" ]; then case ",$ALLOW," in *",$RID,"*) run=true ;; *) run=false ;; esac; fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
       - name: Build libvlc (native ${{ matrix.arch }})
-        if: ${{ !matrix.emulated }}
+        if: ${{ steps.f.outputs.run == 'true' && !matrix.emulated }}
         run: |
           sudo bash cached/build/deps-linux.sh
           bash cached/build/build-linux.sh ${{ matrix.arch }}
       - name: Set up QEMU
-        if: ${{ matrix.emulated }}
+        if: ${{ steps.f.outputs.run == 'true' && matrix.emulated }}
         uses: docker/setup-qemu-action@v3
       - name: Build libvlc (emulated ${{ matrix.arch }})
-        if: ${{ matrix.emulated }}
+        if: ${{ steps.f.outputs.run == 'true' && matrix.emulated }}
         run: |
           docker run --rm --platform ${{ matrix.platform }} \
             -e VLC_VERSION -e VLC_SERIES \
             -v "$PWD:/work" -w /work ubuntu:22.04 \
             bash -c 'set -e; bash cached/build/deps-linux.sh && bash cached/build/build-linux.sh ${{ matrix.arch }}'
       - uses: actions/upload-artifact@v6
+        if: ${{ steps.f.outputs.run == 'true' }}
         with:
           name: vlc3-cached-${{ matrix.rid }}
           path: artifacts/${{ matrix.rid }}
