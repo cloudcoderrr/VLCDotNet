@@ -1,17 +1,21 @@
 From: GitHub Copilot <copilot@github.com>
-Subject: [PATCH] contrib: force-install libgsm.a (gsm install flaky on Apple cross)
+Subject: [PATCH] contrib: robustly install libgsm.a (gsm install flaky on Apple cross)
 
-gsm-1.0-pl22's `gsminstall` target also installs man pages, and that step
-fails under the Apple mobile / Mac Catalyst (macabi) cross toolchain
-(make[1]: [gsminstall] Error 2), which leaves libgsm.a and gsm/gsm.h
-uninstalled in the contrib prefix. FFmpeg's --enable-libgsm (an unconditional
-VLC 4.0 dependency: DEPS_ffmpeg = ... gsm ...) then fails configure with
-"ERROR: libgsm not found", breaking the whole Apple contrib build.
+gsm-1.0-pl22's `gsminstall` target installs libgsm.a, gsm/gsm.h and several
+man pages, then marks the library read-only (chmod 444). Under the Mac
+Catalyst (macabi) cross toolchain that target hits `make[1]: [gsminstall]
+Error 2`, leaving libgsm.a uninstalled, so ffmpeg's unconditional
+--enable-libgsm (DEPS_ffmpeg = ... gsm ...) later fails configure with
+"ERROR: libgsm not found" and breaks the whole Apple contrib build. On the
+iOS / simulator cross the same target succeeds and leaves the 0444 library
+in place.
 
-Ignore the gsminstall failure (the library and header are already built by
-that target before the man-page step) and copy the built static library and
-public header into the prefix explicitly so ffmpeg can find them. The copies
-are idempotent, so this is a no-op on platforms where gsminstall succeeds.
+Ignore the gsminstall failure and (re)install the built static library and
+public header with `install -m 644`, which unlinks any existing read-only
+copy first. This fixes Catalyst (where gsminstall left nothing) without
+breaking iOS/simulator (where a plain `cp` would fail "Permission denied"
+trying to overwrite the 0444 file); the step is a harmless overwrite where
+gsminstall already succeeded.
 ---
 --- a/contrib/src/gsm/rules.mak
 +++ b/contrib/src/gsm/rules.mak
@@ -20,6 +24,6 @@ are idempotent, so this is a no-op on platforms where gsminstall succeeds.
  	install -d "$(PREFIX)/lib" "$(PREFIX)/include/gsm" "$(PREFIX)/share/man/man3"
 -	$(HOSTVARS_PIC) $(GSM_ENV) $(MAKE) -C $< gsminstall
 +	-$(HOSTVARS_PIC) $(GSM_ENV) $(MAKE) -C $< gsminstall
-+	cp "$</lib/libgsm.a" "$(PREFIX)/lib/libgsm.a"
-+	cp "$</inc/gsm.h" "$(PREFIX)/include/gsm/gsm.h"
++	install -m 644 "$</lib/libgsm.a" "$(PREFIX)/lib/libgsm.a"
++	install -m 644 "$</inc/gsm.h" "$(PREFIX)/include/gsm/gsm.h"
  	touch $@
