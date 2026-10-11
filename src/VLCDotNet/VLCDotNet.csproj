@@ -7,8 +7,9 @@
       net8.0                 -> portable desktop asset (Windows/Linux/macOS, WinUI3, Win32, Avalonia).
                                 libvlc is resolved dynamically by name ("libvlc").
       net10.0-android        -> Android head. libvlc.so resolved by name; packaged as AndroidNativeLibrary.
-      net10.0-ios            -> iOS head. libvlc is statically linked -> DllImport target "__Internal".
-      net10.0-maccatalyst    -> Mac Catalyst head. libvlc.dylib resolved by name.
+      net10.0-ios            -> iOS head. libvlc ships as a signed, embedded dynamic
+                                VLCDotNet.framework; DllImport target "VLCDotNet".
+      net10.0-maccatalyst    -> Mac Catalyst head. Same embedded dynamic VLCDotNet.framework.
 
     Mobile heads are opt-in (VlcMobileTargets=true) so day-to-day `dotnet build`
     on any OS stays fast and does not require the Apple SDK. CI packs on macOS
@@ -99,18 +100,22 @@
   <!--
     Mobile native runtimes live under build/native/<rid> and are wired into the
     consuming mobile app by build/VLCDotNet3.targets (Android .so as native
-    libraries; iOS/Catalyst static libvlc linked in). Kept out of runtimes/ so
-    they do not clash with the desktop auto-deploy convention.
+    libraries; iOS/Catalyst embed the signed dynamic VLCDotNet.framework). Kept
+    out of runtimes/ so they do not clash with the desktop auto-deploy
+    convention. The iOS/Catalyst payload ships the dynamic framework plus the
+    static-modules.txt manifest; the build-internal static archives
+    (libvlc.a/libvlccore.a/static/*.a) and link intermediates are excluded —
+    the consumer links the framework, not the archives.
   -->
   <ItemGroup Label="Mobile native runtimes">
     <None Include="$(VlcArtifacts)/android-arm/**/*"        Pack="true" PackagePath="build/native/android-arm/%(RecursiveDir)%(Filename)%(Extension)" />
     <None Include="$(VlcArtifacts)/android-arm64/**/*"      Pack="true" PackagePath="build/native/android-arm64/%(RecursiveDir)%(Filename)%(Extension)" />
     <None Include="$(VlcArtifacts)/android-x64/**/*"        Pack="true" PackagePath="build/native/android-x64/%(RecursiveDir)%(Filename)%(Extension)" />
-    <None Include="$(VlcArtifacts)/ios-arm64/**/*"          Pack="true" PackagePath="build/native/ios-arm64/%(RecursiveDir)%(Filename)%(Extension)" />
-    <None Include="$(VlcArtifacts)/iossimulator-x64/**/*"   Pack="true" PackagePath="build/native/iossimulator-x64/%(RecursiveDir)%(Filename)%(Extension)" />
-    <None Include="$(VlcArtifacts)/iossimulator-arm64/**/*" Pack="true" PackagePath="build/native/iossimulator-arm64/%(RecursiveDir)%(Filename)%(Extension)" />
-    <None Include="$(VlcArtifacts)/maccatalyst-x64/**/*"    Pack="true" PackagePath="build/native/maccatalyst-x64/%(RecursiveDir)%(Filename)%(Extension)" />
-    <None Include="$(VlcArtifacts)/maccatalyst-arm64/**/*"  Pack="true" PackagePath="build/native/maccatalyst-arm64/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/ios-arm64/**/*"          Exclude="$(VlcArtifacts)/ios-arm64/**/*.a;$(VlcArtifacts)/ios-arm64/static/*.c;$(VlcArtifacts)/ios-arm64/static/*.o"                   Pack="true" PackagePath="build/native/ios-arm64/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/iossimulator-x64/**/*"   Exclude="$(VlcArtifacts)/iossimulator-x64/**/*.a;$(VlcArtifacts)/iossimulator-x64/static/*.c;$(VlcArtifacts)/iossimulator-x64/static/*.o"       Pack="true" PackagePath="build/native/iossimulator-x64/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/iossimulator-arm64/**/*" Exclude="$(VlcArtifacts)/iossimulator-arm64/**/*.a;$(VlcArtifacts)/iossimulator-arm64/static/*.c;$(VlcArtifacts)/iossimulator-arm64/static/*.o"     Pack="true" PackagePath="build/native/iossimulator-arm64/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/maccatalyst-x64/**/*"    Exclude="$(VlcArtifacts)/maccatalyst-x64/**/*.a;$(VlcArtifacts)/maccatalyst-x64/static/*.c;$(VlcArtifacts)/maccatalyst-x64/static/*.o"         Pack="true" PackagePath="build/native/maccatalyst-x64/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/maccatalyst-arm64/**/*"  Exclude="$(VlcArtifacts)/maccatalyst-arm64/**/*.a;$(VlcArtifacts)/maccatalyst-arm64/static/*.c;$(VlcArtifacts)/maccatalyst-arm64/static/*.o"       Pack="true" PackagePath="build/native/maccatalyst-arm64/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>
