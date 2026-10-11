@@ -81,11 +81,13 @@ CONFIG_FLAGS=(
   --enable-avcodec       # FFmpeg-based decoders (from contrib)
   --enable-swscale
   # Feature parity (contrib-provided; --enable so a missing contrib fails loud).
-  --enable-taglib                               # metadata read/write
+  --enable-taglib                                    # metadata read/write
   --enable-dvdread --enable-dvdnav --enable-bluray   # local disc stack
-  # Native Linux output/decode backends: left to auto-detect from the system
-  # -dev libs installed by deps-linux.sh (alsa, pulse, vdpau, vaapi, xcb/x11,
-  # gl/gles2, wayland). Headless CI still verifies decode via vmem/amem.
+  # The native X11/Wayland/GL + ALSA/Pulse + VA-API/VDPAU display/audio backends
+  # are enabled in a dedicated follow-up that also installs their -dev libs. They
+  # stay off here: VLC hard-requires xcb-composite once base xcb is detected, and
+  # the headless CI leg verifies decode/encode/metadata via vmem/amem anyway.
+  --disable-xcb --disable-alsa --disable-pulse --disable-vdpau --disable-sdl-image
   --disable-vnc --disable-gnutls --disable-srt --disable-chromaprint
   --enable-shared --disable-static
 )
