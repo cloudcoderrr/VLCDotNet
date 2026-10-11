@@ -322,6 +322,21 @@ build_contrib_group() {
   fi
 
   local targets; targets="$(contrib_group_targets "${group}")"
+  # Drop any explicitly-named group target that the bootstrap prune disables, so
+  # the heavy group does not force-build a package a caller pruned (e.g. x264/x265
+  # on Mac Catalyst, whose asm objects are tagged 'macOS' not 'macabi' and then
+  # fail to link into a Catalyst consumer app).
+  if [ -n "${targets}" ]; then
+    local _ft="" _t _pkg
+    for _t in ${targets}; do
+      _pkg="${_t#.}"
+      case " ${bootstrap_flags[*]} " in
+        *" --disable-${_pkg} "*) log "[${group}] skipping pruned target ${_t}" ;;
+        *) _ft="${_ft} ${_t}" ;;
+      esac
+    done
+    targets="${_ft# }"
+  fi
   log "[${group}] Building contrib targets: ${targets:-<all remaining enabled>}"
   ( cd "${cbuild}" && { env ${cenv[@]+"${cenv[@]}"} make ${cmk[@]+"${cmk[@]}"} -j"$(jobs)" ${targets} \
       || env ${cenv[@]+"${cenv[@]}"} make ${cmk[@]+"${cmk[@]}"} -j1 ${targets} ; } )
