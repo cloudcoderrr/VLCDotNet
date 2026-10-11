@@ -656,6 +656,109 @@ $("${nm}" "$a" 2>/dev/null | grep -oE 'vlc_entry__[A-Za-z0-9_]+' | sort -u)"
   log "Staged $(ls "${sdir}"/*.a 2>/dev/null | wc -l | tr -d ' ') archives; ${n} static modules registered for ${rid}"
 }
 
+# stage_dynamic_vlc <rid> <install-prefix> <platform> <min-ver-flag> <arch> <sdkroot> <extra-cflags>
+# Apple dynamic-linkage delivery (iOS / simulator / Mac Catalyst). Links the
+# build-internal static libvlc.a + libvlccore.a + every staged plugin archive +
+# the generated vlc_static_modules[] table into ONE dynamic Mach-O inside
+# VLCDotNet.framework/, so the .NET consumer links libvlc *dynamically* (no
+# app-linked archives, no libvlc __Internal) as required by the parity scope.
+# Plugins remain statically linked *inside* this dynamic framework (build-
+# internal archives are allowed) and register at libvlc_new() because the table
+# is force-loaded. Must run after stage_static_vlc (reuses its <out>/static/).
+stage_dynamic_vlc() {
+  local rid="$1" prefix="$2" platform="$3" minver="$4" arch="$5" sdkroot="$6" extracf="$7"
+  local out="${ARTIFACTS_DIR}/${rid}"
+  local sdir="${out}/static"
+  local fw="${out}/VLCDotNet.framework"
+  [ -f "${out}/libvlc.a" ] && [ -f "${out}/libvlccore.a" ] \
+    || { warn "stage_dynamic_vlc: missing libvlc.a/libvlccore.a for ${rid}"; return 1; }
+  [ -f "${sdir}/libvlcstaticmodules.a" ] \
+    || { warn "stage_dynamic_vlc: missing static module table for ${rid}"; return 1; }
+
+  log "Linking dynamic VLCDotNet.framework for ${rid}"
+
+  # Authoritative framework / system-library closure for *static* libvlc, taken
+  # from the installed pkg-config Libs.private (what a static consumer would
+  # otherwise have to name). Drop -lvlc/-lvlccore (linked here as archives).
+  local pcflags="" tok
+  if command -v pkg-config >/dev/null 2>&1; then
+    pcflags="$(PKG_CONFIG_LIBDIR="${prefix}/lib/pkgconfig" pkg-config --static --libs libvlc 2>/dev/null || true)"
+  fi
+  local sysflags=() want=0
+  for tok in ${pcflags}; do
+    if [ "${want}" = "1" ]; then sysflags+=(-framework "${tok}"); want=0; continue; fi
+    case "${tok}" in
+      -lvlc|-lvlccore) ;;
+      -framework) want=1 ;;
+      -weak_framework) want=1 ;;  # treat like -framework (next token is the name)
+      -l*|-L*|-Wl,*) sysflags+=("${tok}") ;;
+    esac
+  done
+  # Fallback closure if pkg-config was unavailable or returned nothing.
+  if [ "${#sysflags[@]}" -eq 0 ]; then
+    sysflags=(-framework Foundation -framework CoreFoundation -framework CoreMedia \
+      -framework CoreVideo -framework VideoToolbox -framework AudioToolbox \
+      -framework CoreAudio -framework AudioUnit -framework Security -framework CFNetwork \
+      -framework CoreText -framework CoreGraphics -framework QuartzCore \
+      -lc++ -liconv -lbz2 -lz)
+    case "${platform}" in
+      ios|iossimulator) sysflags+=(-framework UIKit -framework OpenGLES -framework AVFoundation) ;;
+      maccatalyst)      sysflags+=(-framework UIKit -framework AVFoundation) ;;
+    esac
+  fi
+
+  local target
+  case "${platform}" in
+    ios)          target="${arch}-apple-ios" ;;
+    iossimulator) target="${arch}-apple-ios-simulator" ;;
+    maccatalyst)  target="${arch}-apple-ios-macabi" ;;
+    *)            warn "stage_dynamic_vlc: unexpected platform ${platform}"; return 1 ;;
+  esac
+
+  # Force-load the registration table + each plugin archive (their vlc_entry__*
+  # are only reached indirectly through the table). Normal-link the contrib
+  # archives exactly once (NOT force-loaded; avoids duplicate-symbol errors).
+  local force=(-Wl,-force_load,"${sdir}/libvlcstaticmodules.a") contribs=() a
+  for a in "${sdir}"/*.a; do
+    [ -e "$a" ] || continue
+    case "$(basename "$a")" in
+      libvlcstaticmodules.a) ;;
+      *_plugin.a)            force+=(-Wl,-force_load,"$a") ;;
+      *)                     contribs+=("$a") ;;
+    esac
+  done
+
+  mkdir -p "${fw}"
+  # shellcheck disable=SC2086
+  ${CC} -dynamiclib \
+    ${minver} -arch "${arch}" -isysroot "${sdkroot}" -target "${target}" ${extracf} \
+    -install_name "@rpath/VLCDotNet.framework/VLCDotNet" \
+    "${force[@]}" \
+    "${out}/libvlc.a" "${out}/libvlccore.a" \
+    "${contribs[@]}" \
+    "${sysflags[@]}" \
+    -o "${fw}/VLCDotNet" \
+    || { warn "stage_dynamic_vlc: dynamic framework link failed for ${rid}"; return 1; }
+
+  # Flat framework layout (iOS/Catalyst use a flat bundle, not Versions/).
+  cat > "${fw}/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleIdentifier</key><string>net.vlcdotnet.libvlc</string>
+  <key>CFBundleName</key><string>VLCDotNet</string>
+  <key>CFBundleExecutable</key><string>VLCDotNet</string>
+  <key>CFBundlePackageType</key><string>FMWK</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>MinimumOSVersion</key><string>12.0</string>
+  <key>CFBundleSupportedPlatforms</key><array><string>${platform}</string></array>
+</dict></plist>
+PLIST
+
+  log "Built ${fw}/VLCDotNet -> $(lipo -info "${fw}/VLCDotNet" 2>/dev/null || file "${fw}/VLCDotNet" 2>/dev/null)"
+}
+
 # bundle_linux_deps <artifact-dir>
 # Makes a Linux artifact relocatable: copies the transitive, non-system shared
 # library closure of libvlc + every plugin next to libvlc, then rewrites RPATHs
