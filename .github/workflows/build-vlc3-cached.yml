@@ -163,7 +163,16 @@ jobs:
           - { platform: iossimulator, arch: arm64,  rid: iossimulator-arm64 }
     steps:
       - uses: actions/checkout@v5
+      - name: Gate RID
+        id: f
+        shell: bash
+        env: { ALLOW: "${{ inputs.rids }}", RID: "${{ matrix.rid }}" }
+        run: |
+          run=true
+          if [ -n "$ALLOW" ]; then case ",$ALLOW," in *",$RID,"*) run=true ;; *) run=false ;; esac; fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
       - name: Install build tools
+        if: steps.f.outputs.run == 'true'
         run: |
           brew install automake libtool pkg-config nasm yasm meson ninja gettext bison flex gperf help2man zstd || true
           PY_USER_BIN="$(python3 -c 'import sysconfig; print(sysconfig.get_path("scripts", "posix_user"))')"
@@ -173,8 +182,10 @@ jobs:
           echo "$PY_USER_BIN" >> "$GITHUB_PATH"
           echo "/opt/homebrew/opt/bison/bin:/opt/homebrew/opt/gettext/bin:/opt/homebrew/opt/flex/bin" >> "$GITHUB_PATH"
       - name: Build libvlc (${{ matrix.platform }}/${{ matrix.arch }})
+        if: steps.f.outputs.run == 'true'
         run: bash cached/build/build-apple.sh ${{ matrix.platform }} ${{ matrix.arch }}
       - uses: actions/upload-artifact@v6
+        if: steps.f.outputs.run == 'true'
         with:
           name: vlc3-cached-${{ matrix.rid }}
           path: artifacts/${{ matrix.rid }}
