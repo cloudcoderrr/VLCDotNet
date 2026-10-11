@@ -433,6 +433,40 @@ restore_contrib() {
   log "Restored contrib prefix at ${new_prefix}"
 }
 
+# strip_excluded_plugins <artifact-dir>
+# Removes the native NETWORK transport plugins from a staged dynamic runtime.
+# The .NET host owns all transport (HTTP/FTP/RTP/UDP/TCP/SMB/NFS/RTSP/SAT-IP/
+# RIST/MMS/...), so these are excluded by the revised scope (cached/FEATURE-
+# PARITY-TASK.md). Local file/callback input (filesystem, imem, access_concat,
+# attachment), the optical-disc stack, local file/dummy output and every
+# demux/decode/subtitle/filter module are preserved. Matched by plugin file name
+# so it is safe on linux/windows/android/macOS dynamic builds; the Apple static
+# staging already excludes these categories at registration time.
+strip_excluded_plugins() {
+  local out="$1"
+  [ -d "${out}/plugins" ] || return 0
+  # Clear-cut native-network access / output / stream-out / discovery modules.
+  local names="http https ftp sftp ftps http_zip \
+    rtp rtpvideo rtsp live555 realrtsp vod_rtsp sdp \
+    tcp udp \
+    nfs smb smb2 dsm \
+    dtv dvb satip \
+    rist srt \
+    access_mms mms \
+    vnc \
+    avio \
+    access_output_http access_output_livehttp access_output_udp access_output_rist access_output_srt \
+    stream_out_rtp stream_out_rtpvideo \
+    sap podcast upnp microdns bonjour mdns"
+  local n removed=0 f
+  for n in ${names}; do
+    while IFS= read -r -d '' f; do
+      rm -f "$f" && removed=$((removed + 1))
+    done < <(find "${out}/plugins" -type f -name "lib${n}_plugin.*" -print0 2>/dev/null)
+  done
+  log "Stripped ${removed} excluded native-networking plugin file(s) from ${out}"
+}
+
 # normalize_output <rid> <install-prefix>
 # Copies the built libvlc runtime (libs + plugins + licenses) from an installed
 # prefix into artifacts/<rid>/ using the stable layout consumed by the packer.
@@ -490,6 +524,9 @@ normalize_output() {
   for l in COPYING COPYING.LIB ; do
     [ -f "${prefix}/../${l}" ] && cp -a "${prefix}/../${l}" "${out}/" || true
   done
+
+  # Drop the excluded native-networking plugins (C# owns transport).
+  strip_excluded_plugins "${out}"
 
   log "Wrote ${rid} -> ${out}"
   ( cd "${out}" && find . -maxdepth 2 -type f | sort | head -n 40 )
