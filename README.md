@@ -53,8 +53,11 @@ are committed by hand. Each per-platform build:
    `make && make install` into a private prefix.
 5. Normalizes the result into `artifacts/<rid>/` (`libvlc*`, `libvlccore*`,
    `plugins/`, licenses) — the stable layout the NuGet packer consumes. Apple
-   static targets (iOS/simulator/Mac Catalyst) additionally stage a
-   `vlc_static_modules[]` table for static plugin registration.
+   mobile targets (iOS/simulator/Mac Catalyst) additionally link libvlc +
+   libvlccore + every plugin and a generated `vlc_static_modules[]` registration
+   table into one signed, embedded dynamic `VLCDotNet.framework`, so consuming
+   apps link libvlc **dynamically** (no app-linked archives, no libvlc
+   `__Internal`).
 
 ### Native-build pipelines
 
