@@ -38,6 +38,14 @@ export LD="${NDK_TC}/bin/ld"
 export PATH="${NDK_TC}/bin:${PATH}"
 export ANDROID_NDK="${ANDROID_NDK_HOME}"
 export ANDROID_ABI="${ABI}"
+
+# NDK r23+ ships only the llvm-* binutils; some contrib configure scripts (x264)
+# invoke the unprefixed names (strings, nm, ...) directly from the toolchain bin
+# dir. Provide the missing symlinks so those probes resolve to the llvm tools.
+for _t in strings nm ar ranlib strip objcopy objdump readelf size addr2line; do
+  [ -e "${NDK_TC}/bin/${_t}" ] || ln -sf "llvm-${_t}" "${NDK_TC}/bin/${_t}" 2>/dev/null || true
+done
+unset _t
 # Downgrade legacy C/C++ diagnostics the NDK clang treats as errors in VLC 3.
 export CFLAGS="${CFLAGS:-} -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types -Wno-error=int-conversion"
 export CXXFLAGS="${CXXFLAGS:-} -Wno-error=incompatible-pointer-types -Wno-c++11-narrowing"
@@ -73,8 +81,10 @@ CONTRIB_ENV=(HAVE_ANDROID=1 ANDROID_API="${API}" ANDROID_ABI="${ABI}" ANDROID_ND
 if [ "${PHASE}" = "contrib" ]; then
   # Android ships no optical-disc hardware, so drop the disc stack (dvd*/bluray)
   # from the parity closure (it is desktop-only and bluray needs fontconfig,
-  # which Android does not use). Network stays pruned via CONTRIB_DEFAULT_PRUNE.
-  ANDROID_PRUNE="--disable-disc ${CACHED_CONTRIB_PRUNE:-}"
+  # which Android does not use). mpg123's autoreconf also fails under the NDK
+  # cross env (LT_SYS_MODULE_EXT); MP3 decode is covered by mad + ffmpeg.
+  # Network stays pruned via CONTRIB_DEFAULT_PRUNE.
+  ANDROID_PRUNE="--disable-disc --disable-mpg123 ${CACHED_CONTRIB_PRUNE:-}"
   if [ -n "${CONTRIB_GROUP:-}" ]; then
     build_contrib_group "${VLC_SRC}" "contrib-android-${ARCH}" "${TRIPLET}" "${RID}" "${CONTRIB_GROUP}" \
       -- ${ANDROID_PRUNE}

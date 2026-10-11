@@ -78,12 +78,16 @@ export PATH="${WRAP_DIR}:${PATH}"
 
 # ---- Phase 1: build + cache the full contrib set ----------------------------
 if [ "${PHASE}" = "contrib" ]; then
+  # mpg123's autoreconf fails under the llvm-mingw cross environment (its
+  # configure.ac uses the libtool macro LT_SYS_MODULE_EXT, which does not expand
+  # here). MP3 decode is covered by mad + ffmpeg, so drop mpg123 on Windows.
+  WIN_PRUNE="--disable-mpg123 ${CACHED_CONTRIB_PRUNE:-}"
   if [ -n "${CONTRIB_GROUP:-}" ]; then
     build_contrib_group "${VLC_SRC}" "contrib-win-${ARCH}" "${TRIPLET}" "${RID}" "${CONTRIB_GROUP}" \
-      ${CACHED_CONTRIB_PRUNE:+-- ${CACHED_CONTRIB_PRUNE}}
+      -- ${WIN_PRUNE}
   else
     build_full_contrib "${VLC_SRC}" "contrib-win-${ARCH}" "${TRIPLET}" \
-      ${CACHED_CONTRIB_PRUNE:+-- ${CACHED_CONTRIB_PRUNE}}
+      -- ${WIN_PRUNE}
     pack_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
   fi
   exit 0
