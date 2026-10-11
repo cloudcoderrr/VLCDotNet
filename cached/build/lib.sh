@@ -456,25 +456,30 @@ restore_contrib() {
 # attachment), the optical-disc stack, local file/dummy output and every
 # demux/decode/subtitle/filter module are preserved. Matched by plugin file name
 # so it is safe on linux/windows/android/macOS dynamic builds; the Apple static
-# staging already excludes these categories at registration time.
+# staging applies the same list (VLC_EXCLUDED_NET_MODULES) at registration time.
+#
+# Shared native-network module denylist (module base names, no lib/_plugin
+# affixes), consumed by strip_excluded_plugins (dynamic file removal) and by
+# stage_static_vlc (skipped at static registration time) so both deliver the
+# identical excluded-transport set across every RID.
+VLC_EXCLUDED_NET_MODULES="http https ftp sftp ftps http_zip \
+  rtp rtpvideo rtsp live555 realrtsp vod_rtsp sdp \
+  tcp udp \
+  nfs smb smb2 dsm \
+  dtv dvb satip \
+  rist srt \
+  access_mms mms \
+  vnc \
+  avio \
+  access_output_http access_output_livehttp access_output_udp access_output_rist access_output_srt \
+  stream_out_rtp stream_out_rtpvideo \
+  sap podcast upnp microdns bonjour mdns"
+
 strip_excluded_plugins() {
   local out="$1"
   [ -d "${out}/plugins" ] || return 0
-  # Clear-cut native-network access / output / stream-out / discovery modules.
-  local names="http https ftp sftp ftps http_zip \
-    rtp rtpvideo rtsp live555 realrtsp vod_rtsp sdp \
-    tcp udp \
-    nfs smb smb2 dsm \
-    dtv dvb satip \
-    rist srt \
-    access_mms mms \
-    vnc \
-    avio \
-    access_output_http access_output_livehttp access_output_udp access_output_rist access_output_srt \
-    stream_out_rtp stream_out_rtpvideo \
-    sap podcast upnp microdns bonjour mdns"
   local n removed=0 f
-  for n in ${names}; do
+  for n in ${VLC_EXCLUDED_NET_MODULES}; do
     while IFS= read -r -d '' f; do
       rm -f "$f" && removed=$((removed + 1))
     done < <(find "${out}/plugins" -type f -name "lib${n}_plugin.*" -print0 2>/dev/null)
@@ -565,9 +570,15 @@ stage_static_vlc() {
   local plugdir="${prefix}/lib/vlc/plugins"
   if [ -d "${plugdir}" ]; then
     while IFS= read -r -d '' a; do
-      local base cat stage_module=0
+      local base cat stage_module=0 modname
       base="$(basename "$a" .a)"
       cat="$(basename "$(dirname "$a")")"
+      # Exclude native-network transport modules from the static registration
+      # table (C# owns transport); same denylist the dynamic builds strip.
+      modname="$(printf '%s' "${base#lib}" | sed 's/_plugin$//')"
+      case " ${VLC_EXCLUDED_NET_MODULES} " in
+        *" ${modname} "*) continue ;;
+      esac
       case "${cat}" in
         access|audio_filter|audio_output|codec|demux|meta_engine|packetizer|spu|text_renderer|video_chroma|video_output)
           stage_module=1
