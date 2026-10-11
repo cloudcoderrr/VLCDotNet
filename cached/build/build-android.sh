@@ -85,6 +85,10 @@ if [ "${PHASE}" = "contrib" ]; then
   # cross env (LT_SYS_MODULE_EXT); MP3 decode is covered by mad + ffmpeg.
   # Network stays pruned via CONTRIB_DEFAULT_PRUNE.
   ANDROID_PRUNE="--disable-disc --disable-mpg123 ${CACHED_CONTRIB_PRUNE:-}"
+  # VLC 4.0's sidplay2 does not compile against the NDK libc++ (<fstream>
+  # references ::fseeko/::ftello) on Android; SID music is deferred on VLC 4
+  # Android (it builds fine for VLC 3). Scope the prune to that combination.
+  [ "${VLC_SERIES}" = "4" ] && ANDROID_PRUNE="--disable-sidplay2 ${ANDROID_PRUNE}"
   if [ -n "${CONTRIB_GROUP:-}" ]; then
     build_contrib_group "${VLC_SRC}" "contrib-android-${ARCH}" "${TRIPLET}" "${RID}" "${CONTRIB_GROUP}" \
       -- ${ANDROID_PRUNE}
