@@ -681,13 +681,14 @@ stage_dynamic_vlc() {
   # plugins. pkg-config's libvlc Libs.private is contaminated with macOS-only
   # AppKit and -undefined dynamic_lookup (both invalid on iOS/simulator), so the
   # authoritative set is enumerated here, matching the proven NativeReference
-  # Frameworks lists the static consumer targets used (plus AudioUnit for the
-  # audiounit_ios/auhal outputs). Fully resolved link => a self-contained dylib.
+  # Frameworks lists the static consumer targets used. (AudioUnit is NOT a
+  # standalone framework on iOS/simulator/macabi — those APIs live in
+  # AudioToolbox — so it must not be named here.) Fully resolved => self-contained.
   local sysflags=(
     -framework Foundation -framework CoreFoundation -framework CFNetwork
     -framework CoreGraphics -framework CoreText -framework QuartzCore
     -framework CoreMedia -framework CoreVideo -framework CoreAudio
-    -framework AudioToolbox -framework AudioUnit -framework AVFoundation
+    -framework AudioToolbox -framework AVFoundation
     -framework VideoToolbox -framework Security -framework SystemConfiguration
     -lc++ -liconv -lbz2 -lz
   )
