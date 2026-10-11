@@ -112,12 +112,11 @@ CONFIG_FLAGS=(
   "--with-contrib=${CONTRIB_PREFIX}"
   --disable-vlc --disable-qt --disable-skins2 --disable-nls
   --disable-lua --disable-a52
-  --disable-taglib
+  --enable-taglib        # metadata read/write (feature parity, contrib-provided)
   --disable-sdl-image
-  --disable-bluray
+  --disable-bluray       # Android ships no optical-disc stack
   --disable-xcb --disable-alsa --disable-pulse --disable-vdpau
   --disable-v4l2 --disable-vnc --disable-gnutls --disable-srt --disable-ncurses
-  --disable-libxml2
   --enable-avcodec --enable-swscale
   --enable-shared --disable-static
 )
@@ -165,19 +164,17 @@ fi
 
 normalize_output "${RID}" "${INSTALL_PREFIX}"
 
-# VLC 4.0's C++ plugins (mkv/libmatroska, spatializer, adaptive, vpx_alpha,
-# blend, ...) dynamically link the NDK's shared C++ runtime, which is not part
-# of the VLC install prefix. Ship it alongside libvlc.so so the APK layout puts
-# it in lib/<abi>/ and those plugins can dlopen at runtime. VLC 3.0's plugin set
-# does not pull in libc++_shared, so this is limited to 4.x.
-if [ "${VLC_SERIES}" != "3" ]; then
-  libcxx="${NDK_TC}/sysroot/usr/lib/${TRIPLET}/libc++_shared.so"
-  if [ -f "${libcxx}" ]; then
-    cp -a "${libcxx}" "${ARTIFACTS_DIR}/${RID}/"
-    log "Bundled libc++_shared.so for ${RID}"
-  else
-    warn "libc++_shared.so not found at ${libcxx}"
-  fi
+# VLC's C++ plugins (mkv/libmatroska, taglib, sid, gme, modplug, spatializer,
+# adaptive, blend, ...) dynamically link the NDK's shared C++ runtime, which is
+# not part of the VLC install prefix. Ship it alongside libvlc.so so the APK
+# layout puts it in lib/<abi>/ and those plugins can dlopen at runtime. The
+# parity closure pulls C++ plugins into both series, so bundle it unconditionally.
+libcxx="${NDK_TC}/sysroot/usr/lib/${TRIPLET}/libc++_shared.so"
+if [ -f "${libcxx}" ]; then
+  cp -a "${libcxx}" "${ARTIFACTS_DIR}/${RID}/"
+  log "Bundled libc++_shared.so for ${RID}"
+else
+  warn "libc++_shared.so not found at ${libcxx}"
 fi
 
 cp -a "${VLC_SRC}/COPYING"     "${ARTIFACTS_DIR}/${RID}/" 2>/dev/null || true
