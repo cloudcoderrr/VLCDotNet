@@ -122,8 +122,10 @@ case "${PLATFORM}" in
     # VLC 4.0 only: gmp's build-machine compiler self-test fails under the iOS
     # cross environment (the exported CC_FOR_BUILD resolves the target CPPFLAGS).
     # gmp is only pulled in by nettle <- gnutls (network, already disabled) and
-    # asdcplib (Digital Cinema); neither is a VLC 4 required test module.
-    [ "${VLC_SERIES}" != "3" ] && APPLE_PRUNE+=(--disable-asdcplib --disable-gnutls --disable-nettle --disable-gmp) ;;
+    # asdcplib (Digital Cinema); neither is a VLC 4 required test module. VLC 4's
+    # x265 cmake passes an empty -mmacosx-version-min= to the iOS assembler, so
+    # drop the encoders on VLC 4 mobile (VideoToolbox provides H.264/H.265 encode).
+    [ "${VLC_SERIES}" != "3" ] && APPLE_PRUNE+=(--disable-asdcplib --disable-gnutls --disable-nettle --disable-gmp --disable-x264 --disable-x265) ;;
   maccatalyst)
     # Catalyst requires only avcodec+sout+videotoolbox; libvpx's VP9 RTC C++ does
     # not compile for the macabi arm64 target, and schroedinger/orc are unstable.
