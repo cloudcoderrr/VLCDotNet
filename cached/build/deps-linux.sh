@@ -19,6 +19,21 @@ ${SUDO} apt-get install -y --no-install-recommends \
   gperf help2man patchelf python3 python3-setuptools ragel \
   ant default-jdk-headless unzip zip
 
+# Feature-parity: system development libraries for the native Linux output,
+# audio and hardware-decode backends libvlc enables (X11/XCB, OpenGL/EGL/GLES,
+# Wayland, ALSA, PulseAudio, VA-API, VDPAU). These are linked by the libvlc
+# plugins, NOT the contrib set, so they are not part of the self-contained
+# contrib closure. Without them configure silently drops the display/audio/hwdec
+# modules, and VLC hard-errors on xcb-composite once base xcb is detected.
+${SUDO} apt-get install -y --no-install-recommends \
+  libasound2-dev libpulse-dev \
+  libx11-dev libx11-xcb-dev libxext-dev libxrender-dev \
+  libxcb1-dev libxcb-shm0-dev libxcb-composite0-dev libxcb-xfixes0-dev \
+  libxcb-randr0-dev libxcb-keysyms1-dev libxcb-xv0-dev libxcb-xkb-dev \
+  libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev \
+  libwayland-dev wayland-protocols libxkbcommon-dev \
+  libva-dev libvdpau-dev
+
 # Cross toolchains for building the arm/arm64 contribs on an x86_64 runner. The
 # cached pipeline cross-compiles the linux arm/arm64 CONTRIB phase (a full
 # closure under QEMU emulation is far too slow); QEMU is used only for the
