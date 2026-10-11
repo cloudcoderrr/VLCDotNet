@@ -84,10 +84,14 @@ CONFIG_FLAGS=(
   --enable-taglib                                    # metadata read/write
   --enable-dvdread --enable-dvdnav --enable-bluray   # local disc stack
   --disable-sdl-image    # images covered by png/jpeg/avcodec
-  # Native X11/XCB + OpenGL/EGL/GLES + Wayland display, ALSA/PulseAudio output
-  # and VA-API/VDPAU hardware decode auto-detect from the -dev libs that
-  # deps-linux.sh installs. Headless CI builds and loads them; real desktop apps
-  # use them for video output / audio / hw decode (device-validated separately).
+  # X11/XCB + OpenGL/EGL/GLES + Wayland display and ALSA/PulseAudio output
+  # auto-detect from the -dev libs deps-linux.sh installs. Headless CI builds and
+  # loads them; real desktop apps use them for video output / audio.
+  # VA-API/VDPAU hardware decode is deferred: the vdpau_avcodec/vaapi hwaccel
+  # plugins reference ffmpeg's av_vdpau_*/av_vaapi_* symbols, which the cached
+  # contrib ffmpeg was NOT built with, so they fail to link. Restoring them needs
+  # the contrib ffmpeg rebuilt with --enable-vaapi/--enable-vdpau.
+  --disable-vaapi --disable-vdpau
   --disable-vnc --disable-gnutls --disable-srt --disable-chromaprint
   --enable-shared --disable-static
 )
