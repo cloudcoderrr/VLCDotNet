@@ -33,36 +33,23 @@
 
   <!-- ===================== iOS / Mac Catalyst ===================== -->
   <!--
-    libvlc is a static archive on these platforms and is resolved through the
-    "__Internal" DllImport target. Link libvlc.a + libvlccore.a + every plugin
-    and contrib archive under static/, and force-load libvlcstaticmodules.a (the
-    generated vlc_static_modules[] table) so the statically linked plugins are
-    registered. The plugins pull the system frameworks/libraries they reference.
+    libvlc ships as a signed, embedded *dynamic* framework
+    (VLCDotNet.framework/VLCDotNet) built by stage_dynamic_vlc: one Mach-O that
+    bundles libvlc + libvlccore + every plugin/contrib archive and force-loads
+    the generated vlc_static_modules[] table internally, resolving all system
+    frameworks at link time. The consumer links it *dynamically* via a single
+    NativeReference (Kind=Framework) — no app-linked archives, no libvlc
+    "__Internal" — which .NET for iOS embeds under the app's Frameworks/ and
+    signs. The DllImport target name is the framework binary ("VLCDotNet").
   -->
-  <PropertyGroup Condition="('$(TargetPlatformIdentifier)' == 'ios' or '$(TargetPlatformIdentifier)' == 'maccatalyst') and Exists('$(_VlcNativeRoot)/$(RuntimeIdentifier)/static')">
+  <PropertyGroup Condition="('$(TargetPlatformIdentifier)' == 'ios' or '$(TargetPlatformIdentifier)' == 'maccatalyst') and Exists('$(_VlcNativeRoot)/$(RuntimeIdentifier)/VLCDotNet.framework')">
     <_VlcRid>$(_VlcNativeRoot)/$(RuntimeIdentifier)</_VlcRid>
-    <MtouchExtraArgs>$(MtouchExtraArgs) -gcc_flags "-lc++ -lbz2 -liconv -lz"</MtouchExtraArgs>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'ios' and Exists('$(_VlcNativeRoot)/$(RuntimeIdentifier)/static')">
-    <NativeReference Include="$(_VlcRid)/libvlc.a">
-      <Kind>Static</Kind>
-      <ForceLoad>true</ForceLoad>
-      <Frameworks>Foundation CoreFoundation CFNetwork UIKit CoreGraphics CoreText QuartzCore CoreMedia CoreVideo CoreAudio AudioToolbox AVFoundation VideoToolbox OpenGLES Security SystemConfiguration</Frameworks>
+  <ItemGroup Condition="('$(TargetPlatformIdentifier)' == 'ios' or '$(TargetPlatformIdentifier)' == 'maccatalyst') and Exists('$(_VlcNativeRoot)/$(RuntimeIdentifier)/VLCDotNet.framework')">
+    <NativeReference Include="$(_VlcRid)/VLCDotNet.framework">
+      <Kind>Framework</Kind>
+      <SmartLink>False</SmartLink>
     </NativeReference>
-    <NativeReference Include="$(_VlcRid)/libvlccore.a"><Kind>Static</Kind><ForceLoad>true</ForceLoad></NativeReference>
-    <NativeReference Include="$(_VlcRid)/static/libvlcstaticmodules.a"><Kind>Static</Kind><ForceLoad>true</ForceLoad></NativeReference>
-    <NativeReference Include="$(_VlcRid)/static/*.a" Exclude="$(_VlcRid)/static/libvlcstaticmodules.a"><Kind>Static</Kind><ForceLoad>false</ForceLoad></NativeReference>
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'maccatalyst' and Exists('$(_VlcNativeRoot)/$(RuntimeIdentifier)/static')">
-    <NativeReference Include="$(_VlcRid)/libvlc.a">
-      <Kind>Static</Kind>
-      <ForceLoad>true</ForceLoad>
-      <Frameworks>Foundation CoreFoundation CFNetwork AppKit CoreGraphics CoreText QuartzCore CoreMedia CoreVideo CoreAudio AudioToolbox AVFoundation VideoToolbox Security SystemConfiguration</Frameworks>
-    </NativeReference>
-    <NativeReference Include="$(_VlcRid)/libvlccore.a"><Kind>Static</Kind><ForceLoad>true</ForceLoad></NativeReference>
-    <NativeReference Include="$(_VlcRid)/static/libvlcstaticmodules.a"><Kind>Static</Kind><ForceLoad>true</ForceLoad></NativeReference>
-    <NativeReference Include="$(_VlcRid)/static/*.a" Exclude="$(_VlcRid)/static/libvlcstaticmodules.a"><Kind>Static</Kind><ForceLoad>false</ForceLoad></NativeReference>
   </ItemGroup>
 </Project>

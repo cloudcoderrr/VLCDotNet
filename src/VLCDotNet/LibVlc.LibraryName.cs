@@ -11,13 +11,14 @@ namespace VLCDotNet
     {
         /// <summary>
         /// Native library name used by every <see cref="DllImportAttribute"/>.
-        /// On iOS libvlc is statically linked into the app binary, so the target
-        /// is the special <c>__Internal</c> pseudo-module; everywhere else the
-        /// dynamic library is resolved by the base name <c>libvlc</c>
-        /// (libvlc.dll / libvlc.so / libvlc.dylib).
+        /// On iOS / Mac Catalyst libvlc ships as a signed, embedded dynamic
+        /// framework (<c>VLCDotNet.framework/VLCDotNet</c>, built by
+        /// stage_dynamic_vlc), so the DllImport target is that framework binary
+        /// name; everywhere else the dynamic library is resolved by the base
+        /// name <c>libvlc</c> (libvlc.dll / libvlc.so / libvlc.dylib).
         /// </summary>
 #if IOS || MACCATALYST
-        internal const string Lib = "__Internal";
+        internal const string Lib = "VLCDotNet";
 #else
         internal const string Lib = "libvlc";
 #endif
