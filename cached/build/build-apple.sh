@@ -239,11 +239,10 @@ case "${PLATFORM}" in
       "${VLCARCH}"
     # Dynamic-linkage delivery: link the staged archives + module table into a
     # single dynamic VLCDotNet.framework (parity scope forbids app-linked
-    # archives / libvlc __Internal). Non-fatal during bring-up so the validated
-    # static outputs are retained until the dynamic consumer path is switched on.
+    # archives / libvlc __Internal). Fatal: validated end-to-end on the iOS
+    # simulator (framework embeds, signs, loads and registers every module).
     stage_dynamic_vlc "${RID}" "${INSTALL_PREFIX}" "${PLATFORM}" \
-      "${MINVER}" "${VLCARCH}" "${SDKROOT}" "${EXTRA_CFLAGS}" \
-      || warn "stage_dynamic_vlc failed for ${RID} (static outputs retained)"
+      "${MINVER}" "${VLCARCH}" "${SDKROOT}" "${EXTRA_CFLAGS}"
     ;;
 esac
 cp -a "${VLC_SRC}/COPYING"     "${ARTIFACTS_DIR}/${RID}/" 2>/dev/null || true
