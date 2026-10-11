@@ -40,6 +40,14 @@ env:
   VLC_REF: "${{ inputs.ref || 'e77e49b5dff7484dbf70cd1540a6a568e1890280' }}"
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Phase 1 is split into ordered GROUPS (one CI job each) so no single runner
+  # builds the whole feature-parity contrib closure. The "<family>" jobs build
+  # the long poles (CONTRIB_GROUP=heavy: ffmpeg + x265 + x264) and upload the
+  # resumable state as the "contribstate-<rid>" artifact; the "<family>-rest"
+  # jobs download that state and bare-make everything else (CONTRIB_GROUP=rest),
+  # then commit the final cache. See cached/build/lib.sh (build_contrib_group).
+  # ---------------------------------------------------------------------------
   linux:
     if: ${{ inputs.only == 'all' || inputs.only == 'linux' }}
     runs-on: ubuntu-22.04
@@ -72,9 +80,64 @@ jobs:
       # arm/arm64 contribs are cross-compiled natively on the x86_64 runner (a
       # full contrib closure under QEMU emulation is far too slow). build-linux.sh
       # selects the cross toolchain when the target arch differs from the runner.
-      - name: Build contrib (${{ matrix.arch }})
+      - name: Build contrib group heavy (${{ matrix.arch }})
         if: steps.f.outputs.run == 'true'
-        env: { CACHED_PHASE: contrib }
+        env: { CACHED_PHASE: contrib, CONTRIB_GROUP: heavy }
+        run: |
+          sudo bash cached/build/deps-linux.sh
+          bash cached/build/build-linux.sh ${{ matrix.arch }}
+      - name: Dump ffmpeg config.log on failure
+        if: failure() && steps.f.outputs.run == 'true'
+        shell: bash
+        run: |
+          f=$(find cached/build/_work -path '*ffmpeg*' -name config.log 2>/dev/null | head -1)
+          [ -n "$f" ] && { echo "=== $f (tail) ==="; tail -n 80 "$f"; } || echo "no ffmpeg config.log found"
+      - uses: actions/upload-artifact@v6
+        if: steps.f.outputs.run == 'true'
+        with:
+          name: contribstate-${{ matrix.rid }}
+          path: cached/build/_state/${{ matrix.rid }}
+          if-no-files-found: error
+
+  linux-rest:
+    needs: linux
+    if: ${{ inputs.only == 'all' || inputs.only == 'linux' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64,  rid: linux-x64 }
+          - { arch: aarch64, rid: linux-arm64 }
+          - { arch: armv7,   rid: linux-arm }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Gate RID
+        id: f
+        shell: bash
+        env: { ALLOW: "${{ inputs.rids }}", RID: "${{ matrix.rid }}" }
+        run: |
+          run=true
+          if [ -n "$ALLOW" ]; then case ",$ALLOW," in *",$RID,"*) run=true ;; *) run=false ;; esac; fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - name: Reclaim disk
+        if: steps.f.outputs.run == 'true'
+        shell: bash
+        run: |
+          rm -rf cached/contribs || true
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost "${AGENT_TOOLSDIRECTORY:-}" || true
+          sudo docker system prune -af || true
+          df -h || true
+      - name: Restore contrib state
+        if: steps.f.outputs.run == 'true'
+        uses: actions/download-artifact@v6
+        with:
+          name: contribstate-${{ matrix.rid }}
+          path: cached/build/_state/${{ matrix.rid }}
+      - name: Build contrib group rest (${{ matrix.arch }})
+        if: steps.f.outputs.run == 'true'
+        env: { CACHED_PHASE: contrib, CONTRIB_GROUP: rest }
         run: |
           sudo bash cached/build/deps-linux.sh
           bash cached/build/build-linux.sh ${{ matrix.arch }}
@@ -126,9 +189,62 @@ jobs:
             build-essential automake autopoint libtool-bin pkg-config gettext \
             git bison flex nasm yasm cmake ninja-build meson zip p7zip-full \
             gperf help2man dos2unix curl xz-utils zstd file ragel
-      - name: Build contrib (${{ matrix.arch }})
+      - name: Build contrib group heavy (${{ matrix.arch }})
         if: steps.f.outputs.run == 'true'
-        env: { CACHED_PHASE: contrib }
+        env: { CACHED_PHASE: contrib, CONTRIB_GROUP: heavy }
+        run: bash cached/build/build-windows.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        if: steps.f.outputs.run == 'true'
+        with:
+          name: contribstate-${{ matrix.rid }}
+          path: cached/build/_state/${{ matrix.rid }}
+          if-no-files-found: error
+
+  windows-rest:
+    needs: windows
+    if: ${{ inputs.only == 'all' || inputs.only == 'windows' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64,  rid: win-x64 }
+          - { arch: aarch64, rid: win-arm64 }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Gate RID
+        id: f
+        shell: bash
+        env: { ALLOW: "${{ inputs.rids }}", RID: "${{ matrix.rid }}" }
+        run: |
+          run=true
+          if [ -n "$ALLOW" ]; then case ",$ALLOW," in *",$RID,"*) run=true ;; *) run=false ;; esac; fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - name: Reclaim disk
+        if: steps.f.outputs.run == 'true'
+        run: |
+          rm -rf cached/contribs || true
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL "${AGENT_TOOLSDIRECTORY:-}" || true
+          sudo docker system prune -af || true
+          df -h || true
+      - name: Install cross build dependencies
+        if: steps.f.outputs.run == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential automake autopoint libtool-bin pkg-config gettext \
+            git bison flex nasm yasm cmake ninja-build meson zip p7zip-full \
+            gperf help2man dos2unix curl xz-utils zstd file ragel
+      - name: Restore contrib state
+        if: steps.f.outputs.run == 'true'
+        uses: actions/download-artifact@v6
+        with:
+          name: contribstate-${{ matrix.rid }}
+          path: cached/build/_state/${{ matrix.rid }}
+      - name: Build contrib group rest (${{ matrix.arch }})
+        if: steps.f.outputs.run == 'true'
+        env: { CACHED_PHASE: contrib, CONTRIB_GROUP: rest }
         run: bash cached/build/build-windows.sh ${{ matrix.arch }}
       - uses: actions/upload-artifact@v6
         if: steps.f.outputs.run == 'true'
@@ -176,9 +292,66 @@ jobs:
       - name: Resolve Android NDK
         if: steps.f.outputs.run == 'true'
         run: echo "ANDROID_NDK_HOME=${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}" >> "$GITHUB_ENV"
-      - name: Build contrib (${{ matrix.arch }})
+      - name: Build contrib group heavy (${{ matrix.arch }})
         if: steps.f.outputs.run == 'true'
-        env: { CACHED_PHASE: contrib }
+        env: { CACHED_PHASE: contrib, CONTRIB_GROUP: heavy }
+        run: bash cached/build/build-android.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        if: steps.f.outputs.run == 'true'
+        with:
+          name: contribstate-${{ matrix.rid }}
+          path: cached/build/_state/${{ matrix.rid }}
+          if-no-files-found: error
+
+  android-rest:
+    needs: android
+    if: ${{ inputs.only == 'all' || inputs.only == 'android' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, rid: android-x64 }
+          - { arch: arm64,  rid: android-arm64 }
+          - { arch: arm,    rid: android-arm }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Gate RID
+        id: f
+        shell: bash
+        env: { ALLOW: "${{ inputs.rids }}", RID: "${{ matrix.rid }}" }
+        run: |
+          run=true
+          if [ -n "$ALLOW" ]; then case ",$ALLOW," in *",$RID,"*) run=true ;; *) run=false ;; esac; fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - name: Reclaim disk
+        if: steps.f.outputs.run == 'true'
+        run: |
+          rm -rf cached/contribs || true
+          sudo rm -rf /usr/share/dotnet /usr/local/share/boost "${AGENT_TOOLSDIRECTORY:-}" || true
+          sudo docker system prune -af || true
+          df -h || true
+      - name: Install build dependencies
+        if: steps.f.outputs.run == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential automake autopoint libtool-bin pkg-config gettext \
+            git bison flex nasm yasm cmake ninja-build meson curl xz-utils zstd unzip \
+            gperf help2man ragel
+      - name: Resolve Android NDK
+        if: steps.f.outputs.run == 'true'
+        run: echo "ANDROID_NDK_HOME=${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}" >> "$GITHUB_ENV"
+      - name: Restore contrib state
+        if: steps.f.outputs.run == 'true'
+        uses: actions/download-artifact@v6
+        with:
+          name: contribstate-${{ matrix.rid }}
+          path: cached/build/_state/${{ matrix.rid }}
+      - name: Build contrib group rest (${{ matrix.arch }})
+        if: steps.f.outputs.run == 'true'
+        env: { CACHED_PHASE: contrib, CONTRIB_GROUP: rest }
         run: bash cached/build/build-android.sh ${{ matrix.arch }}
       - uses: actions/upload-artifact@v6
         if: steps.f.outputs.run == 'true'
@@ -227,9 +400,67 @@ jobs:
           cmake --version
           echo "$PY_USER_BIN" >> "$GITHUB_PATH"
           echo "/opt/homebrew/opt/bison/bin:/opt/homebrew/opt/gettext/bin:/opt/homebrew/opt/flex/bin" >> "$GITHUB_PATH"
-      - name: Build contrib (${{ matrix.platform }}/${{ matrix.arch }})
+      - name: Build contrib group heavy (${{ matrix.platform }}/${{ matrix.arch }})
         if: steps.f.outputs.run == 'true'
-        env: { CACHED_PHASE: contrib }
+        env: { CACHED_PHASE: contrib, CONTRIB_GROUP: heavy }
+        run: bash cached/build/build-apple.sh ${{ matrix.platform }} ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        if: steps.f.outputs.run == 'true'
+        with:
+          name: contribstate-${{ matrix.rid }}
+          path: cached/build/_state/${{ matrix.rid }}
+          if-no-files-found: error
+
+  apple-rest:
+    needs: apple
+    if: ${{ inputs.only == 'all' || inputs.only == 'apple' }}
+    runs-on: macos-14
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: macos,        arch: x86_64, rid: osx-x64 }
+          - { platform: macos,        arch: arm64,  rid: osx-arm64 }
+          - { platform: maccatalyst,  arch: x86_64, rid: maccatalyst-x64 }
+          - { platform: maccatalyst,  arch: arm64,  rid: maccatalyst-arm64 }
+          - { platform: ios,          arch: arm64,  rid: ios-arm64 }
+          - { platform: iossimulator, arch: x86_64, rid: iossimulator-x64 }
+          - { platform: iossimulator, arch: arm64,  rid: iossimulator-arm64 }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Gate RID
+        id: f
+        shell: bash
+        env: { ALLOW: "${{ inputs.rids }}", RID: "${{ matrix.rid }}" }
+        run: |
+          run=true
+          if [ -n "$ALLOW" ]; then case ",$ALLOW," in *",$RID,"*) run=true ;; *) run=false ;; esac; fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - name: Reclaim disk
+        if: steps.f.outputs.run == 'true'
+        run: |
+          rm -rf cached/contribs || true
+          df -h || true
+      - name: Install build tools
+        if: steps.f.outputs.run == 'true'
+        run: |
+          brew install automake libtool pkg-config nasm yasm meson ninja gettext bison flex gperf help2man zstd ragel || true
+          PY_USER_BIN="$(python3 -c 'import sysconfig; print(sysconfig.get_path("scripts", "posix_user"))')"
+          python3 -m pip install --user --break-system-packages 'cmake<3.29'
+          export PATH="$PY_USER_BIN:$PATH"
+          cmake --version
+          echo "$PY_USER_BIN" >> "$GITHUB_PATH"
+          echo "/opt/homebrew/opt/bison/bin:/opt/homebrew/opt/gettext/bin:/opt/homebrew/opt/flex/bin" >> "$GITHUB_PATH"
+      - name: Restore contrib state
+        if: steps.f.outputs.run == 'true'
+        uses: actions/download-artifact@v6
+        with:
+          name: contribstate-${{ matrix.rid }}
+          path: cached/build/_state/${{ matrix.rid }}
+      - name: Build contrib group rest (${{ matrix.platform }}/${{ matrix.arch }})
+        if: steps.f.outputs.run == 'true'
+        env: { CACHED_PHASE: contrib, CONTRIB_GROUP: rest }
         run: bash cached/build/build-apple.sh ${{ matrix.platform }} ${{ matrix.arch }}
       - uses: actions/upload-artifact@v6
         if: steps.f.outputs.run == 'true'
@@ -239,7 +470,7 @@ jobs:
           if-no-files-found: error
 
   commit:
-    needs: [linux, windows, android, apple]
+    needs: [linux-rest, windows-rest, android-rest, apple-rest]
     if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
