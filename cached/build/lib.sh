@@ -705,16 +705,18 @@ stage_dynamic_vlc() {
     *)            warn "stage_dynamic_vlc: unexpected platform ${platform}"; return 1 ;;
   esac
 
-  # Force-load the registration table + each plugin archive (their vlc_entry__*
-  # are only reached indirectly through the table). Normal-link the contrib
-  # archives exactly once (NOT force-loaded; avoids duplicate-symbol errors).
-  local force=(-Wl,-force_load,"${sdir}/libvlcstaticmodules.a") contribs=() a
+  # Match the proven static-consumer linkage (the NativeReference ForceLoad
+  # layout): force-load libvlc + libvlccore + the registration table so the full
+  # libvlc API is exported and every registered module's vlc_entry__ is retained,
+  # and NORMAL-link the plugin + contrib archives so the linker pulls only the
+  # objects actually referenced. Force-loading the plugin archives instead pulls
+  # their shared helper objects repeatedly (-> "ld: NNN duplicate symbols").
+  local archives=() a
   for a in "${sdir}"/*.a; do
     [ -e "$a" ] || continue
     case "$(basename "$a")" in
-      libvlcstaticmodules.a) ;;
-      *_plugin.a)            force+=(-Wl,-force_load,"$a") ;;
-      *)                     contribs+=("$a") ;;
+      libvlcstaticmodules.a) ;;   # force-loaded below
+      *)                     archives+=("$a") ;;   # plugins + contribs: normal link
     esac
   done
 
@@ -723,9 +725,10 @@ stage_dynamic_vlc() {
   ${CC} -dynamiclib \
     ${minver} -arch "${arch}" -isysroot "${sdkroot}" -target "${target}" ${extracf} \
     -install_name "@rpath/VLCDotNet.framework/VLCDotNet" \
-    "${force[@]}" \
-    "${out}/libvlc.a" "${out}/libvlccore.a" \
-    "${contribs[@]}" \
+    -Wl,-force_load,"${out}/libvlc.a" \
+    -Wl,-force_load,"${out}/libvlccore.a" \
+    -Wl,-force_load,"${sdir}/libvlcstaticmodules.a" \
+    "${archives[@]}" \
     "${sysflags[@]}" \
     -o "${fw}/VLCDotNet" \
     || { warn "stage_dynamic_vlc: dynamic framework link failed for ${rid}"; return 1; }
