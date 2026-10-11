@@ -677,35 +677,24 @@ stage_dynamic_vlc() {
 
   log "Linking dynamic VLCDotNet.framework for ${rid}"
 
-  # Authoritative framework / system-library closure for *static* libvlc, taken
-  # from the installed pkg-config Libs.private (what a static consumer would
-  # otherwise have to name). Drop -lvlc/-lvlccore (linked here as archives).
-  local pcflags="" tok
-  if command -v pkg-config >/dev/null 2>&1; then
-    pcflags="$(PKG_CONFIG_LIBDIR="${prefix}/lib/pkgconfig" pkg-config --static --libs libvlc 2>/dev/null || true)"
-  fi
-  local sysflags=() want=0
-  for tok in ${pcflags}; do
-    if [ "${want}" = "1" ]; then sysflags+=(-framework "${tok}"); want=0; continue; fi
-    case "${tok}" in
-      -lvlc|-lvlccore) ;;
-      -framework) want=1 ;;
-      -weak_framework) want=1 ;;  # treat like -framework (next token is the name)
-      -l*|-L*|-Wl,*) sysflags+=("${tok}") ;;
-    esac
-  done
-  # Fallback closure if pkg-config was unavailable or returned nothing.
-  if [ "${#sysflags[@]}" -eq 0 ]; then
-    sysflags=(-framework Foundation -framework CoreFoundation -framework CoreMedia \
-      -framework CoreVideo -framework VideoToolbox -framework AudioToolbox \
-      -framework CoreAudio -framework AudioUnit -framework Security -framework CFNetwork \
-      -framework CoreText -framework CoreGraphics -framework QuartzCore \
-      -lc++ -liconv -lbz2 -lz)
-    case "${platform}" in
-      ios|iossimulator) sysflags+=(-framework UIKit -framework OpenGLES -framework AVFoundation) ;;
-      maccatalyst)      sysflags+=(-framework UIKit -framework AVFoundation) ;;
-    esac
-  fi
+  # Explicit per-platform framework + system-library closure for VLC's static
+  # plugins. pkg-config's libvlc Libs.private is contaminated with macOS-only
+  # AppKit and -undefined dynamic_lookup (both invalid on iOS/simulator), so the
+  # authoritative set is enumerated here, matching the proven NativeReference
+  # Frameworks lists the static consumer targets used (plus AudioUnit for the
+  # audiounit_ios/auhal outputs). Fully resolved link => a self-contained dylib.
+  local sysflags=(
+    -framework Foundation -framework CoreFoundation -framework CFNetwork
+    -framework CoreGraphics -framework CoreText -framework QuartzCore
+    -framework CoreMedia -framework CoreVideo -framework CoreAudio
+    -framework AudioToolbox -framework AudioUnit -framework AVFoundation
+    -framework VideoToolbox -framework Security -framework SystemConfiguration
+    -lc++ -liconv -lbz2 -lz
+  )
+  case "${platform}" in
+    ios|iossimulator) sysflags+=(-framework UIKit -framework OpenGLES) ;;
+    maccatalyst)      sysflags+=(-framework UIKit -framework AppKit) ;;
+  esac
 
   local target
   case "${platform}" in
