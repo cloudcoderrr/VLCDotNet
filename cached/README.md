@@ -12,18 +12,46 @@ reproducible with a GitHub-Actions-compatible toolchain.
 
 ### Contrib scope
 
-The build covers the full VLC contrib codec/demux/subtitle closure (ffmpeg,
-x264/x265, dav1d, aom, vpx, theora, vorbis, opus, flac, faad2, mad, libass,
-freetype/harfbuzz/fribidi, matroska, dvbpsi, ...). A baseline prune
-(`CONTRIB_DEFAULT_PRUNE`) drops packages that a libvlc **file-playback** runtime
-does not use and that fail / are fragile on the GitHub runners: the **disc** and
-**network** groups (cddb, libcdio, dvd*, bluray, gnutls, srt, live555, smb2, ...),
-**mpg123** (MP3 is decoded by ffmpeg), **opencv/protobuf** (video analysis),
-**chromaprint**, **libplacebo/projectM/goom** (GPU render + visualizations),
-**Qt** (GUI), **medialibrary**, **breakpad**, **xcb/X11** (libvlc is headless),
-and the **x264/x265/x262 encoders** (the tests transcode to mp4v/mp4a via ffmpeg;
-H.26x is decoded by ffmpeg/VideoToolbox/MediaCodec). The full
-codec/demux/subtitle/audio closure is kept. Override the knob to change the set.
+The build covers the full VLC contrib codec/demux/subtitle/**encoder**/disc/
+metadata closure (ffmpeg, x264/x265, dav1d, aom-decode-via-dav1d, vpx, theora,
+vorbis, opus, flac, speex, mpg123, faad2, mad, a52/dca, libass, freetype/
+harfbuzz/fribidi, matroska, dvbpsi, taglib, dvdread/dvdnav/bluray, gme/modplug/
+sidplay2/fluidsynth, ...) so the cached runtime reaches **main-media feature
+parity** (see [FEATURE-PARITY-TASK.md](FEATURE-PARITY-TASK.md)).
+
+A baseline prune (`CONTRIB_DEFAULT_PRUNE`) drops only host-owned, excluded or
+genuinely-unbuildable packages: the **network** group (gnutls, srt, live555,
+smb2, upnp, microdns, shout, ssh2, vncclient — C# owns transport; this also
+keeps **cddb** out, which needs *both* disc and net), **opencv/protobuf**
+(computer vision), **chromaprint** (fingerprinting), **libplacebo/projectM/goom**
+(GPU render + external visualizations), **Qt** (GUI), **medialibrary**,
+**breakpad**, **xcb** (Linux links the *system* libxcb), the **x262** MPEG-2
+encoder and **aom** AV1 encoder (AV1 decode is covered by dav1d), **lua**
+(scripting) and **gcrypt/gpg-error** (only the disabled net group needs them).
+The encoders (x264/x265), the extra audio decoder (mpg123), the metadata writer
+(taglib) and the LOCAL disc stack (dvdread/dvdnav/bluray + dvdcss) are KEPT.
+Override `CONTRIB_DEFAULT_PRUNE` to change the set.
+
+### Split contrib groups
+
+The full parity closure plus a libvlc build will not co-reside within a single
+runner's disk/time budget, so **Phase 1 is itself split into ordered GROUPS**,
+one CI job each (`CONTRIB_GROUP`, default order `heavy rest`):
+
+| Group | `make` targets | What it builds |
+|-------|----------------|----------------|
+| `heavy` | `.ffmpeg .x265 .x264` | the long poles, isolated |
+| `rest`  | bare `make` | every other enabled package |
+
+The `heavy` job bootstraps + fetches, builds the long poles, reclaims the
+extracted source trees (keeping only the install prefix + `.<pkg>` stamp files +
+tarball cache) and uploads that resumable state as the `contribstate-<rid>`
+workflow artifact. The `rest` job downloads it, so VLC contrib skips every
+already-stamped package and bare-`make`s only the remainder, then packs the
+committed cache. Both group jobs for one RID run on the same runner OS at
+identical absolute paths within one workflow run, so the state restores verbatim
+with no prefix rewrite. See `build_contrib_group` in [`build/lib.sh`](build/lib.sh).
+
 
 ## Two phases
 
@@ -33,7 +61,7 @@ repository:
 
 | Phase | Workflow | What it does |
 |-------|----------|--------------|
-| **1 — contrib** | `contribs-vlc3-cached.yml` | For each RID: build the full contrib set, compress it (`zstd`), split into <100 MB parts, and **commit** them to `cached/contribs/vlc-3.0/<rid>/`. |
+| **1 — contrib** | `contribs-vlc3-cached.yml` | For each RID, in chained `heavy` → `rest` group jobs (see above): build the full parity contrib set, compress it (`zstd`), split into <100 MB parts, and **commit** them to `cached/contribs/vlc-3.0/<rid>/`. |
 | **2 — libvlc** | `build-vlc3-cached.yml` | Check out the repo (now containing the cached contribs), **restore** the matching contrib prefix, and link libvlc against it → `artifacts/<rid>`. |
 
 `pack-release-vlc3-cached.yml` then packs the `VLCDotNet3` NuGet from the Phase 2
@@ -83,6 +111,8 @@ prefix (in `*.pc` / `*.la` / `*-config`) to the current location.
 | Variable | Meaning |
 |----------|---------|
 | `CACHED_PHASE` | `contrib` (build + cache) or `libvlc` (restore + build, default). |
+| `CONTRIB_GROUP` | Which Phase-1 split group to build (`heavy` or `rest`); unset = legacy single-shot full build. |
+| `CONTRIB_GROUPS` | Ordered group list the chain walks (default `heavy rest`; e.g. `ffmpeg x265 x264 rest` for a finer split). |
 | `VLC_VERSION` / `VLC_SERIES` / `VLC_REF` | VLC version / series / git ref (defaults from `Directory.Build.props`). |
 | `CONTRIB_DEFAULT_PRUNE` | Baseline contrib bootstrap prune applied on every target (default `--disable-disc --disable-net --disable-mpg123`). |
 | `CACHED_CONTRIB_PRUNE` | Extra `--disable-<pkg>` bootstrap flags to drop packages that cannot cross-build for a target. |
