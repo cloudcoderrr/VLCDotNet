@@ -71,12 +71,16 @@ CONTRIB_ENV=(HAVE_ANDROID=1 ANDROID_API="${API}" ANDROID_ABI="${ABI}" ANDROID_ND
 
 # ---- Phase 1: build + cache the full contrib set ----------------------------
 if [ "${PHASE}" = "contrib" ]; then
+  # Android ships no optical-disc hardware, so drop the disc stack (dvd*/bluray)
+  # from the parity closure (it is desktop-only and bluray needs fontconfig,
+  # which Android does not use). Network stays pruned via CONTRIB_DEFAULT_PRUNE.
+  ANDROID_PRUNE="--disable-disc ${CACHED_CONTRIB_PRUNE:-}"
   if [ -n "${CONTRIB_GROUP:-}" ]; then
     build_contrib_group "${VLC_SRC}" "contrib-android-${ARCH}" "${TRIPLET}" "${RID}" "${CONTRIB_GROUP}" \
-      ${CACHED_CONTRIB_PRUNE:+-- ${CACHED_CONTRIB_PRUNE}}
+      -- ${ANDROID_PRUNE}
   else
     build_full_contrib "${VLC_SRC}" "contrib-android-${ARCH}" "${TRIPLET}" \
-      ${CACHED_CONTRIB_PRUNE:+-- ${CACHED_CONTRIB_PRUNE}}
+      -- ${ANDROID_PRUNE}
     pack_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
   fi
   exit 0

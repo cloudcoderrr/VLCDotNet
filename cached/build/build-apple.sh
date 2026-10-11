@@ -117,7 +117,8 @@ fi
 APPLE_PRUNE=()
 case "${PLATFORM}" in
   ios|iossimulator)
-    APPLE_PRUNE=(--disable-schroedinger --disable-vpx --disable-ass --disable-harfbuzz --disable-fribidi)
+    # Mobile ships no optical-disc hardware, so drop the disc stack (desktop-only).
+    APPLE_PRUNE=(--disable-disc --disable-schroedinger --disable-vpx --disable-ass --disable-harfbuzz --disable-fribidi)
     # VLC 4.0 only: gmp's build-machine compiler self-test fails under the iOS
     # cross environment (the exported CC_FOR_BUILD resolves the target CPPFLAGS).
     # gmp is only pulled in by nettle <- gnutls (network, already disabled) and
@@ -126,7 +127,8 @@ case "${PLATFORM}" in
   maccatalyst)
     # Catalyst requires only avcodec+sout+videotoolbox; libvpx's VP9 RTC C++ does
     # not compile for the macabi arm64 target, and schroedinger/orc are unstable.
-    APPLE_PRUNE=(--disable-schroedinger --disable-vpx) ;;
+    # Catalyst uses the iOS API family, so the optical-disc stack is dropped too.
+    APPLE_PRUNE=(--disable-disc --disable-schroedinger --disable-vpx) ;;
 esac
 
 # macOS host autoreconf needs gettext's iconv.m4 (AM_ICONV) and libtool's m4 on
