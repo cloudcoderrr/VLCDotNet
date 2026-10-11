@@ -78,9 +78,14 @@ export PATH="${WRAP_DIR}:${PATH}"
 
 # ---- Phase 1: build + cache the full contrib set ----------------------------
 if [ "${PHASE}" = "contrib" ]; then
-  build_full_contrib "${VLC_SRC}" "contrib-win-${ARCH}" "${TRIPLET}" \
-    ${CACHED_CONTRIB_PRUNE:+-- ${CACHED_CONTRIB_PRUNE}}
-  pack_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
+  if [ -n "${CONTRIB_GROUP:-}" ]; then
+    build_contrib_group "${VLC_SRC}" "contrib-win-${ARCH}" "${TRIPLET}" "${RID}" "${CONTRIB_GROUP}" \
+      ${CACHED_CONTRIB_PRUNE:+-- ${CACHED_CONTRIB_PRUNE}}
+  else
+    build_full_contrib "${VLC_SRC}" "contrib-win-${ARCH}" "${TRIPLET}" \
+      ${CACHED_CONTRIB_PRUNE:+-- ${CACHED_CONTRIB_PRUNE}}
+    pack_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
+  fi
   exit 0
 fi
 

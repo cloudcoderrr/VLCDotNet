@@ -52,9 +52,14 @@ if [ "${PHASE}" = "contrib" ]; then
     # target binaries ("cannot run C compiled programs"). extras/tools must also
     # build as native host tools, which relies on the native cc.
   fi
-  build_full_contrib "${VLC_SRC}" "contrib-linux-${ARCH}" "${TRIPLET}" \
-    ${CACHED_CONTRIB_PRUNE:+-- ${CACHED_CONTRIB_PRUNE}}
-  pack_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
+  if [ -n "${CONTRIB_GROUP:-}" ]; then
+    build_contrib_group "${VLC_SRC}" "contrib-linux-${ARCH}" "${TRIPLET}" "${RID}" "${CONTRIB_GROUP}" \
+      ${CACHED_CONTRIB_PRUNE:+-- ${CACHED_CONTRIB_PRUNE}}
+  else
+    build_full_contrib "${VLC_SRC}" "contrib-linux-${ARCH}" "${TRIPLET}" \
+      ${CACHED_CONTRIB_PRUNE:+-- ${CACHED_CONTRIB_PRUNE}}
+    pack_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
+  fi
   exit 0
 fi
 
@@ -75,12 +80,13 @@ CONFIG_FLAGS=(
   --disable-qt --disable-skins2 --disable-nls --disable-lua --disable-a52
   --enable-avcodec       # FFmpeg-based decoders (from contrib)
   --enable-swscale
-  --disable-vdpau --disable-sdl-image
-  --disable-xcb          # headless: video verified via vmem callbacks
-  --disable-alsa         # headless: audio verified via amem callbacks
-  --disable-pulse
-  --disable-bluray --disable-vnc --disable-gnutls --disable-srt --disable-chromaprint
-  --disable-taglib       # metadata reader: not a required test module
+  # Feature parity (contrib-provided; --enable so a missing contrib fails loud).
+  --enable-taglib                               # metadata read/write
+  --enable-dvdread --enable-dvdnav --enable-bluray   # local disc stack
+  # Native Linux output/decode backends: left to auto-detect from the system
+  # -dev libs installed by deps-linux.sh (alsa, pulse, vdpau, vaapi, xcb/x11,
+  # gl/gles2, wayland). Headless CI still verifies decode via vmem/amem.
+  --disable-vnc --disable-gnutls --disable-srt --disable-chromaprint
   --enable-shared --disable-static
 )
 

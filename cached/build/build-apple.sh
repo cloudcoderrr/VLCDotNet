@@ -145,12 +145,20 @@ if [ "${PHASE}" = "contrib" ]; then
   PRUNE=()
   [ "${#APPLE_PRUNE[@]}" -gt 0 ] && PRUNE+=("${APPLE_PRUNE[@]}")
   [ -n "${CACHED_CONTRIB_PRUNE:-}" ] && PRUNE+=(${CACHED_CONTRIB_PRUNE})
-  if [ "${#PRUNE[@]}" -gt 0 ]; then
-    build_full_contrib "${VLC_SRC}" "contrib-apple-${PLATFORM}-${ARCH}" "${TRIPLET}" -- "${PRUNE[@]}"
+  if [ -n "${CONTRIB_GROUP:-}" ]; then
+    if [ "${#PRUNE[@]}" -gt 0 ]; then
+      build_contrib_group "${VLC_SRC}" "contrib-apple-${PLATFORM}-${ARCH}" "${TRIPLET}" "${RID}" "${CONTRIB_GROUP}" -- "${PRUNE[@]}"
+    else
+      build_contrib_group "${VLC_SRC}" "contrib-apple-${PLATFORM}-${ARCH}" "${TRIPLET}" "${RID}" "${CONTRIB_GROUP}"
+    fi
   else
-    build_full_contrib "${VLC_SRC}" "contrib-apple-${PLATFORM}-${ARCH}" "${TRIPLET}"
+    if [ "${#PRUNE[@]}" -gt 0 ]; then
+      build_full_contrib "${VLC_SRC}" "contrib-apple-${PLATFORM}-${ARCH}" "${TRIPLET}" -- "${PRUNE[@]}"
+    else
+      build_full_contrib "${VLC_SRC}" "contrib-apple-${PLATFORM}-${ARCH}" "${TRIPLET}"
+    fi
+    pack_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
   fi
-  pack_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
   exit 0
 fi
 

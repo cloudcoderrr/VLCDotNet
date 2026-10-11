@@ -71,9 +71,14 @@ CONTRIB_ENV=(HAVE_ANDROID=1 ANDROID_API="${API}" ANDROID_ABI="${ABI}" ANDROID_ND
 
 # ---- Phase 1: build + cache the full contrib set ----------------------------
 if [ "${PHASE}" = "contrib" ]; then
-  build_full_contrib "${VLC_SRC}" "contrib-android-${ARCH}" "${TRIPLET}" \
-    ${CACHED_CONTRIB_PRUNE:+-- ${CACHED_CONTRIB_PRUNE}}
-  pack_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
+  if [ -n "${CONTRIB_GROUP:-}" ]; then
+    build_contrib_group "${VLC_SRC}" "contrib-android-${ARCH}" "${TRIPLET}" "${RID}" "${CONTRIB_GROUP}" \
+      ${CACHED_CONTRIB_PRUNE:+-- ${CACHED_CONTRIB_PRUNE}}
+  else
+    build_full_contrib "${VLC_SRC}" "contrib-android-${ARCH}" "${TRIPLET}" \
+      ${CACHED_CONTRIB_PRUNE:+-- ${CACHED_CONTRIB_PRUNE}}
+    pack_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
+  fi
   exit 0
 fi
 

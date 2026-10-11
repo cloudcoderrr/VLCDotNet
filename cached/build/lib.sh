@@ -42,39 +42,39 @@ CONTRIB_CACHE_DIR="${CONTRIB_CACHE_DIR:-${REPO_ROOT}/cached/contribs/vlc-${VLC_S
 CONTRIB_PART_SIZE="${CONTRIB_PART_SIZE:-95000000}"
 CONTRIB_ZSTD_LEVEL="${CONTRIB_ZSTD_LEVEL:-19}"
 
-# Baseline contrib bootstrap prune applied on every target. Drops package GROUPS
-# and individual packages that are NOT used by a libvlc file-playback runtime and
-# that otherwise fail / are fragile on the GitHub runners:
-#   --disable-disc / --disable-net  disc + network groups (cddb, cdio, dvd*,
-#                                   bluray, gnutls, srt, live555, smb2, ...)
-#   mpg123                          MP3 is decoded by ffmpeg (autoreconf/link fails)
-#   opencv4/opencv/protobuf         video analysis (pulls protobuf/protoc)
-#   chromaprint                     audio fingerprinting (libvlc --disable-chromaprint)
-#   libplacebo/projectM/goom        GPU render + visualizations (need vulkan/GL/FFTW)
+# Baseline contrib bootstrap prune applied on every target. The cached pipeline
+# now targets main-media FEATURE PARITY (see cached/FEATURE-PARITY-TASK.md), so
+# the closure keeps the encoders (x264/x265), the extra audio decoder (mpg123),
+# the metadata writer (taglib) and the LOCAL disc stack (dvdread/dvdnav/bluray,
+# +dvdcss transitively). Only host-owned, excluded or genuinely-unbuildable
+# packages are dropped here:
+#   --disable-net                   network group (gnutls, srt, live555, smb2,
+#                                   upnp, microdns, shout, ssh2, vncclient). C#
+#                                   owns transport; also keeps cddb OUT (cddb is
+#                                   gated by BOTH disc AND net, so net-off == no
+#                                   CDDB even though the disc group is enabled).
+#   opencv4/opencv/protobuf         computer-vision analysis (specialist extra)
+#   chromaprint                     audio fingerprinting (specialist extra)
+#   libplacebo                      GPU HDR renderer (needs glslang/shaderc/vulkan;
+#                                   HDR/tone-map handled by other paths for now)
+#   projectM/goom                   external visualization engines (specialist)
 #   qt/qtdeclarative/qtsvg/...      Qt GUI (libvlc --disable-qt)
-#   medialibrary                    media database (needs sqlite; not used by tests)
-#   breakpad                        crash reporting
-#   xcb + X11                       X11 video output (libvlc is headless --disable-xcb)
-#   x264/x265/x262                  H.26x ENCODERS (tests transcode to mp4v/mp4a via
-#                                   ffmpeg; decode is ffmpeg/VideoToolbox/MediaCodec)
-#   lua                             VLC scripting (not a required test module; fails
-#                                   the cross builds on the arm64 macOS runner)
-#   luac                            lua's host compiler tool (cross-build only runs
-#                                   on native; PKGS_TOOLS, not covered by disable-lua)
-#   taglib                          metadata reader (not a required test module)
-#   gpg-error/gcrypt                crypto (unconditional PKGS; only net packages use
-#                                   them; gpg-error's mkheader OOMs on the iOS build)
-#   aom                             AV1 encoder (not a required module; no AV1 in the
-#                                   test pack; libaom NEON fails to build on armv7)
-# The full codec/demux/subtitle/audio closure is kept. Override to change the set.
-CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE:---disable-disc --disable-net --disable-mpg123 --disable-opencv4 --disable-opencv --disable-protobuf --disable-chromaprint --disable-libplacebo --disable-projectM --disable-goom --disable-qt --disable-qtdeclarative --disable-qtshadertools --disable-qtsvg --disable-qtwayland --disable-medialibrary --disable-breakpad --disable-xcb --disable-x264 --disable-x265 --disable-x262 --disable-lua --disable-luac --disable-taglib --disable-gpg-error --disable-gcrypt --disable-aom}"
-
-# VLC 4.0-only additional prune. sidplay2 (SID) does not compile against NDK r29's
-# libc++ (<fstream> references ::fseeko/::ftello) on android-arm, and SID is not a
-# VLC 4 required test module (see V4RequiredModules in the test suite), so drop it.
-if [ "${VLC_SERIES}" = "4" ]; then
-  CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE} --disable-sidplay2"
-fi
+#   medialibrary                    media database (host-owned library/indexing)
+#   breakpad                        crash reporting (host-owned)
+#   xcb                             CONTRIB xcb libs; Linux links the SYSTEM
+#                                   libxcb/-dev instead (deps-linux.sh)
+#   x262                            MPEG-2 ENCODER backend (not a required module;
+#                                   not shipped by the official win-x64 archive)
+#   aom                             AV1 ENCODER (AV1 DECODE is covered by dav1d;
+#                                   libaom NEON fails to build on armv7)
+#   lua / luac                      VLC scripting (host-owned; excluded)
+#   gpg-error / gcrypt              crypto only pulled by the (disabled) net group;
+#                                   gpg-error's mkheader OOMs on the iOS build. The
+#                                   local disc stack (dvdcss/dvdread/dvdnav/bluray)
+#                                   does its own crypto and does not need these.
+# The full codec/demux/subtitle/audio/disc/metadata closure is otherwise kept.
+# Override CONTRIB_DEFAULT_PRUNE to change the set.
+CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE:---disable-net --disable-opencv4 --disable-opencv --disable-protobuf --disable-chromaprint --disable-libplacebo --disable-projectM --disable-goom --disable-qt --disable-qtdeclarative --disable-qtshadertools --disable-qtsvg --disable-qtwayland --disable-medialibrary --disable-breakpad --disable-xcb --disable-x262 --disable-aom --disable-lua --disable-luac --disable-gpg-error --disable-gcrypt}"
 
 log()  { printf '\033[1;36m[vlcdotnet-cached]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[vlcdotnet-cached]\033[0m %s\n' "$*" >&2; }
@@ -215,6 +215,129 @@ build_full_contrib() {
     || die "Contrib build produced no lib dir at ${src}/contrib/${triplet}"
   log "Full contrib set installed at ${src}/contrib/${triplet}"
 }
+
+# ---------------------------------------------------------------------------
+# Split contrib build (feature-parity closure is too big/slow for one runner).
+#
+# The full parity closure (ffmpeg + x264/x265 + dav1d + the whole codec/demux/
+# subtitle/disc/metadata set) exceeds a single runner's time/disk budget on the
+# slower targets, so Phase 1 is split into ORDERED GROUPS, one CI job each:
+#
+#   group "heavy":  make .ffmpeg .x265 .x264   (the long poles, isolated)
+#   group "rest":   bare make                  (mops up every other enabled pkg)
+#
+# A later group RESTORES the accumulated prefix + stamp files + tarball cache the
+# earlier group produced (VLC contrib skips any package whose .<pkg> stamp is
+# already present), so no single job builds the whole closure and nothing is
+# rebuilt. All group jobs for one RID run on the same runner OS at identical
+# absolute paths within one workflow run, so the state restores verbatim with no
+# prefix rewrite. The final group packs the committed cache (pack_contrib).
+# ---------------------------------------------------------------------------
+
+# Ordered group names. Override CONTRIB_GROUPS to re-split (e.g. "ffmpeg x265 rest").
+CONTRIB_GROUPS="${CONTRIB_GROUPS:-heavy rest}"
+# Scratch dir for the resumable inter-group state archive (uploaded/downloaded as
+# a workflow artifact between the chained group jobs).
+CONTRIB_STATE_DIR="${CONTRIB_STATE_DIR:-${REPO_ROOT}/cached/build/_state}"
+
+# contrib_group_targets <group> -> make targets for the group ("" = bare make).
+contrib_group_targets() {
+  case "$1" in
+    heavy) echo ".ffmpeg .x265 .x264" ;;
+    rest)  echo "" ;;
+    # Finer splits callers may opt into via CONTRIB_GROUPS.
+    ffmpeg) echo ".ffmpeg" ;;
+    x265)  echo ".x265" ;;
+    x264)  echo ".x264 .x26410b" ;;
+    *) die "unknown contrib group: $1 (set CONTRIB_GROUPS / contrib_group_targets)" ;;
+  esac
+}
+
+contrib_first_group() { set -- ${CONTRIB_GROUPS}; echo "$1"; }
+contrib_last_group()  { set -- ${CONTRIB_GROUPS}; eval echo "\${$#}"; }
+
+# contrib_reclaim <contrib-build-subdir>
+# After a group installs its packages into the prefix, delete the extracted
+# source/build trees (the disk hogs) while keeping the .<pkg> stamp files,
+# config.mak and Makefile so a later group resumes without rebuilding.
+contrib_reclaim() {
+  local cbuild="$1"
+  [ -d "${cbuild}" ] || return 0
+  find "${cbuild}" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + 2>/dev/null || true
+  log "Reclaimed contrib build trees under ${cbuild}"
+}
+
+# save_contrib_state <vlc-src> <subdir> <triplet> <rid>
+# Packs the resumable state (install prefix + build-subdir stamps/config +
+# tarball cache, all relative to contrib/) for the next group job.
+save_contrib_state() {
+  local src="$1" subdir="$2" triplet="$3" rid="$4"
+  command -v zstd >/dev/null 2>&1 || die "zstd is required to save contrib state"
+  local out="${CONTRIB_STATE_DIR}/${rid}"
+  rm -rf "${out}"; mkdir -p "${out}"
+  local -a members=("${triplet}" "${subdir}")
+  [ -d "${src}/contrib/tarballs" ] && members+=("tarballs")
+  ( cd "${src}/contrib" && tar -cf - "${members[@]}" ) \
+    | zstd -3 -T0 -q -f -o "${out}/state.tar.zst"
+  log "Saved contrib state for ${rid}: $(du -h "${out}/state.tar.zst" 2>/dev/null | cut -f1)"
+}
+
+# load_contrib_state <vlc-src> <rid>
+load_contrib_state() {
+  local src="$1" rid="$2"
+  local in="${CONTRIB_STATE_DIR}/${rid}/state.tar.zst"
+  [ -f "${in}" ] || die "No contrib state to resume for ${rid} at ${in} (run the earlier group first)"
+  command -v zstd >/dev/null 2>&1 || die "zstd is required to load contrib state"
+  mkdir -p "${src}/contrib"
+  zstd -dc "${in}" | tar -C "${src}/contrib" -xf -
+  log "Restored contrib state for ${rid} from ${in}"
+}
+
+# build_contrib_group <vlc-src> <subdir> <triplet> <rid> <group> [-- <bootstrap-flag>...]
+# Builds ONE contrib group. The first group bootstraps + fetches; later groups
+# restore the previous group's state. The last group packs the committed cache.
+build_contrib_group() {
+  local src="$1" subdir="$2" triplet="$3" rid="$4" group="$5"; shift 5
+  local -a bootstrap_flags=()
+  if [ "${1:-}" = "--" ]; then shift; bootstrap_flags=("$@"); fi
+  local -a default_prune=(${CONTRIB_DEFAULT_PRUNE})
+  bootstrap_flags=(${default_prune[@]+"${default_prune[@]}"} ${bootstrap_flags[@]+"${bootstrap_flags[@]}"})
+  local -a cenv=() cmk=()
+  if declare -p CONTRIB_ENV >/dev/null 2>&1 && [ "${#CONTRIB_ENV[@]}" -gt 0 ]; then cenv=("${CONTRIB_ENV[@]}"); fi
+  if declare -p CONTRIB_MK  >/dev/null 2>&1 && [ "${#CONTRIB_MK[@]}"  -gt 0 ]; then cmk=("${CONTRIB_MK[@]}"); fi
+
+  build_vlc_tools "${src}"
+  local cbuild="${src}/contrib/${subdir}"
+
+  if [ "${group}" = "$(contrib_first_group)" ]; then
+    mkdir -p "${cbuild}"
+    log "[${group}] Bootstrapping contrib for ${triplet}"
+    ( cd "${cbuild}" && env ${cenv[@]+"${cenv[@]}"} ../bootstrap --host="${triplet}" ${bootstrap_flags[@]+"${bootstrap_flags[@]}"} )
+    log "[${group}] Fetching all contrib sources for ${triplet}"
+    ( cd "${cbuild}" && env ${cenv[@]+"${cenv[@]}"} make ${cmk[@]+"${cmk[@]}"} -j"$(jobs)" fetch )
+  else
+    load_contrib_state "${src}" "${rid}"
+    # Keep make from treating restored stamps as stale against their prereqs.
+    find "${cbuild}" -maxdepth 1 -name '.*' -type f -exec touch {} + 2>/dev/null || true
+  fi
+
+  local targets; targets="$(contrib_group_targets "${group}")"
+  log "[${group}] Building contrib targets: ${targets:-<all remaining enabled>}"
+  ( cd "${cbuild}" && { env ${cenv[@]+"${cenv[@]}"} make ${cmk[@]+"${cmk[@]}"} -j"$(jobs)" ${targets} \
+      || env ${cenv[@]+"${cenv[@]}"} make ${cmk[@]+"${cmk[@]}"} -j1 ${targets} ; } )
+
+  contrib_reclaim "${cbuild}"
+
+  if [ "${group}" = "$(contrib_last_group)" ]; then
+    [ -d "${src}/contrib/${triplet}/lib" ] || [ -d "${src}/contrib/${triplet}/lib64" ] \
+      || die "Contrib build produced no lib dir at ${src}/contrib/${triplet}"
+    log "[${group}] Final group complete; packing committed cache for ${rid}"
+    pack_contrib "${src}" "${triplet}" "${rid}"
+  else
+    save_contrib_state "${src}" "${subdir}" "${triplet}" "${rid}"
+  fi
+}
+
 
 # pack_contrib <vlc-src> <triplet> <rid>
 # Compresses <vlc-src>/contrib/<triplet> and splits it into <100 MB parts under
