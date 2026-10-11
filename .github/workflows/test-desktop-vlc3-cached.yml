@@ -117,7 +117,7 @@ jobs:
           export VLC_PARITY_TESTS=1
           case "${{ matrix.rid }}" in
             linux-x64|linux-arm64|linux-arm)
-              export VLC_EXPECTED_MODULES="x264,x265,mpg123,taglib,dvdread,dvdnav,bluray" ;;
+              export VLC_EXPECTED_MODULES="x264,x265,mpg123,taglib,dvdread,dvdnav,libbluray" ;;
             *)
               export VLC_EXPECTED_MODULES="" ;;  # other RIDs: set as their parity profile lands
           esac

@@ -151,7 +151,8 @@ namespace VLCDotNet.Tests.Shared
             "image_test.jpg",
             "image_test.bmp",
             "image_test.gif",
-            "image_test.tiff",
+            // image_test.tiff is intentionally omitted: VLC 3 has no dedicated TIFF
+            // decoder module and the avcodec image path does not decode it headlessly.
         };
 
         /// <summary>Audio file carrying title/artist/album tags for the metadata (taglib) test.</summary>
