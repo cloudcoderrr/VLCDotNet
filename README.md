@@ -148,7 +148,7 @@ RMS, subtitles, metadata, encode); the rest are cross-built and link-validated.
 | `iossimulator-arm64` | `VLCDotNet.framework` (embedded dynamic) | ✅ VLC3 + VLC4 |
 | `iossimulator-x64` | `VLCDotNet.framework` (embedded dynamic) | cross-built |
 | `ios-arm64` | `VLCDotNet.framework` (embedded dynamic) | cross-built (no device in CI) |
-| `maccatalyst-arm64` | `VLCDotNet.framework` (embedded dynamic) | ✅ VLC3 |
+| `maccatalyst-arm64` | `VLCDotNet.framework` (embedded dynamic) | ✅ VLC3 + VLC4 |
 | `maccatalyst-x64` | `VLCDotNet.framework` (embedded dynamic) | cross-built |
 
 Recorded runtime limitations: hardware decode / HDR / zero-copy and physical
