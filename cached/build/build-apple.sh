@@ -145,7 +145,12 @@ case "${PLATFORM}" in
     # x264/x265's asm objects are tagged 'macOS' (not 'macabi'), so their static
     # libs fail to link into a Catalyst app; H.264/H.265 ENCODE on Catalyst uses
     # VideoToolbox instead.
-    APPLE_PRUNE=(--disable-disc --disable-x264 --disable-x265 --disable-schroedinger --disable-vpx) ;;
+    APPLE_PRUNE=(--disable-disc --disable-x264 --disable-x265 --disable-schroedinger --disable-vpx)
+    # VLC 4.0 Catalyst arm64 only: mpg123's NEON64 asm (dct36_neon64.S) is
+    # assembled with a 'macOS' platform tag under the macabi cross, so it cannot
+    # link into the Catalyst arm64 dynamic framework. MP3 decode falls back to
+    # mad + avcodec (both retained). Catalyst x64 has no NEON64 asm and keeps it.
+    { [ "${VLC_SERIES}" != "3" ] && [ "${ARCH}" = "arm64" ]; } && APPLE_PRUNE+=(--disable-mpg123) ;;
 esac
 
 # macOS host autoreconf needs gettext's iconv.m4 (AM_ICONV) and libtool's m4 on
