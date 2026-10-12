@@ -683,13 +683,17 @@ stage_dynamic_vlc() {
   # authoritative set is enumerated here, matching the proven NativeReference
   # Frameworks lists the static consumer targets used. (AudioUnit is NOT a
   # standalone framework on iOS/simulator/macabi — those APIs live in
-  # AudioToolbox — so it must not be named here.) Fully resolved => self-contained.
+  # AudioToolbox — so it must not be named here.) Metal / AVKit / CoreImage are
+  # required by VLC 4.0's newer Apple plugins (cvpx_gl -> Metal,
+  # pictureinpicturecontroller -> AVKit, samplebufferdisplay -> CoreImage) and
+  # are harmless on VLC 3. Fully resolved link => self-contained dylib.
   local sysflags=(
     -framework Foundation -framework CoreFoundation -framework CFNetwork
     -framework CoreGraphics -framework CoreText -framework QuartzCore
     -framework CoreMedia -framework CoreVideo -framework CoreAudio
-    -framework AudioToolbox -framework AVFoundation
-    -framework VideoToolbox -framework Security -framework SystemConfiguration
+    -framework AudioToolbox -framework AVFoundation -framework AVKit
+    -framework VideoToolbox -framework CoreImage -framework Metal
+    -framework Security -framework SystemConfiguration
     -lc++ -liconv -lbz2 -lz
   )
   case "${platform}" in
