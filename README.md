@@ -123,6 +123,39 @@ generated video, audio, and subtitle files — see its
 - On completion the VLC logs, frame snapshots, and audio snippets are downloaded
   and verified.
 
+### Verified matrix (cached pipeline)
+
+Both production NuGets — **VLCDotNet3** (libvlc `3.0.23`) and **VLCDotNet4**
+(libvlc 4.0 `e77e49b5`) — build for all 15 RIDs and link libvlc **dynamically**
+everywhere (no app-linked archives, no libvlc `__Internal`): desktop resolves
+`libvlc.{dll,so,dylib}` by name, Android ships `libvlc.so` as an
+`AndroidNativeLibrary`, and Apple mobile embeds the signed, dynamic
+`VLCDotNet.framework`. RIDs with a matching CI runner / emulator / simulator are
+additionally exercised **end-to-end at runtime** through the packaged consumer
+apps (instance creation, module registration, video decode + snapshots, audio
+RMS, subtitles, metadata, encode); the rest are cross-built and link-validated.
+
+| RID | libvlc linkage | Runtime-tested in CI |
+|---|---|---|
+| `win-x64` | `libvlc.dll` (dynamic) | ✅ VLC3 + VLC4 |
+| `win-arm64` | `libvlc.dll` (dynamic) | cross-built |
+| `linux-x64` | `libvlc.so` (dynamic) | ✅ VLC3 + VLC4 |
+| `linux-arm64`, `linux-arm` | `libvlc.so` (dynamic) | cross-built (arm libvlc via QEMU) |
+| `osx-arm64` | `libvlc.dylib` (dynamic) | ✅ VLC3 |
+| `osx-x64` | `libvlc.dylib` (dynamic) | cross-built |
+| `android-x64` | `libvlc.so` (dynamic) | ✅ VLC3 + VLC4 (emulator) |
+| `android-arm64`, `android-arm` | `libvlc.so` (dynamic) | cross-built |
+| `iossimulator-arm64` | `VLCDotNet.framework` (embedded dynamic) | ✅ VLC3 + VLC4 |
+| `iossimulator-x64` | `VLCDotNet.framework` (embedded dynamic) | cross-built |
+| `ios-arm64` | `VLCDotNet.framework` (embedded dynamic) | cross-built (no device in CI) |
+| `maccatalyst-arm64` | `VLCDotNet.framework` (embedded dynamic) | ✅ VLC3 |
+| `maccatalyst-x64` | `VLCDotNet.framework` (embedded dynamic) | cross-built |
+
+Recorded runtime limitations: hardware decode / HDR / zero-copy and physical
+capture/disc require real devices (CI simulators fall back to software decode);
+iOS device and the non-host CPU slices are cross-built and link-validated since
+the CI VMs have no matching attached hardware.
+
 When a test exposes a native defect, the fix is added as a **unified-diff patch**
 to the relevant pipeline's `patches/` directory (and/or the test suite is
 extended) and the build is re-run.
