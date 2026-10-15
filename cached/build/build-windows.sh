@@ -97,11 +97,6 @@ fi
 restore_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
 CONTRIB_PREFIX="${VLC_SRC}/contrib/${TRIPLET}"
 
-# Drop contrib TLS/streaming libs so libvlc does not pull network modules we do
-# not ship in the current test surface.
-rm -f "${CONTRIB_PREFIX}"/lib/libgnutls* "${CONTRIB_PREFIX}"/lib/pkgconfig/gnutls.pc \
-      "${CONTRIB_PREFIX}"/lib/libsrt*    "${CONTRIB_PREFIX}"/lib/pkgconfig/srt.pc 2>/dev/null || true
-
 ( cd "${VLC_SRC}" && ./bootstrap )
 
 BUILD_DIR="${VLC_SRC}/build-win-${ARCH}"
@@ -113,12 +108,17 @@ CONFIG_FLAGS=(
   "--host=${TRIPLET}"
   "--with-contrib=${CONTRIB_PREFIX}"
   --disable-vlc --disable-lua --disable-nls --disable-update-check
-  --disable-live555 --disable-realrtsp --disable-goom --disable-libcddb
-  --disable-shout --disable-gnutls --disable-srt
+  --disable-goom --disable-libcddb
   --disable-fontconfig   # Windows uses the DirectWrite font provider, not fontconfig
   # Feature parity (contrib-provided; --enable so a missing contrib fails loud):
   --enable-taglib                                    # metadata read/write
   --enable-dvdread --enable-dvdnav --enable-bluray   # local disc stack
+  # Native transport/network stack (contrib net group). gnutls provides TLS for
+  # http/https + native HLS/DASH; live555 provides RTSP input + RTSP VOD serving;
+  # smb2/srt/rist/microdns/nfs auto-enable from pkg-config. The Win32 BDA dtv
+  # tuner and the Win32 smb (WNet, VLC3) / smb2 (VLC4) access, plus the DirectWrite
+  # font provider, autodetect from the Windows SDK headers (llvm-mingw UCRT).
+  --enable-gnutls --enable-live555 --enable-dvbpsi
   # zvbi (teletext), aribcam (ARIB B25) and sid (SID music) auto-detect from the
   # contrib set; left as auto so a target that cannot build one does not hard-fail.
   --enable-avcodec --enable-swscale

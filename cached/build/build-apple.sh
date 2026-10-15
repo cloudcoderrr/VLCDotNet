@@ -126,18 +126,23 @@ esac
 # Packages in the full default set that do not cross-build cleanly for a given
 # Apple sub-target on the GitHub runners. Pruned from the contrib bootstrap only
 # (the libvlc build autodetects whatever is present). Extend as CI reveals more.
-APPLE_PRUNE=()
+#
+# Apple uses the built-in securetransport TLS module, so the gnutls contrib and
+# its crypto deps (nettle/gmp/gcrypt/gpg-error) are not needed on any Apple
+# target (and gpg-error's mkheader OOMs under the iOS cross build). The
+# crypto-dependent net packages (srt/ssh2/vncclient/shout) are dropped with them.
+# The rest of the net group (live555/librist/smb2/microdns/nfs/upnp) builds and
+# ships, so RTSP/RIST/SMB/mDNS-Bonjour/NFS/UPnP all work on Apple over http(s)
+# served by securetransport.
+APPLE_PRUNE=(--disable-gnutls --disable-nettle --disable-gmp --disable-gcrypt --disable-gpg-error --disable-srt --disable-ssh2 --disable-vncclient --disable-shout)
 case "${PLATFORM}" in
   ios|iossimulator)
     # Mobile ships no optical-disc hardware, so drop the disc stack (desktop-only).
-    APPLE_PRUNE=(--disable-disc --disable-schroedinger --disable-vpx --disable-ass --disable-harfbuzz --disable-fribidi)
-    # VLC 4.0 only: gmp's build-machine compiler self-test fails under the iOS
-    # cross environment (the exported CC_FOR_BUILD resolves the target CPPFLAGS).
-    # gmp is only pulled in by nettle <- gnutls (network, already disabled) and
-    # asdcplib (Digital Cinema); neither is a VLC 4 required test module. VLC 4's
+    APPLE_PRUNE+=(--disable-disc --disable-schroedinger --disable-vpx --disable-ass --disable-harfbuzz --disable-fribidi)
+    # VLC 4.0 only: asdcplib (Digital Cinema) is not a required module, and VLC 4's
     # x265 cmake passes an empty -mmacosx-version-min= to the iOS assembler, so
     # drop the encoders on VLC 4 mobile (VideoToolbox provides H.264/H.265 encode).
-    [ "${VLC_SERIES}" != "3" ] && APPLE_PRUNE+=(--disable-asdcplib --disable-gnutls --disable-nettle --disable-gmp --disable-x264 --disable-x265) ;;
+    [ "${VLC_SERIES}" != "3" ] && APPLE_PRUNE+=(--disable-asdcplib --disable-x264 --disable-x265) ;;
   maccatalyst)
     # Catalyst requires only avcodec+sout+videotoolbox; libvpx's VP9 RTC C++ does
     # not compile for the macabi arm64 target, and schroedinger/orc are unstable.
@@ -145,7 +150,7 @@ case "${PLATFORM}" in
     # x264/x265's asm objects are tagged 'macOS' (not 'macabi'), so their static
     # libs fail to link into a Catalyst app; H.264/H.265 ENCODE on Catalyst uses
     # VideoToolbox instead.
-    APPLE_PRUNE=(--disable-disc --disable-x264 --disable-x265 --disable-schroedinger --disable-vpx)
+    APPLE_PRUNE+=(--disable-disc --disable-x264 --disable-x265 --disable-schroedinger --disable-vpx)
     # VLC 4.0 Catalyst arm64 only: mpg123's NEON64 asm (dct36_neon64.S) is
     # assembled with a 'macOS' platform tag under the macabi cross, so it cannot
     # link into the Catalyst arm64 dynamic framework. MP3 decode falls back to
@@ -190,10 +195,6 @@ fi
 restore_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
 CONTRIB_PREFIX="${VLC_SRC}/contrib/${TRIPLET}"
 
-# Drop contrib TLS/streaming libs so libvlc does not pull desktop network modules.
-rm -f "${CONTRIB_PREFIX}"/lib/libgnutls* "${CONTRIB_PREFIX}"/lib/pkgconfig/gnutls.pc \
-      "${CONTRIB_PREFIX}"/lib/libsrt*    "${CONTRIB_PREFIX}"/lib/pkgconfig/srt.pc 2>/dev/null || true
-
 ( cd "${VLC_SRC}" && ./bootstrap )
 
 BUILD_DIR="${VLC_SRC}/build-apple-${PLATFORM}-${ARCH}"
@@ -206,8 +207,15 @@ CONFIG_FLAGS=(
   "--with-contrib=${CONTRIB_PREFIX}"
   --disable-vlc --disable-qt --disable-skins2 --disable-macosx
   --disable-nls --disable-lua --disable-a52 --disable-sparkle
-  --disable-bluray --disable-gnutls --disable-srt --disable-libxml2
-  --disable-screen --disable-vcd --disable-live555 --disable-realrtsp
+  --disable-bluray --disable-libxml2
+  --disable-screen --disable-vcd
+  # TLS via the built-in securetransport module (no gnutls contrib on Apple); srt
+  # is pruned from the Apple contrib (needs a crypto backend we do not ship here).
+  --disable-gnutls --disable-srt
+  # Native transport/network stack: RTSP (live555) builds from the contrib net
+  # group; RIST/SMB2/mDNS-Bonjour/NFS/UPnP auto-enable from pkg-config; http/https
+  # + native HLS/DASH use securetransport for TLS.
+  --enable-live555
   --enable-taglib        # metadata read/write (feature parity, contrib-provided)
   --enable-avcodec --enable-swscale
 )

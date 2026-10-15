@@ -43,16 +43,12 @@ CONTRIB_PART_SIZE="${CONTRIB_PART_SIZE:-95000000}"
 CONTRIB_ZSTD_LEVEL="${CONTRIB_ZSTD_LEVEL:-19}"
 
 # Baseline contrib bootstrap prune applied on every target. The cached pipeline
-# now targets main-media FEATURE PARITY (see cached/FEATURE-PARITY-TASK.md), so
-# the closure keeps the encoders (x264/x265), the extra audio decoder (mpg123),
-# the metadata writer (taglib) and the LOCAL disc stack (dvdread/dvdnav/bluray,
-# +dvdcss transitively). Only host-owned, excluded or genuinely-unbuildable
-# packages are dropped here:
-#   --disable-net                   network group (gnutls, srt, live555, smb2,
-#                                   upnp, microdns, shout, ssh2, vncclient). C#
-#                                   owns transport; also keeps cddb OUT (cddb is
-#                                   gated by BOTH disc AND net, so net-off == no
-#                                   CDDB even though the disc group is enabled).
+# ships VLC's COMPLETE native transport/network stack (see
+# cached/FEATURE-RESTORATION-TASK.md): the network package GROUP is KEPT so
+# gnutls (TLS), live555 (RTSP), librist (RIST), smb2/libdsm (SMB), microdns
+# (mDNS/Bonjour discovery), nfs, upnp, srt and shout/ssh2 all build, and the
+# contrib ffmpeg picks up its network protocols (AVIO). Only host-owned or
+# genuinely-unbuildable NON-transport packages are dropped here:
 #   opencv4/opencv/protobuf         computer-vision analysis (specialist extra)
 #   chromaprint                     audio fingerprinting (specialist extra)
 #   libplacebo                      GPU HDR renderer (needs glslang/shaderc/vulkan;
@@ -68,13 +64,11 @@ CONTRIB_ZSTD_LEVEL="${CONTRIB_ZSTD_LEVEL:-19}"
 #   aom                             AV1 ENCODER (AV1 DECODE is covered by dav1d;
 #                                   libaom NEON fails to build on armv7)
 #   lua / luac                      VLC scripting (host-owned; excluded)
-#   gpg-error / gcrypt              crypto only pulled by the (disabled) net group;
-#                                   gpg-error's mkheader OOMs on the iOS build. The
-#                                   local disc stack (dvdcss/dvdread/dvdnav/bluray)
-#                                   does its own crypto and does not need these.
-# The full codec/demux/subtitle/audio/disc/metadata closure is otherwise kept.
-# Override CONTRIB_DEFAULT_PRUNE to change the set.
-CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE:---disable-net --disable-opencv4 --disable-opencv --disable-protobuf --disable-chromaprint --disable-libplacebo --disable-projectM --disable-goom --disable-qt --disable-qtdeclarative --disable-qtshadertools --disable-qtsvg --disable-qtwayland --disable-medialibrary --disable-breakpad --disable-xcb --disable-x262 --disable-aom --disable-lua --disable-luac --disable-gpg-error --disable-gcrypt}"
+# gnutls' crypto deps (nettle/gmp/gcrypt/gpg-error) now build for the TLS stack;
+# the Apple targets re-prune them in APPLE_PRUNE and use securetransport instead
+# (gpg-error's mkheader OOMs under the iOS cross build). Override
+# CONTRIB_DEFAULT_PRUNE to change the set.
+CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE:---disable-opencv4 --disable-opencv --disable-protobuf --disable-chromaprint --disable-libplacebo --disable-projectM --disable-goom --disable-qt --disable-qtdeclarative --disable-qtshadertools --disable-qtsvg --disable-qtwayland --disable-medialibrary --disable-breakpad --disable-xcb --disable-x262 --disable-aom --disable-lua --disable-luac}"
 
 log()  { printf '\033[1;36m[vlcdotnet-cached]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[vlcdotnet-cached]\033[0m %s\n' "$*" >&2; }
@@ -175,10 +169,11 @@ build_vlc_tools() {
 # build_full_contrib <vlc-src> <build-subdir> <triplet> [-- <bootstrap-flag>...]
 #
 # Builds the full VLC contrib set from source into <vlc-src>/contrib/<triplet>.
-# A baseline prune (CONTRIB_DEFAULT_PRUNE) drops the disc + network package
-# GROUPS and mpg123, none of which are used for local file playback and all of
-# which fail to build cleanly on the GitHub runners (cddb AM_ICONV, mpg123
-# LT_SYS_MODULE_EXT / link). Everything else VLC enables for the host triplet is
+# A baseline prune (CONTRIB_DEFAULT_PRUNE) drops only host-owned / non-transport
+# specialist packages (computer-vision, Qt, visualizations, encoders of last
+# resort); the network package GROUP is KEPT so the full native transport stack
+# (TLS/RTSP/RIST/SMB/mDNS/...) and the network-enabled contrib ffmpeg build.
+# Everything else VLC enables for the host triplet is
 # built. Reads an optional CONTRIB_ENV array for platform selectors
 # (HAVE_ANDROID=1, BUILDFORIOS=1, HAVE_MACOSX=1, ...) and an optional CONTRIB_MK
 # array for extra make variables. Extra bootstrap flags may be passed after a
@@ -449,31 +444,14 @@ restore_contrib() {
 }
 
 # strip_excluded_plugins <artifact-dir>
-# Removes the native NETWORK transport plugins from a staged dynamic runtime.
-# The .NET host owns all transport (HTTP/FTP/RTP/UDP/TCP/SMB/NFS/RTSP/SAT-IP/
-# RIST/MMS/...), so these are excluded by the revised scope (cached/FEATURE-
-# PARITY-TASK.md). Local file/callback input (filesystem, imem, access_concat,
-# attachment), the optical-disc stack, local file/dummy output and every
-# demux/decode/subtitle/filter module are preserved. Matched by plugin file name
-# so it is safe on linux/windows/android/macOS dynamic builds; the Apple static
-# staging applies the same list (VLC_EXCLUDED_NET_MODULES) at registration time.
-#
-# Shared native-network module denylist (module base names, no lib/_plugin
-# affixes), consumed by strip_excluded_plugins (dynamic file removal) and by
-# stage_static_vlc (skipped at static registration time) so both deliver the
-# identical excluded-transport set across every RID.
-VLC_EXCLUDED_NET_MODULES="http https ftp sftp ftps http_zip \
-  rtp rtpvideo rtsp live555 realrtsp vod_rtsp sdp \
-  tcp udp \
-  nfs smb smb2 dsm \
-  dtv dvb satip \
-  rist srt \
-  access_mms mms \
-  vnc \
-  avio \
-  access_output_http access_output_livehttp access_output_udp access_output_rist access_output_srt \
-  stream_out_rtp stream_out_rtpvideo \
-  sap podcast upnp microdns bonjour mdns"
+# Optional denylist filter for the staged dynamic runtime. The cached pipeline
+# now SHIPS VLC's complete native transport/network stack (HTTP/HTTPS/FTP/RTP/
+# RTSP/UDP/TCP/SAT-IP/RIST/SMB/mDNS/discovery/...), so the denylist is EMPTY by
+# default and nothing is stripped. It stays as a hook: set VLC_EXCLUDED_NET_MODULES
+# (space-separated module base names, no lib/_plugin affixes) in the environment
+# to drop specific modules from both the dynamic file tree and the Apple static
+# registration table (stage_static_vlc consumes the same list).
+VLC_EXCLUDED_NET_MODULES="${VLC_EXCLUDED_NET_MODULES-}"
 
 strip_excluded_plugins() {
   local out="$1"
@@ -545,7 +523,7 @@ normalize_output() {
     [ -f "${prefix}/../${l}" ] && cp -a "${prefix}/../${l}" "${out}/" || true
   done
 
-  # Drop the excluded native-networking plugins (C# owns transport).
+  # Apply the optional module denylist (empty by default: ship the full stack).
   strip_excluded_plugins "${out}"
 
   log "Wrote ${rid} -> ${out}"
@@ -570,31 +548,16 @@ stage_static_vlc() {
   local plugdir="${prefix}/lib/vlc/plugins"
   if [ -d "${plugdir}" ]; then
     while IFS= read -r -d '' a; do
-      local base cat stage_module=0 modname
+      local base modname
       base="$(basename "$a" .a)"
-      cat="$(basename "$(dirname "$a")")"
-      # Exclude native-network transport modules from the static registration
-      # table (C# owns transport); same denylist the dynamic builds strip.
+      # Register every plugin archive so the full native transport stack (http/
+      # https/ftp/rtp/rtsp/udp/tcp/sat-ip/rist/smb2/sap/podcast/securetransport/
+      # ...) is force-loaded into the static framework. VLC_EXCLUDED_NET_MODULES
+      # (empty by default) may name modules to skip via the environment.
       modname="$(printf '%s' "${base#lib}" | sed 's/_plugin$//')"
       case " ${VLC_EXCLUDED_NET_MODULES} " in
         *" ${modname} "*) continue ;;
       esac
-      case "${cat}" in
-        access|audio_filter|audio_output|codec|demux|meta_engine|packetizer|spu|text_renderer|video_chroma|video_output)
-          stage_module=1
-          ;;
-        access_output)
-          case "${base}" in
-            libaccess_output_file_plugin) stage_module=1 ;;
-          esac
-          ;;
-        stream_out)
-          case "${base}" in
-            libstream_out_standard_plugin|libstream_out_transcode_plugin) stage_module=1 ;;
-          esac
-          ;;
-      esac
-      [ "${stage_module}" = "1" ] || continue
       cp -a "$a" "${sdir}/"
       staged_modules="${staged_modules}
 $(printf '%s\n' "${base#lib}" | sed 's/_plugin$//')"

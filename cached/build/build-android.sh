@@ -120,7 +120,12 @@ CONFIG_FLAGS=(
   --disable-sdl-image
   --disable-bluray       # Android ships no optical-disc stack
   --disable-xcb --disable-alsa --disable-pulse --disable-vdpau
-  --disable-v4l2 --disable-vnc --disable-gnutls --disable-srt --disable-ncurses
+  --disable-v4l2 --disable-ncurses
+  # Native transport/network stack (contrib net group). gnutls provides TLS for
+  # http/https + native HLS/DASH; live555 provides RTSP input + VOD; smb2/srt/
+  # rist/microdns/nfs auto-enable from pkg-config. VA-API/VDPAU have no Android
+  # backend (hardware decode is MediaCodec, enabled separately).
+  --enable-gnutls --enable-live555 --enable-dvbpsi
   --enable-avcodec --enable-swscale
   --enable-shared --disable-static
 )

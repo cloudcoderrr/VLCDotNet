@@ -17,20 +17,22 @@ metadata closure (ffmpeg, x264/x265, dav1d, aom-decode-via-dav1d, vpx, theora,
 vorbis, opus, flac, speex, mpg123, faad2, mad, a52/dca, libass, freetype/
 harfbuzz/fribidi, matroska, dvbpsi, taglib, dvdread/dvdnav/bluray, gme/modplug/
 sidplay2/fluidsynth, ...) so the cached runtime reaches **main-media feature
-parity** (see [FEATURE-PARITY-TASK.md](FEATURE-PARITY-TASK.md)).
+parity** plus VLC's complete native transport/network stack (see
+[FEATURE-RESTORATION-TASK.md](FEATURE-RESTORATION-TASK.md)).
 
-A baseline prune (`CONTRIB_DEFAULT_PRUNE`) drops only host-owned, excluded or
-genuinely-unbuildable packages: the **network** group (gnutls, srt, live555,
-smb2, upnp, microdns, shout, ssh2, vncclient — C# owns transport; this also
-keeps **cddb** out, which needs *both* disc and net), **opencv/protobuf**
+A baseline prune (`CONTRIB_DEFAULT_PRUNE`) drops only host-owned or
+genuinely-unbuildable NON-transport packages: **opencv/protobuf**
 (computer vision), **chromaprint** (fingerprinting), **libplacebo/projectM/goom**
 (GPU render + external visualizations), **Qt** (GUI), **medialibrary**,
 **breakpad**, **xcb** (Linux links the *system* libxcb), the **x262** MPEG-2
-encoder and **aom** AV1 encoder (AV1 decode is covered by dav1d), **lua**
-(scripting) and **gcrypt/gpg-error** (only the disabled net group needs them).
-The encoders (x264/x265), the extra audio decoder (mpg123), the metadata writer
-(taglib) and the LOCAL disc stack (dvdread/dvdnav/bluray + dvdcss) are KEPT.
-Override `CONTRIB_DEFAULT_PRUNE` to change the set.
+encoder and **aom** AV1 encoder (AV1 decode is covered by dav1d) and **lua**
+(scripting). The **network** group (gnutls, live555, librist, smb2, nfs,
+microdns, upnp, srt, shout, ssh2) is now KEPT so the runtime ships the full
+native transport stack; its crypto deps (nettle/gmp/gcrypt/gpg-error) build with
+it. The encoders (x264/x265), the extra audio decoder (mpg123), the metadata
+writer (taglib) and the LOCAL disc stack (dvdread/dvdnav/bluray + dvdcss) are
+KEPT. Apple uses **securetransport** for TLS, so gnutls and its crypto deps are
+pruned there. Override `CONTRIB_DEFAULT_PRUNE` to change the set.
 
 ### Split contrib groups
 
@@ -114,7 +116,8 @@ prefix (in `*.pc` / `*.la` / `*-config`) to the current location.
 | `CONTRIB_GROUP` | Which Phase-1 split group to build (`heavy` or `rest`); unset = legacy single-shot full build. |
 | `CONTRIB_GROUPS` | Ordered group list the chain walks (default `heavy rest`; e.g. `ffmpeg x265 x264 rest` for a finer split). |
 | `VLC_VERSION` / `VLC_SERIES` / `VLC_REF` | VLC version / series / git ref (defaults from `Directory.Build.props`). |
-| `CONTRIB_DEFAULT_PRUNE` | Baseline contrib bootstrap prune applied on every target (default `--disable-disc --disable-net --disable-mpg123`). |
+| `CONTRIB_DEFAULT_PRUNE` | Baseline contrib bootstrap prune applied on every target (drops non-transport specialist packages; keeps the network group so the native transport stack ships). |
+| `VLC_EXCLUDED_NET_MODULES` | Optional space-separated module denylist stripped from the staged runtime / Apple static table (empty by default: ship everything). |
 | `CACHED_CONTRIB_PRUNE` | Extra `--disable-<pkg>` bootstrap flags to drop packages that cannot cross-build for a target. |
 | `CONTRIB_PART_SIZE` | Max committed part size in bytes (default 95 MB; GitHub rejects files >100 MiB). |
 | `CONTRIB_ZSTD_LEVEL` | zstd compression level for the cache (default 19). |

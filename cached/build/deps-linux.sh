@@ -32,7 +32,7 @@ ${SUDO} apt-get install -y --no-install-recommends \
   libxcb-randr0-dev libxcb-keysyms1-dev libxcb-xv0-dev libxcb-xkb-dev \
   libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev \
   libwayland-dev wayland-protocols libxkbcommon-dev \
-  libva-dev libvdpau-dev
+  libva-dev libdrm-dev libvdpau-dev
 
 # Cross toolchains for building the arm/arm64 contribs on an x86_64 runner. The
 # cached pipeline cross-compiles the linux arm/arm64 CONTRIB phase (a full

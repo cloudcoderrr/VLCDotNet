@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -145,6 +148,23 @@ namespace VLCDotNet.Tests.Shared
                     Guard("Metadata", MediaCatalog.TaggedAudio.FileName, TestMetadataRead);
                     Guard("Encode", "x264 h264", () => TestEncode("h264", "x264", "sout-x264.mp4"));
                     Guard("Encode", "x265 h265", () => TestEncode("h265", "x265", "sout-x265.mp4"));
+                }
+
+                // Native transport/network coverage (cached pipeline only; gated by
+                // VLC_NETWORK_TESTS). Exercises the restored http/ftp/rtp/udp access
+                // and sout modules against ephemeral loopback servers and verifies
+                // the expected native-transport modules ship for the RID.
+                if (NetworkEnabled)
+                {
+                    Guard("Network", "transport modules", TestNetworkModulesPresent);
+                    Guard("Network", "http playback", TestHttpPlayback);
+                    Guard("Network", "http seek", TestHttpSeek);
+                    Guard("Network", "ftp playback", TestFtpPlayback);
+                    if (IsDesktop())
+                    {
+                        Guard("Network", "udp loopback", TestUdpLoopback);
+                        Guard("Network", "rtp loopback", TestRtpLoopback);
+                    }
                 }
             }
             finally
@@ -895,6 +915,447 @@ namespace VLCDotNet.Tests.Shared
                 Record(outcome, sw);
             }
         }
+
+        // ----- Native transport / network ---------------------------------
+
+        // Module base names that represent VLC's native transport/network stack,
+        // used by TestNetworkModulesPresent to report what shipped per RID.
+        private static readonly HashSet<string> NetworkModuleNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "http", "https", "http2", "ftp", "sftp", "ftps",
+            "tcp", "udp", "rtp", "rtpvideo", "rtsp", "live555", "realrtsp", "vod_rtsp", "sdp",
+            "nfs", "smb", "smb2", "dsm", "satip", "dtv", "rist", "srt", "mms", "access_mms", "vnc", "avio",
+            "access_output_http", "access_output_livehttp", "access_output_udp", "access_output_rist", "access_output_srt",
+            "stream_out_rtp", "stream_out_rtpvideo", "stream_out_standard",
+            "sap", "podcast", "upnp", "microdns", "bonjour", "mdns", "gnutls", "securetransport", "tls",
+        };
+
+        // Asserts the restored native transport modules are present. Every RID must
+        // ship the http access plus a TLS provider (gnutls, or securetransport on
+        // Apple); the workflow passes the exact per-RID set via the
+        // VLC_EXPECTED_NET_MODULES env (tokens may be "a|b" = at least one of).
+        private void TestNetworkModulesPresent()
+        {
+            var outcome = new TestOutcome("Network", "transport modules");
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                HashSet<string> modules = _modules.Count > 0 ? _modules : DiscoverAvailableModules();
+
+                var discovered = new List<string>();
+                foreach (string m in modules)
+                {
+                    if (NetworkModuleNames.Contains(m))
+                    {
+                        discovered.Add(m);
+                    }
+                }
+                discovered.Sort(StringComparer.OrdinalIgnoreCase);
+                outcome.Details.Add("native transport modules: " + (discovered.Count > 0 ? string.Join(", ", discovered) : "(none)"));
+
+                bool hasTls = modules.Contains("gnutls") || modules.Contains("securetransport");
+                var missing = new List<string>();
+                if (!modules.Contains("http"))
+                {
+                    missing.Add("http");
+                }
+                if (!hasTls)
+                {
+                    missing.Add("gnutls|securetransport");
+                }
+
+                string? expected = Environment.GetEnvironmentVariable("VLC_EXPECTED_NET_MODULES");
+                if (!string.IsNullOrWhiteSpace(expected))
+                {
+                    foreach (string token in expected.Split(new[] { ',', ';', ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        string t = token.Trim();
+                        if (t.Length == 0)
+                        {
+                            continue;
+                        }
+                        if (t.IndexOf('|') >= 0)
+                        {
+                            bool any = false;
+                            foreach (string alt in t.Split('|'))
+                            {
+                                if (modules.Contains(alt.Trim()))
+                                {
+                                    any = true;
+                                    break;
+                                }
+                            }
+                            if (!any)
+                            {
+                                missing.Add(t);
+                            }
+                        }
+                        else if (!modules.Contains(t))
+                        {
+                            missing.Add(t);
+                        }
+                    }
+                }
+
+                outcome.Passed = missing.Count == 0;
+                outcome.Message = outcome.Passed
+                    ? $"native transport modules present ({discovered.Count} discovered)"
+                    : "missing transport modules: " + string.Join(", ", missing);
+            }
+            catch (Exception ex)
+            {
+                outcome.Passed = false;
+                outcome.Message = ex.Message;
+            }
+            finally
+            {
+                Record(outcome, sw);
+            }
+        }
+
+        // Plays the first test video over a loopback HTTP server: exercises the
+        // native http access + demux/decode chain and captures a decoded frame.
+        private void TestHttpPlayback()
+        {
+            var outcome = new TestOutcome("Network", "http playback");
+            var sw = Stopwatch.StartNew();
+            IntPtr media = IntPtr.Zero, mp = IntPtr.Zero;
+            VideoFrameCapture? cap = null;
+            LoopbackHttpServer? server = null;
+            try
+            {
+                MediaSpec spec = MediaCatalog.Videos[0];
+                string path = Path.Combine(_env.MediaDirectory, spec.FileName);
+                if (!File.Exists(path))
+                {
+                    Skip(outcome, sw, "media file not found: " + path);
+                    return;
+                }
+
+                server = new LoopbackHttpServer(_env.MediaDirectory);
+                string url = server.UrlFor(spec.FileName);
+                outcome.Details.Add("url: " + url);
+
+                long logCursor = CaptureLogCursor();
+                media = NewMediaFromLocation(url);
+                AddNetworkCaching(media);
+                mp = NewPlayerFromMedia(media);
+                cap = new VideoFrameCapture(mp, 320, 180);
+
+                if (!PlayAndWaitPlaying(mp, 15000))
+                {
+                    Fail(outcome, sw, "did not reach Playing state over http");
+                    return;
+                }
+
+                Thread.Sleep(1800);
+                DescribeTracks(media, mp, outcome);
+
+                FrameStats stats = cap.Analyze();
+                outcome.Details.Add(stats.ToString());
+                string bmp = Path.Combine(_env.OutputDirectory, "snapshot-http-" + GetArtifactStem(spec.FileName) + ".bmp");
+                if (cap.WriteBmp(bmp))
+                {
+                    outcome.Artifacts.Add(bmp);
+                }
+
+                string logDelta = ReadLogSince(logCursor);
+                outcome.Details.Add("http log marker: " + (logDelta.IndexOf("http", StringComparison.OrdinalIgnoreCase) >= 0));
+
+                bool ok = stats.Frames > 0 && stats.NonDarkFraction > 0.02 && stats.LumaRange > 40;
+                outcome.Passed = ok;
+                outcome.Message = ok
+                    ? $"decoded {stats.Frames} frames over http; {stats.NonDarkFraction:P0} non-dark"
+                    : "no decoded frames over http, or frame is black/flat";
+            }
+            catch (Exception ex)
+            {
+                outcome.Passed = false;
+                outcome.Message = ex.Message;
+            }
+            finally
+            {
+                Cleanup(mp, media);
+                cap?.Dispose();
+                server?.Dispose();
+                Record(outcome, sw);
+            }
+        }
+
+        // Seeks mid-stream over HTTP to prove the http access performs Range
+        // (byte-range) requests, the same path native HLS/DASH fetching uses.
+        private void TestHttpSeek()
+        {
+            var outcome = new TestOutcome("Network", "http seek");
+            var sw = Stopwatch.StartNew();
+            IntPtr media = IntPtr.Zero, mp = IntPtr.Zero;
+            VideoFrameCapture? cap = null;
+            LoopbackHttpServer? server = null;
+            try
+            {
+                MediaSpec spec = MediaCatalog.Videos[0];
+                string path = Path.Combine(_env.MediaDirectory, spec.FileName);
+                if (!File.Exists(path))
+                {
+                    Skip(outcome, sw, "media file not found: " + path);
+                    return;
+                }
+
+                server = new LoopbackHttpServer(_env.MediaDirectory);
+                media = NewMediaFromLocation(server.UrlFor(spec.FileName));
+                AddNetworkCaching(media);
+                mp = NewPlayerFromMedia(media);
+                cap = new VideoFrameCapture(mp, 320, 180);
+
+                if (!PlayAndWaitPlaying(mp, 15000))
+                {
+                    Fail(outcome, sw, "did not reach Playing state over http");
+                    return;
+                }
+
+                Thread.Sleep(1200);
+                bool seekable = IsSeekable(mp);
+                outcome.Details.Add("seekable: " + seekable);
+                SetPosition(mp, 0.6);
+                Thread.Sleep(1500);
+
+                FrameStats stats = cap.Analyze();
+                outcome.Details.Add(stats.ToString());
+
+                bool ok = seekable && stats.Frames > 0 && stats.NonDarkFraction > 0.02;
+                outcome.Passed = ok;
+                outcome.Message = ok
+                    ? "seek over http produced decoded frames (range requests honoured)"
+                    : "seek over http did not produce frames";
+            }
+            catch (Exception ex)
+            {
+                outcome.Passed = false;
+                outcome.Message = ex.Message;
+            }
+            finally
+            {
+                Cleanup(mp, media);
+                cap?.Dispose();
+                server?.Dispose();
+                Record(outcome, sw);
+            }
+        }
+
+        // Plays the first test video over a loopback FTP server (PASV + RETR),
+        // exercising the native ftp access module end to end.
+        private void TestFtpPlayback()
+        {
+            var outcome = new TestOutcome("Network", "ftp playback");
+            var sw = Stopwatch.StartNew();
+            IntPtr media = IntPtr.Zero, mp = IntPtr.Zero;
+            VideoFrameCapture? cap = null;
+            LoopbackFtpServer? server = null;
+            try
+            {
+                MediaSpec spec = MediaCatalog.Videos[0];
+                string path = Path.Combine(_env.MediaDirectory, spec.FileName);
+                if (!File.Exists(path))
+                {
+                    Skip(outcome, sw, "media file not found: " + path);
+                    return;
+                }
+
+                HashSet<string> modules = _modules.Count > 0 ? _modules : DiscoverAvailableModules();
+                if (!modules.Contains("ftp"))
+                {
+                    Skip(outcome, sw, "ftp module not present in this build");
+                    return;
+                }
+
+                server = new LoopbackFtpServer(_env.MediaDirectory);
+                string url = server.UrlFor(spec.FileName);
+                outcome.Details.Add("url: " + url);
+
+                long logCursor = CaptureLogCursor();
+                media = NewMediaFromLocation(url);
+                AddNetworkCaching(media);
+                mp = NewPlayerFromMedia(media);
+                cap = new VideoFrameCapture(mp, 320, 180);
+
+                if (!PlayAndWaitPlaying(mp, 15000))
+                {
+                    Fail(outcome, sw, "did not reach Playing state over ftp");
+                    return;
+                }
+
+                Thread.Sleep(1800);
+                DescribeTracks(media, mp, outcome);
+
+                FrameStats stats = cap.Analyze();
+                outcome.Details.Add(stats.ToString());
+                string bmp = Path.Combine(_env.OutputDirectory, "snapshot-ftp-" + GetArtifactStem(spec.FileName) + ".bmp");
+                if (cap.WriteBmp(bmp))
+                {
+                    outcome.Artifacts.Add(bmp);
+                }
+
+                string logDelta = ReadLogSince(logCursor);
+                outcome.Details.Add("ftp log marker: " + (logDelta.IndexOf("ftp", StringComparison.OrdinalIgnoreCase) >= 0));
+
+                bool ok = stats.Frames > 0 && stats.NonDarkFraction > 0.02 && stats.LumaRange > 40;
+                outcome.Passed = ok;
+                outcome.Message = ok
+                    ? $"decoded {stats.Frames} frames over ftp"
+                    : "no decoded frames over ftp, or frame is black/flat";
+            }
+            catch (Exception ex)
+            {
+                outcome.Passed = false;
+                outcome.Message = ex.Message;
+            }
+            finally
+            {
+                Cleanup(mp, media);
+                cap?.Dispose();
+                server?.Dispose();
+                Record(outcome, sw);
+            }
+        }
+
+        // Streams the first test video over loopback UDP (sout std/udp mux=ts) and
+        // reads it back (udp access), verifying the output + input transport. VLC 4
+        // removed the standalone access_output_udp, so this is VLC 3 only.
+        private void TestUdpLoopback()
+        {
+#if VLC4
+            Skip(new TestOutcome("Network", "udp loopback"), Stopwatch.StartNew(),
+                "access_output_udp was removed in VLC 4 (UDP streaming output is VLC 3 only)");
+#else
+            RunStreamLoopback(
+                outcome: new TestOutcome("Network", "udp loopback"),
+                soutFor: port => $"#std{{access=udp,mux=ts,dst=127.0.0.1:{port}}}",
+                receiveUrlFor: port => $"udp://@127.0.0.1:{port}",
+                label: "udp");
+#endif
+        }
+
+        // Streams the first test video over loopback RTP (stream_out_rtp, mux=ts)
+        // and reads it back (rtp access + live555 depacketiser where applicable).
+        private void TestRtpLoopback() => RunStreamLoopback(
+            outcome: new TestOutcome("Network", "rtp loopback"),
+            soutFor: port => $"#rtp{{dst=127.0.0.1,port={port},mux=ts}}",
+            receiveUrlFor: port => $"rtp://@127.0.0.1:{port}",
+            label: "rtp");
+
+        private void RunStreamLoopback(TestOutcome outcome, Func<int, string> soutFor, Func<int, string> receiveUrlFor, string label)
+        {
+            var sw = Stopwatch.StartNew();
+            IntPtr sMedia = IntPtr.Zero, sPlayer = IntPtr.Zero, rMedia = IntPtr.Zero, rPlayer = IntPtr.Zero;
+            VideoFrameCapture? cap = null;
+            try
+            {
+                string input = Path.Combine(_env.MediaDirectory, MediaCatalog.Videos[0].FileName);
+                if (!File.Exists(input))
+                {
+                    Skip(outcome, sw, "input media not found");
+                    return;
+                }
+
+                int port = FreeUdpPort();
+                outcome.Details.Add($"{label} port: {port}");
+
+                // Sender: remux the local file to MPEG-TS and stream it to loopback,
+                // looped so the stream outlives the receiver's startup.
+                sMedia = NewMedia(input);
+                LibVlc.libvlc_media_add_option(sMedia, ":input-repeat=4");
+                LibVlc.libvlc_media_add_option(sMedia, ":sout=" + soutFor(port));
+                long logCursor = CaptureLogCursor();
+                sPlayer = NewPlayerFromMedia(sMedia);
+                if (LibVlc.libvlc_media_player_play(sPlayer) != 0)
+                {
+                    Fail(outcome, sw, $"{label} sender did not start");
+                    return;
+                }
+                Thread.Sleep(1800);
+
+                // Receiver.
+                rMedia = NewMediaFromLocation(receiveUrlFor(port));
+                AddNetworkCaching(rMedia, 1500);
+                LibVlc.libvlc_media_add_option(rMedia, ":demux=ts");
+                rPlayer = NewPlayerFromMedia(rMedia);
+                cap = new VideoFrameCapture(rPlayer, 320, 180);
+
+                bool playing = PlayAndWaitPlaying(rPlayer, 12000);
+                if (playing)
+                {
+                    Thread.Sleep(2800);
+                }
+
+                FrameStats stats = cap.Analyze();
+                outcome.Details.Add("receiver " + stats);
+                string logDelta = ReadLogSince(logCursor);
+                bool sawOut = logDelta.IndexOf(label, StringComparison.OrdinalIgnoreCase) >= 0
+                    || logDelta.IndexOf("access_output", StringComparison.OrdinalIgnoreCase) >= 0
+                    || logDelta.IndexOf("stream_out", StringComparison.OrdinalIgnoreCase) >= 0;
+                outcome.Details.Add($"sender {label} log marker: {sawOut}");
+                string bmp = Path.Combine(_env.OutputDirectory, "snapshot-" + label + "-loopback.bmp");
+                if (cap.WriteBmp(bmp))
+                {
+                    outcome.Artifacts.Add(bmp);
+                }
+
+                bool ok = playing && stats.Frames > 0 && stats.NonDarkFraction > 0.01;
+                outcome.Passed = ok;
+                outcome.Message = ok
+                    ? $"received {stats.Frames} frames over {label} loopback"
+                    : $"no frames received over {label} loopback";
+            }
+            catch (Exception ex)
+            {
+                outcome.Passed = false;
+                outcome.Message = ex.Message;
+            }
+            finally
+            {
+                Cleanup(rPlayer, rMedia);
+                cap?.Dispose();
+                Cleanup(sPlayer, sMedia);
+                Record(outcome, sw);
+            }
+        }
+
+        private IntPtr NewMediaFromLocation(string url) =>
+#if VLC4
+            LibVlc.libvlc_media_new_location(url);
+#else
+            LibVlc.libvlc_media_new_location(_instance, url);
+#endif
+
+        private static void AddNetworkCaching(IntPtr media, int ms = 1500) =>
+            LibVlc.libvlc_media_add_option(media, ":network-caching=" + ms.ToString(CultureInfo.InvariantCulture));
+
+        private static int FreeUdpPort()
+        {
+            using (var s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp))
+            {
+                s.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+                return ((IPEndPoint)s.LocalEndPoint!).Port;
+            }
+        }
+
+        private static bool IsDesktop() =>
+            !OperatingSystem.IsIOS()
+            && !OperatingSystem.IsAndroid()
+            && !OperatingSystem.IsMacCatalyst()
+            && !OperatingSystem.IsTvOS();
+
+        // The cached test workflows opt into the native transport coverage: the
+        // desktop workflows export VLC_NETWORK_TESTS=1 at runtime, the mobile
+        // workflows define the VLC_NET_TESTS compile symbol (the MAUI app cannot
+        // receive process env easily). Other pipelines strip the network stack,
+        // so they do neither and these tests never run against them.
+        private static bool NetworkEnabled =>
+#if VLC_NET_TESTS
+            true;
+#else
+            !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VLC_NETWORK_TESTS"));
+#endif
 
         // ----- Feature-parity: images, metadata, encoders ------------------
 

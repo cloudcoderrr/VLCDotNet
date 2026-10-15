@@ -83,18 +83,31 @@ CONFIG_FLAGS=(
   # Feature parity (contrib-provided; --enable so a missing contrib fails loud).
   --enable-taglib                                    # metadata read/write
   --enable-dvdread --enable-dvdnav --enable-bluray   # local disc stack
+  # Native transport/network stack (contrib net group: gnutls/live555/librist/
+  # smb2/microdns/nfs/srt/...). --enable the explicit ones so a missing contrib
+  # fails loud; srt/rist/smb2/nfs/microdns/sat-ip auto-enable from pkg-config.
+  --enable-gnutls        # TLS provider for http/https + native HLS/DASH
+  --enable-live555       # RTSP input + RTSP VOD serving + realrtsp
+  --enable-dvbpsi        # TS PSI tables + the Linux dtv/dvb tuner access
   --disable-sdl-image    # images covered by png/jpeg/avcodec
   # X11/XCB + OpenGL/EGL/GLES + Wayland display and ALSA/PulseAudio output
   # auto-detect from the -dev libs deps-linux.sh installs. Headless CI builds and
   # loads them; real desktop apps use them for video output / audio.
-  # VA-API/VDPAU hardware decode is deferred: the vdpau_avcodec/vaapi hwaccel
-  # plugins reference ffmpeg's av_vdpau_*/av_vaapi_* symbols, which the cached
-  # contrib ffmpeg was NOT built with, so they fail to link. Restoring them needs
-  # the contrib ffmpeg rebuilt with --enable-vaapi/--enable-vdpau.
-  --disable-vaapi --disable-vdpau
-  --disable-vnc --disable-gnutls --disable-srt --disable-chromaprint
+  --disable-chromaprint
   --enable-shared --disable-static
 )
+
+# VA-API/VDPAU hardware decode (Linux with a supported GPU/driver). The NATIVE
+# x86_64 contrib ffmpeg autodetects the system libva/libdrm/libvdpau through the
+# contrib PKG_CONFIG_LIBDIR (which includes /usr/lib/<triplet>/pkgconfig), so the
+# vaapi/vdpau hwaccels link; --enable makes a regression fail loud. The arm/arm64
+# contribs cross-build without the target libva, so hardware decode is left out
+# there and avcodec falls back to software decode.
+if [ "${ARCH}" = "x86_64" ]; then
+  CONFIG_FLAGS+=(--enable-vaapi --enable-vdpau)
+else
+  CONFIG_FLAGS+=(--disable-vaapi --disable-vdpau)
+fi
 
 (
   cd "${BUILD_DIR}"
