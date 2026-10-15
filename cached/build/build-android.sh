@@ -142,8 +142,10 @@ CONFIG_ENV=("${CONTRIB_ENV[@]}" ac_cv_header_sys_shm_h=no)
 # the contrib gettext wrappers (libintl_dgettext/newlocale/freelocale) and
 # libiconv. Append them via autoconf LIBS so they land after the referencing
 # archives on the plugin link line (order-sensitive with lld). VLC 3 unaffected.
+# GNUTLS_STATIC_CLOSURE (the gnutls nettle closure, set by export_gnutls_static_libs)
+# is folded in here because this explicit LIBS overrides the ambient export.
 if [ "${VLC_SERIES}" != "3" ]; then
-  CONFIG_ENV+=("LIBS=-lintl -liconv")
+  CONFIG_ENV+=("LIBS=-lintl -liconv ${GNUTLS_STATIC_CLOSURE:-}")
 fi
 
 # NDK r29 no longer implicitly links libm into module plugins and folds pthread

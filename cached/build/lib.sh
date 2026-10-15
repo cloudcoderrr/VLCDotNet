@@ -444,32 +444,33 @@ restore_contrib() {
 }
 
 # export_gnutls_static_libs <contrib-prefix>
-# Pins GNUTLS_CFLAGS / GNUTLS_LIBS so VLC's PKG_CHECK_MODULES([GNUTLS]) links the
-# contrib gnutls statically with its full crypto closure. VLC 3.0's contrib
-# gnutls statically bundles a NETTLE BACKPORT whose objects reference base
-# nettle/hogweed/gmp symbols (nettle_mpz_*, nettle_aes*, nettle_cmac_*,
-# nettle_umac*, nettle_hmac_*, nettle_sha3_permute, ...). gnutls <-> hogweed <->
-# nettle <-> gmp have zig-zagging deps, and libtool reorders/dedupes plain -l
-# flags, so the single-pass static linker drops archive members and the link
-# fails with "undefined reference to nettle_*". Passing the ABSOLUTE archive
-# paths inside a single `-Wl,--start-group,...,--end-group` argument keeps them
-# grouped through libtool so the linker iterates until every symbol resolves.
-# No-op when gnutls is not in the contrib (e.g. the Apple targets use
-# securetransport).
+# Appends the contrib gnutls crypto closure (hogweed/nettle/gmp) to LIBS so it
+# lands at the END of EVERY plugin link line (after each module's own -lgnutls).
+# VLC 3.0's contrib gnutls statically bundles a nettle wrapper whose objects
+# reference base nettle/hogweed/gmp symbols (nettle_aes*, nettle_cmac_*,
+# nettle_umac*, nettle_hmac_*, nettle_mpz_*, ...). EVERY plugin that pulls gnutls
+# -- the gnutls TLS module AND transitive consumers like vnc (libvncclient), srt
+# and rist -- links with non-static pkg-config, so the private nettle closure is
+# missing and the link fails with "undefined reference to nettle_*". Putting the
+# closure in LIBS (appended last by automake) fixes all of them at once; the
+# archives are wrapped in --start-group as absolute paths so neither libtool nor
+# the single-pass linker can reorder them, and unreferenced plugins pull nothing.
+# GNUTLS_STATIC_CLOSURE is exported too so scripts that build their own configure
+# LIBS (Android) can fold it in. No-op when gnutls is not in the contrib (Apple
+# uses securetransport).
 export_gnutls_static_libs() {
   local prefix="$1"
   local libdir="${prefix}/lib"
-  [ -f "${libdir}/libgnutls.a" ] || return 0
-  local members="${libdir}/libgnutls.a"
-  local a
+  [ -f "${libdir}/libnettle.a" ] || return 0
+  local members="" a
   for a in libhogweed.a libnettle.a libgmp.a; do
-    [ -f "${libdir}/${a}" ] && members="${members},${libdir}/${a}"
+    [ -f "${libdir}/${a}" ] && members="${members}${members:+,}${libdir}/${a}"
   done
-  export GNUTLS_LIBS="-Wl,--start-group,${members},--end-group"
-  local cflags
-  cflags="$(PKG_CONFIG_PATH="${libdir}/pkgconfig" pkg-config --cflags gnutls 2>/dev/null || true)"
-  export GNUTLS_CFLAGS="${cflags:--I${prefix}/include}"
-  log "Pinned GNUTLS_LIBS to a --start-group archive closure: ${GNUTLS_LIBS}"
+  [ -n "${members}" ] || return 0
+  local closure="-Wl,--start-group,${members},--end-group"
+  export GNUTLS_STATIC_CLOSURE="${closure}"
+  export LIBS="${LIBS:-}${LIBS:+ }${closure}"
+  log "Appended gnutls crypto closure to LIBS: ${closure}"
 }
 
 # strip_excluded_plugins <artifact-dir>
