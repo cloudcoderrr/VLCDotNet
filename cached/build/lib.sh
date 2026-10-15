@@ -596,16 +596,29 @@ stage_static_vlc() {
   local plugdir="${prefix}/lib/vlc/plugins"
   if [ -d "${plugdir}" ]; then
     while IFS= read -r -d '' a; do
-      local base modname
+      local base cat modname stage_module=0
       base="$(basename "$a" .a)"
-      # Register every plugin archive so the full native transport stack (http/
-      # https/ftp/rtp/rtsp/udp/tcp/sat-ip/rist/smb2/sap/podcast/securetransport/
-      # ...) is force-loaded into the static framework. VLC_EXCLUDED_NET_MODULES
-      # (empty by default) may name modules to skip via the environment.
+      cat="$(basename "$(dirname "$a")")"
       modname="$(printf '%s' "${base#lib}" | sed 's/_plugin$//')"
+      # Optional env denylist (empty by default).
       case " ${VLC_EXCLUDED_NET_MODULES} " in
         *" ${modname} "*) continue ;;
       esac
+      # Register the media decode/demux/output categories PLUS the full native
+      # transport stack (access/access_output/stream_out/services_discovery/
+      # stream_filter). Ancillary plugins (preparser, addons, stream_extractor
+      # and most of misc) bundle shared helper objects that duplicate-symbol when
+      # force-loaded together into one framework, so misc is limited to the TLS
+      # providers (securetransport/gnutls).
+      case "${cat}" in
+        access|access_output|stream_out|services_discovery|stream_filter|mux|audio_filter|audio_output|codec|demux|meta_engine|packetizer|spu|text_renderer|video_chroma|video_output|video_filter)
+          stage_module=1 ;;
+        misc)
+          case "${modname}" in
+            securetransport|gnutls) stage_module=1 ;;
+          esac ;;
+      esac
+      [ "${stage_module}" = "1" ] || continue
       cp -a "$a" "${sdir}/"
       staged_modules="${staged_modules}
 $(printf '%s\n' "${base#lib}" | sed 's/_plugin$//')"
