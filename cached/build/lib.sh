@@ -473,9 +473,19 @@ export_gnutls_static_libs() {
   done
   [ -n "${members}" ] || return 0
   # gnutls also pulls zlib (compress/uncompress/compressBound) on some targets
-  # (e.g. the Android srt plugin links gnutls); -lz resolves it from the system /
-  # NDK / mingw zlib and is harmless where unneeded.
-  local closure="-Wl,--start-group,${members},--end-group -lz"
+  # (e.g. the srt/vnc plugins link gnutls). Prefer the contrib libz.a by ABSOLUTE
+  # path inside the group: a bare -lz is not on the llvm-mingw cross default
+  # search path (nor the QEMU arm container's, without zlib1g-dev) and makes
+  # configure's "C compiler can create executables" probe fail. Fall back to -lz
+  # only when the contrib built no libz (e.g. Android links the NDK's libz, which
+  # IS on the default path).
+  local zlib=""
+  if [ -f "${libdir}/libz.a" ]; then
+    members="${members},${libdir}/libz.a"
+  else
+    zlib=" -lz"
+  fi
+  local closure="-Wl,--start-group,${members},--end-group${zlib}"
   export GNUTLS_STATIC_CLOSURE="${closure}"
   export LIBS="${LIBS:-}${LIBS:+ }${closure}"
   log "Appended gnutls crypto closure to LIBS: ${closure}"
