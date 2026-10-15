@@ -109,6 +109,12 @@ CONTRIB_PREFIX="${VLC_SRC}/contrib/${TRIPLET}"
 # otherwise leaves undefined nettle_* references at the plugin link step.
 export_gnutls_static_libs "${CONTRIB_PREFIX}"
 
+# libvncclient references wait3(), which Android's bionic libc does not provide,
+# so the vnc plugin fails to link (undefined symbol: wait3). VNC is not a
+# restoration feature; drop its pkg-config entry so VLC skips the vnc plugin on
+# Android (it still builds on the glibc/mingw desktop targets).
+rm -f "${CONTRIB_PREFIX}"/lib/pkgconfig/libvncclient.pc 2>/dev/null || true
+
 ( cd "${VLC_SRC}" && ./bootstrap )
 
 BUILD_DIR="${VLC_SRC}/build-android-${ARCH}"
