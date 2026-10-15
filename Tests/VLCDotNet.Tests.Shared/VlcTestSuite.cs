@@ -1230,7 +1230,7 @@ namespace VLCDotNet.Tests.Shared
             RunStreamLoopback(
                 outcome: new TestOutcome("Network", "udp loopback"),
                 soutFor: port => $"#std{{access=udp,mux=ts,dst=127.0.0.1:{port}}}",
-                receiveUrlFor: port => $"udp://@127.0.0.1:{port}",
+                receiveUrlFor: port => $"udp://@:{port}",
                 label: "udp");
 #endif
         }
@@ -1240,7 +1240,7 @@ namespace VLCDotNet.Tests.Shared
         private void TestRtpLoopback() => RunStreamLoopback(
             outcome: new TestOutcome("Network", "rtp loopback"),
             soutFor: port => $"#rtp{{dst=127.0.0.1,port={port},mux=ts}}",
-            receiveUrlFor: port => $"rtp://@127.0.0.1:{port}",
+            receiveUrlFor: port => $"rtp://@:{port}",
             label: "rtp");
 
         private void RunStreamLoopback(TestOutcome outcome, Func<int, string> soutFor, Func<int, string> receiveUrlFor, string label)
@@ -1259,32 +1259,44 @@ namespace VLCDotNet.Tests.Shared
 
                 int port = FreeUdpPort();
                 outcome.Details.Add($"{label} port: {port}");
+                long logCursor = CaptureLogCursor();
+
+                // Start the RECEIVER first so the socket is bound before the sender
+                // emits. A file-fed sender races to completion, so if it starts
+                // first its packets hit a closed port and are dropped; the receiver
+                // must already be listening. @: binds every local address on the port.
+                rMedia = NewMediaFromLocation(receiveUrlFor(port));
+                AddNetworkCaching(rMedia, 2000);
+                LibVlc.libvlc_media_add_option(rMedia, ":demux=ts");
+                LibVlc.libvlc_media_add_option(rMedia, ":no-audio");
+                rPlayer = NewPlayerFromMedia(rMedia);
+                cap = new VideoFrameCapture(rPlayer, 320, 180);
+                LibVlc.libvlc_media_player_play(rPlayer);  // binds; Buffering until data arrives
+                Thread.Sleep(1200);
 
                 // Sender: remux the local file to MPEG-TS and stream it to loopback,
-                // looped so the stream outlives the receiver's startup.
+                // looped so it keeps re-emitting while the receiver catches a clean
+                // GOP (the un-paced std/udp output otherwise drains the file in one
+                // burst; the self-paced rtp output streams in real time).
                 sMedia = NewMedia(input);
-                LibVlc.libvlc_media_add_option(sMedia, ":input-repeat=4");
+                LibVlc.libvlc_media_add_option(sMedia, ":input-repeat=8");
                 LibVlc.libvlc_media_add_option(sMedia, ":sout=" + soutFor(port));
-                long logCursor = CaptureLogCursor();
                 sPlayer = NewPlayerFromMedia(sMedia);
                 if (LibVlc.libvlc_media_player_play(sPlayer) != 0)
                 {
                     Fail(outcome, sw, $"{label} sender did not start");
                     return;
                 }
-                Thread.Sleep(1800);
 
-                // Receiver.
-                rMedia = NewMediaFromLocation(receiveUrlFor(port));
-                AddNetworkCaching(rMedia, 1500);
-                LibVlc.libvlc_media_add_option(rMedia, ":demux=ts");
-                rPlayer = NewPlayerFromMedia(rMedia);
-                cap = new VideoFrameCapture(rPlayer, 320, 180);
-
-                bool playing = PlayAndWaitPlaying(rPlayer, 12000);
+                // The receiver reaches Playing once it decodes the incoming stream.
+                bool playing = Wait(() =>
+                {
+                    VlcState s = LibVlc.libvlc_media_player_get_state(rPlayer);
+                    return s == VlcState.Playing;
+                }, 15000, 100);
                 if (playing)
                 {
-                    Thread.Sleep(2800);
+                    Thread.Sleep(3000);
                 }
 
                 FrameStats stats = cap.Analyze();
