@@ -444,33 +444,32 @@ restore_contrib() {
 }
 
 # export_gnutls_static_libs <contrib-prefix>
-# Pins GNUTLS_CFLAGS / GNUTLS_LIBS to the FULL static closure of the contrib
-# gnutls so VLC's PKG_CHECK_MODULES([GNUTLS]) uses it verbatim instead of the
-# bare `pkg-config --libs gnutls` (which returns only -lgnutls). VLC 3.0's
-# contrib gnutls statically bundles a NETTLE BACKPORT whose objects reference
-# base nettle/hogweed/gmp symbols (nettle_mpz_*, nettle_sha3_permute,
-# nettle_memxor, ...); without the private closure on the plugin link line those
-# are "undefined reference" errors. `--static` resolves gnutls -> hogweed ->
-# nettle -> gmp in the correct order. No-op when gnutls is not in the contrib
-# (e.g. the Apple targets, which use securetransport).
+# Pins GNUTLS_CFLAGS / GNUTLS_LIBS so VLC's PKG_CHECK_MODULES([GNUTLS]) links the
+# contrib gnutls statically with its full crypto closure. VLC 3.0's contrib
+# gnutls statically bundles a NETTLE BACKPORT whose objects reference base
+# nettle/hogweed/gmp symbols (nettle_mpz_*, nettle_aes*, nettle_cmac_*,
+# nettle_umac*, nettle_hmac_*, nettle_sha3_permute, ...). gnutls <-> hogweed <->
+# nettle <-> gmp have zig-zagging deps, and libtool reorders/dedupes plain -l
+# flags, so the single-pass static linker drops archive members and the link
+# fails with "undefined reference to nettle_*". Passing the ABSOLUTE archive
+# paths inside a single `-Wl,--start-group,...,--end-group` argument keeps them
+# grouped through libtool so the linker iterates until every symbol resolves.
+# No-op when gnutls is not in the contrib (e.g. the Apple targets use
+# securetransport).
 export_gnutls_static_libs() {
   local prefix="$1"
-  local pcdir="${prefix}/lib/pkgconfig"
-  [ -f "${pcdir}/gnutls.pc" ] || return 0
-  command -v pkg-config >/dev/null 2>&1 || return 0
-  local cflags libs
-  cflags="$(PKG_CONFIG_PATH="${pcdir}" pkg-config --cflags gnutls 2>/dev/null || true)"
-  libs="$(PKG_CONFIG_PATH="${pcdir}" pkg-config --libs --static gnutls 2>/dev/null || true)"
-  # Fallback: if --static did not pull the private closure, append it explicitly.
-  case " ${libs} " in
-    *" -lnettle "*) : ;;
-    *) libs="${libs} -lhogweed -lnettle -lgmp" ;;
-  esac
-  if [ -n "${libs}" ]; then
-    export GNUTLS_CFLAGS="${cflags}"
-    export GNUTLS_LIBS="${libs}"
-    log "Pinned GNUTLS_LIBS to the static closure: ${libs}"
-  fi
+  local libdir="${prefix}/lib"
+  [ -f "${libdir}/libgnutls.a" ] || return 0
+  local members="${libdir}/libgnutls.a"
+  local a
+  for a in libhogweed.a libnettle.a libgmp.a; do
+    [ -f "${libdir}/${a}" ] && members="${members},${libdir}/${a}"
+  done
+  export GNUTLS_LIBS="-Wl,--start-group,${members},--end-group"
+  local cflags
+  cflags="$(PKG_CONFIG_PATH="${libdir}/pkgconfig" pkg-config --cflags gnutls 2>/dev/null || true)"
+  export GNUTLS_CFLAGS="${cflags:--I${prefix}/include}"
+  log "Pinned GNUTLS_LIBS to a --start-group archive closure: ${GNUTLS_LIBS}"
 }
 
 # strip_excluded_plugins <artifact-dir>
