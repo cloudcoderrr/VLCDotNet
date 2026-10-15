@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 #
 # Generate the EXTRA synthetic test media that exercises the feature-parity
-# codecs/containers enabled by the cached pipeline (see cached/FEATURE-PARITY-
-# TASK.md). All clips are fully synthetic (lavfi testsrc2 video + sine audio),
+# codecs/containers enabled by full-source native builds (see build/FEATURES.md). All clips are fully synthetic (lavfi testsrc2 video + sine audio),
 # mirroring the original vlc_test_pack so visual/audio defects stay obvious.
 #
 # Requires a full FFmpeg build on PATH (libx264/libtheora/libvorbis/libmp3lame/

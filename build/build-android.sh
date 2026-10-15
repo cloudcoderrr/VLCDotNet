@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
 #
-# Build libvlc for Android (arm / arm64 / x86_64) using the VLC contrib system
-# with the Android NDK (unified clang toolchain). Runs on a Linux runner with
-# ANDROID_NDK_HOME set.
+# Build libvlc for Android (arm / arm64 / x86_64) against the FULL VLC contrib
+# set, built in-CI and cached in-repo (see build/lib.sh).
 #
-#   Usage: build-android.sh <arm|arm64|x86_64>
-#
-# NOTE: Android from-source is iterated against CI logs; plugin flattening for
-# the APK layout is handled later by the packer.
+# Two phases, selected by BUILD_PHASE:
+#   BUILD_PHASE=contrib  build-android.sh <arm|arm64|x86_64>
+#       Build the full contrib set with the Android NDK and cache it under
+#       contribs/vlc-<series>.0/<rid>/ (no libvlc build).
+#   build-android.sh <arm|arm64|x86_64>            (default: BUILD_PHASE=libvlc)
+#       Restore the cached contrib set and build libvlc -> artifacts/<rid>.
 #
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 ARCH="${1:?arch required: arm|arm64|x86_64}"
 API="${ANDROID_API:-21}"
+PHASE="${BUILD_PHASE:-libvlc}"
 
 case "${ARCH}" in
   arm)    TARGET="armv7a-linux-androideabi"; TRIPLET="arm-linux-androideabi";  RID="android-arm";   ABI="armeabi-v7a" ;;
@@ -36,22 +38,21 @@ export LD="${NDK_TC}/bin/ld"
 export PATH="${NDK_TC}/bin:${PATH}"
 export ANDROID_NDK="${ANDROID_NDK_HOME}"
 export ANDROID_ABI="${ABI}"
-# Android's NDK clang treats several legacy C/C++ constructs in VLC 3's contrib
-# stack as errors; downgrade the ones that are valid warnings under both gcc and
-# clang so old third-party code still builds.
+
+# NDK r23+ ships only the llvm-* binutils; some contrib configure scripts (x264)
+# invoke the unprefixed names (strings, nm, ...) directly from the toolchain bin
+# dir. Provide the missing symlinks so those probes resolve to the llvm tools.
+for _t in strings nm ar ranlib strip objcopy objdump readelf size addr2line; do
+  [ -e "${NDK_TC}/bin/${_t}" ] || ln -sf "llvm-${_t}" "${NDK_TC}/bin/${_t}" 2>/dev/null || true
+done
+unset _t
+# Downgrade legacy C/C++ diagnostics the NDK clang treats as errors in VLC 3.
 export CFLAGS="${CFLAGS:-} -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types -Wno-error=int-conversion"
 export CXXFLAGS="${CXXFLAGS:-} -Wno-error=incompatible-pointer-types -Wno-c++11-narrowing"
 
 if [ "${ARCH}" = "arm" ]; then
-  # 32-bit bionic only exposes fseeko/ftello to libc++ when large-file macros
-  # are enabled. The SID demux pulls those through sidplay2's C++ headers.
   export CFLAGS="${CFLAGS} -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
-  # libc++ on 32-bit Android still routes std::fstream through fseeko/ftello,
-  # which are not exposed compatibly for this API level. Force libc++ down its
-  # plain fseek/ftell path for this target so sidplay2 builds.
   export CXXFLAGS="${CXXFLAGS} -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_LIBCPP_HAS_NO_OFF_T_FUNCTIONS"
-  # NDK r29 removed arm-linux-androideabi-as; point libvpx at clang directly so
-  # its Android configure path adds the correct assembler-with-cpp flags.
   export AS="${CC}"
 fi
 
@@ -62,75 +63,116 @@ mkdir -p "${WORK_DIR}"
 clone_vlc "${VLC_SRC}"
 apply_patches "${VLC_SRC}"
 
+# 32-bit ARM needs the armv7 ffmpeg FPU flags and the bionic sidplay2 fstream
+# compat fix for the (contrib) codec sources; scoped so other arches are clean.
+if [ "${ARCH}" = "arm" ]; then
+  shopt -s nullglob
+  for p in "${PATCH_DIR}"/android-arm/*.patch; do
+    log "Applying android-arm patch $(basename "$p")"
+    git -C "${VLC_SRC}" apply --recount --whitespace=nowarn "$p" 2>/dev/null \
+      || ( cd "${VLC_SRC}" && patch -p1 --forward --fuzz=3 --no-backup-if-mismatch < "$p" )
+  done
+  shopt -u nullglob
+fi
+
 CONTRIB_ENV=(HAVE_ANDROID=1 ANDROID_API="${API}" ANDROID_ABI="${ABI}" ANDROID_NDK="${ANDROID_NDK_HOME}")
-# VLC 4.0's libass contrib fails the x86_64 cross assembly build; ffmpeg covers
-# decode and the tests only assert subtitle track detection, so skip it on 4.x.
-ANDROID_ASS=1; [ "${VLC_SERIES}" = "3" ] || ANDROID_ASS=0
-BOOTSTRAP_FLAGS=($(minimal_local_playback_contrib_flags "${ANDROID_ASS}"))
-CODEC_FLAGS=($(requested_codec_config_flags))
 
-# ---- 1. contribs --------------------------------------------------------------
-CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-android-${ARCH}"
-mkdir -p "${CONTRIB_BUILD}"
-(
-  cd "${CONTRIB_BUILD}"
-  # Minimal contrib closure for local-file playback of the test media,
-  # including MPEG-TS demux/mux support via libdvbpsi.
-  env "${CONTRIB_ENV[@]}" ../bootstrap --host="${TRIPLET}" "${BOOTSTRAP_FLAGS[@]}"
-  env "${CONTRIB_ENV[@]}" make -j"$(jobs)" fetch
-  env "${CONTRIB_ENV[@]}" make -j"$(jobs)" || env "${CONTRIB_ENV[@]}" make -j1
-)
+# ---- Phase 1: build + cache the full contrib set ----------------------------
+if [ "${PHASE}" = "contrib" ]; then
+  # Android ships no optical-disc hardware, so drop the disc stack (dvd*/bluray)
+  # from the parity closure (it is desktop-only and bluray needs fontconfig,
+  # which Android does not use). mpg123's autoreconf also fails under the NDK
+  # cross env (LT_SYS_MODULE_EXT); MP3 decode is covered by mad + ffmpeg.
+  # Network dependencies remain enabled by the baseline contrib configuration.
+  ANDROID_PRUNE="--disable-disc --disable-mpg123 ${CONTRIB_EXTRA_PRUNE:-}"
+  # VLC 4.0's sidplay2 does not compile against the NDK libc++ (<fstream>
+  # references ::fseeko/::ftello) on Android; SID music is deferred on VLC 4
+  # Android (it builds fine for VLC 3). Scope the prune to that combination.
+  [ "${VLC_SERIES}" = "4" ] && ANDROID_PRUNE="--disable-sidplay2 ${ANDROID_PRUNE}"
+  if [ -n "${CONTRIB_GROUP:-}" ]; then
+    build_contrib_group "${VLC_SRC}" "contrib-android-${ARCH}" "${TRIPLET}" "${RID}" "${CONTRIB_GROUP}" \
+      -- ${ANDROID_PRUNE}
+  else
+    build_full_contrib "${VLC_SRC}" "contrib-android-${ARCH}" "${TRIPLET}" \
+      -- ${ANDROID_PRUNE}
+    pack_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
+  fi
+  exit 0
+fi
 
-# ---- 2. bootstrap + configure -------------------------------------------------
+# ---- Phase 2: restore contribs + build libvlc -------------------------------
+restore_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
+CONTRIB_PREFIX="${VLC_SRC}/contrib/${TRIPLET}"
+
+# Pin GNUTLS_LIBS to the contrib gnutls static closure (nettle/hogweed/gmp) so
+# the TLS plugin links; VLC 3.0's contrib gnutls bundles a nettle backport that
+# otherwise leaves undefined nettle_* references at the plugin link step.
+export_gnutls_static_libs "${CONTRIB_PREFIX}"
+
+# libvncclient references wait3(), which Android's bionic libc does not provide,
+# so the vnc plugin fails to link (undefined symbol: wait3). VNC is not a
+# restoration feature; drop its pkg-config entry so VLC skips the vnc plugin on
+# Android (it still builds on the glibc/mingw desktop targets).
+rm -f "${CONTRIB_PREFIX}"/lib/pkgconfig/libvncclient.pc 2>/dev/null || true
+
 ( cd "${VLC_SRC}" && ./bootstrap )
 
 BUILD_DIR="${VLC_SRC}/build-android-${ARCH}"
+rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
 
 CONFIG_FLAGS=(
   "--prefix=${INSTALL_PREFIX}"
   "--host=${TRIPLET}"
-  "--with-contrib=${VLC_SRC}/contrib/${TRIPLET}"
+  "--with-contrib=${CONTRIB_PREFIX}"
   --disable-vlc --disable-qt --disable-skins2 --disable-nls
   --disable-lua --disable-a52
+  --enable-taglib        # metadata read/write (feature parity, contrib-provided)
   --disable-sdl-image
-  --disable-bluray
+  --disable-bluray       # Android ships no optical-disc stack
   --disable-xcb --disable-alsa --disable-pulse --disable-vdpau
-  --disable-v4l2 --disable-vnc --disable-gnutls --disable-srt --disable-ncurses
-  --disable-libxml2
+  --disable-v4l2 --disable-ncurses
+  # Native transport/network stack (contrib net group). gnutls provides TLS for
+  # http/https + native HLS/DASH; live555 provides RTSP input + VOD; smb2/srt/
+  # rist/microdns/nfs auto-enable from pkg-config. VA-API/VDPAU have no Android
+  # backend (hardware decode is MediaCodec, enabled separately).
+  --enable-gnutls --enable-live555 --enable-dvbpsi
   --enable-avcodec --enable-swscale
   --enable-shared --disable-static
 )
-CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
 
-# Android API 21 ships a sys/shm.h header stub, but the SysV shared-memory
-# functions (shmdt/shmctl/...) are only available on newer API levels. Force
-# VLC's configure probe down the non-shm path so block.c uses its existing
-# fallback implementation instead of compiling undeclared calls.
+# API 21's sys/shm.h is a stub; force VLC's non-shm fallback path in block.c.
 CONFIG_ENV=("${CONTRIB_ENV[@]}" ac_cv_header_sys_shm_h=no)
 
-# Android only needs local-media playback for the current test suite. Removing
-# gnutls/srt from the contrib prefix keeps VLC from linking optional desktop/
-# network modules (notably VNC) against partial nettle backports on Android.
-CONTRIB_PREFIX_DIR="${VLC_SRC}/contrib/${TRIPLET}"
-strip_local_only_network_contribs "${CONTRIB_PREFIX_DIR}"
+# VLC 4.0 pulls in libass/fontconfig text plugins whose (static) link references
+# the contrib gettext wrappers (libintl_dgettext/newlocale/freelocale) and
+# libiconv. Append them via autoconf LIBS so they land after the referencing
+# archives on the plugin link line (order-sensitive with lld). VLC 3 unaffected.
+# GNUTLS_STATIC_CLOSURE (the gnutls nettle closure, set by export_gnutls_static_libs)
+# is folded in here because this explicit LIBS overrides the ambient export.
+if [ "${VLC_SERIES}" != "3" ]; then
+  CONFIG_ENV+=("LIBS=-lintl -liconv ${GNUTLS_STATIC_CLOSURE:-}")
+fi
 
-# NDK r29 clang no longer implicitly links libm into the module plugins, so math
-# symbols (e.g. log10f in the audiotrack output) are unresolved. NDK r29 also
-# folds pthread into libc and ships no libpthread.a, yet some modules link
-# -lpthread explicitly (e.g. the adaptive demux). Provide -lm plus an empty
-# libpthread.a stub so both resolve for every plugin link.
+# NDK r29 no longer implicitly links libm into module plugins and folds pthread
+# into libc; provide -lm plus an empty libpthread.a for modules linking it.
 PTHREAD_STUB_DIR="${WORK_DIR}/pthread-stub-${ARCH}"
 mkdir -p "${PTHREAD_STUB_DIR}"
 "${AR}" rc "${PTHREAD_STUB_DIR}/libpthread.a"
 export LDFLAGS="${LDFLAGS:-} -L${PTHREAD_STUB_DIR} -lm"
 
-if [ "${ARCH}" = "arm" ] || [ "${ARCH}" = "arm64" ]; then
-  # armv7 C++ modules (e.g. libmatroska in the mkv demux) reference the
-  # compiler-rt builtins for 64-bit int<->float conversions (__aeabi_l2d,
-  # __aeabi_f2lz). aarch64 needs the outline-atomics helpers (__aarch64_ldadd8_*)
-  # that VLC 4.0's vpx_alpha plugin pulls in. Neither is linked implicitly by the
-  # libtool C++ link, so append the compiler-rt builtins archive explicitly.
+# VLC 4.0: the libass/fontconfig text plugins need the contrib gettext/iconv
+# archives (LIBS=-lintl -liconv, set above). Put the contrib lib dir on the
+# search path so those resolve everywhere, including configure's own link checks.
+if [ "${VLC_SERIES}" != "3" ]; then
+  export LDFLAGS="${LDFLAGS} -L${CONTRIB_PREFIX}/lib"
+fi
+
+if [ "${ARCH}" = "arm" ] || [ "${ARCH}" = "arm64" ] || [ "${ARCH}" = "x86_64" ]; then
+  # All Android ABIs need the compiler-rt builtins for some plugins: armv7 for
+  # 64-bit int<->float, aarch64 for the outline-atomics helpers
+  # (__aarch64_ldadd8_*), and x86_64 for the 128-bit long-double soft-float
+  # routines (__floatunditf/__divtf3/...) that taglib's C++ pulls in.
   RT_BUILTINS="$(${CC} --print-libgcc-file-name 2>/dev/null || true)"
   if [ -f "${RT_BUILTINS}" ]; then
     export LDFLAGS="${LDFLAGS} -L$(dirname "${RT_BUILTINS}") -l:$(basename "${RT_BUILTINS}")"
@@ -146,19 +188,17 @@ fi
 
 normalize_output "${RID}" "${INSTALL_PREFIX}"
 
-# VLC 4.0's C++ plugins (mkv/libmatroska, spatializer, adaptive, vpx_alpha,
-# blend, ...) dynamically link the NDK's shared C++ runtime, which is not part
-# of the VLC install prefix. Ship it alongside libvlc.so so the APK layout puts
-# it in lib/<abi>/ and those plugins can dlopen at runtime. VLC 3.0's plugin set
-# does not pull in libc++_shared, so this is limited to 4.x.
-if [ "${VLC_SERIES}" != "3" ]; then
-  libcxx="${NDK_TC}/sysroot/usr/lib/${TRIPLET}/libc++_shared.so"
-  if [ -f "${libcxx}" ]; then
-    cp -a "${libcxx}" "${ARTIFACTS_DIR}/${RID}/"
-    log "Bundled libc++_shared.so for ${RID}"
-  else
-    warn "libc++_shared.so not found at ${libcxx}"
-  fi
+# VLC's C++ plugins (mkv/libmatroska, taglib, sid, gme, modplug, spatializer,
+# adaptive, blend, ...) dynamically link the NDK's shared C++ runtime, which is
+# not part of the VLC install prefix. Ship it alongside libvlc.so so the APK
+# layout puts it in lib/<abi>/ and those plugins can dlopen at runtime. The
+# parity closure pulls C++ plugins into both series, so bundle it unconditionally.
+libcxx="${NDK_TC}/sysroot/usr/lib/${TRIPLET}/libc++_shared.so"
+if [ -f "${libcxx}" ]; then
+  cp -a "${libcxx}" "${ARTIFACTS_DIR}/${RID}/"
+  log "Bundled libc++_shared.so for ${RID}"
+else
+  warn "libc++_shared.so not found at ${libcxx}"
 fi
 
 cp -a "${VLC_SRC}/COPYING"     "${ARTIFACTS_DIR}/${RID}/" 2>/dev/null || true

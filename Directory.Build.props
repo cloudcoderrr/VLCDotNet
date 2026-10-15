@@ -10,8 +10,8 @@
 
     <!--
       VLC 4.x (preview) coordinates for the VLCDotNet4 package. 4.0.0 is not yet
-      released, so the from-source and prebuilt-deps pipelines build libvlc from
-      the VideoLAN git ref below, and the NuGet package uses a SemVer prerelease
+      released, so full-source native builds compile libvlc from the VideoLAN
+      git ref below, and the NuGet package uses a SemVer prerelease
       base (the pack workflow appends the running suffix -> 4.0.0-preview.N).
         VlcVersion4  package base version (also the release-tag base v<base>.N).
         VlcRef4      git ref (branch/tag/commit) the v4 build scripts check out.

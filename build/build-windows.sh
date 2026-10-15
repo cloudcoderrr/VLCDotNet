@@ -1,29 +1,35 @@
 #!/usr/bin/env bash
 #
-# Build libvlc for Windows (x64 / arm64) by cross-compiling on Ubuntu with the
-# official VideoLAN win32 build script and a source-built minimal contrib set.
+# Build libvlc for Windows (x64 / arm64) with llvm-mingw (UCRT) against the FULL
+# VLC contrib set, built in-CI and cached in-repo (see build/lib.sh).
 #
-#   Usage: build-windows.sh <x86_64|aarch64>
+# This uses an explicit contrib + configure flow (not extras/package/win32/
+# build.sh) so the contrib and libvlc phases can run as separate actions.
+#
+# Two phases, selected by BUILD_PHASE:
+#   BUILD_PHASE=contrib  build-windows.sh <x86_64|aarch64>  -> cache contribs
+#   build-windows.sh <x86_64|aarch64>          (default libvlc) -> build libvlc
 #
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 ARCH="${1:?arch required: x86_64 | aarch64}"
+PHASE="${BUILD_PHASE:-libvlc}"
 case "${ARCH}" in
-  x86_64)  RID="win-x64"   ;;
-  aarch64) RID="win-arm64" ;;
+  x86_64)  RID="win-x64";   TRIPLET="x86_64-w64-mingw32" ;;
+  aarch64) RID="win-arm64"; TRIPLET="aarch64-w64-mingw32" ;;
   *) die "Unsupported Windows arch: ${ARCH} (expected x86_64 or aarch64)" ;;
 esac
 
 VLC_SRC="${WORK_DIR}/vlc-win-${ARCH}"
+INSTALL_PREFIX="${WORK_DIR}/install-win-${ARCH}"
 mkdir -p "${WORK_DIR}"
 
 clone_vlc "${VLC_SRC}"
 apply_patches "${VLC_SRC}"
 
-# Use llvm-mingw (UCRT, up-to-date Windows SDK headers) for every arch. The apt
-# mingw-w64 headers are too old for VLC's d3d11 output (missing newer DXGI types),
-# and only llvm-mingw provides an aarch64 target.
+# llvm-mingw (UCRT, current Windows SDK headers). apt mingw headers are too old
+# for VLC's d3d11 output, and only llvm-mingw provides an aarch64 target.
 LLVM_MINGW_VER="${LLVM_MINGW_VER:-20240619}"
 LLVM_MINGW_DIR="${LLVM_MINGW_DIR:-/opt/llvm-mingw}"
 if [ ! -x "${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-clang" ]; then
@@ -35,88 +41,102 @@ if [ ! -x "${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-clang" ]; then
 fi
 export PATH="${LLVM_MINGW_DIR}/bin:${PATH}"
 
-# -u: llvm-mingw is UCRT-only. -S 0x0A000000: target the Windows 10 API level so
-# VLC's d3d11 output can use Win8+ DXGI types (IID_IDXGIResource1, etc.).
-BUILD_ARGS=(-r -z -u -S 0x0A000000 -a "${ARCH}")
-# VLC 4.0's win32 build.sh force-enables live555/dvdread for the default GPLv3
-# license; select LGPLv2+ad-clauses (-g a) so those are not required (ffmpeg
-# decode is LGPL). The 3.x build.sh does not force them, so keep its default.
-[ "${VLC_SERIES}" = "3" ] || BUILD_ARGS+=(-g a)
-
-# The x86_64 prebuilt contrib bundle does not match our UCRT llvm-mingw
-# toolchain. Build contribs from source for both arches to keep inputs
-# consistent.
-
-# libbluray, gnutls/srt and ARIB B25 are outside the current file-playback test
-# surface. Keep them out of the Windows source-contrib graph and avoid the
-# x86_64 bluray link path.
-# VLC's win32 configure.sh force-enables many optional modules. Keep the
-# dedicated codec plugins we exercise, but still drop unrelated network/disc/UI
-# modules and their contrib dependencies.
-REQUESTED_CODEC_FLAGS="$(requested_codec_config_flags | tr '\n' ' ')"
-export CONFIGFLAGS="${CONFIGFLAGS:-} --disable-lua --disable-live555 --disable-realrtsp --disable-goom --disable-libcddb --disable-shout --disable-zvbi --disable-dvdread --disable-dvdnav --disable-nls --disable-update-check --disable-bluray --disable-gnutls --disable-srt --disable-aribcam --disable-fontconfig ${REQUESTED_CODEC_FLAGS}"
-MINIMAL_CONTRIB_FLAGS="$(minimal_local_playback_contrib_flags 1 | tr '\n' ' ')"
-export CONTRIBFLAGS="${CONTRIBFLAGS:-} ${MINIMAL_CONTRIB_FLAGS}"
-EXTRA_LINK_FLAGS=""
-if [ "${ARCH}" = "x86_64" ]; then
-  # x86_64 UCRT contribs such as freetype and SDL_image emit references to
-  # _setjmp. Resolve them through mingw-w64's support library at cross-link
-  # time only; leaking this into build.sh's native tools breaks configure.
-  EXTRA_LINK_FLAGS="-lmingwex"
-fi
-
-# Install directory that the win32 build script populates via package-win-install.
-INSTALL_PREFIX="${WORK_DIR}/install-win-${ARCH}"
-rm -rf "${INSTALL_PREFIX}"
-mkdir -p "${INSTALL_PREFIX}"
-BUILD_ARGS+=(-o "${INSTALL_PREFIX}")
-
-# VLC 3.0.23 C code trips clang default-error diagnostics (e.g. the obsolete
-# crystalhd decoder). Wrap ONLY the cross compilers to downgrade them; exporting
-# CFLAGS globally would leak clang-only flags into build.sh's native tools (gcc)
-# build and break it ("C compiler cannot create executables").
+# Wrap the gcc/g++ names VLC's contrib + configure invoke so they resolve to
+# llvm-mingw clang, target the Windows 10 API level (so d3d11/DXGI types are
+# available), and downgrade VLC 3's clang-default-error diagnostics. Only the
+# cross compilers are affected; native tools stay untouched.
 WRAP_DIR="${WORK_DIR}/xwrap-${ARCH}"
 mkdir -p "${WRAP_DIR}"
 LENIENT="-Wno-error=incompatible-function-pointer-types -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
-# Map the gcc/g++ names build.sh invokes to llvm-mingw clang/clang++ (current
-# Windows SDK headers) and add the leniency flags. Only the cross compilers are
-# affected; native gcc used for build.sh's tools is untouched.
+WINVER_FLAGS="-D_WIN32_WINNT=0x0A000000 -DWINVER=0x0A00"
+EXTRA_LINK_FLAGS=""
+# x86_64 UCRT contribs (freetype, SDL_image) emit _setjmp references; resolve
+# them via mingw-w64's support library at cross-link time.
+[ "${ARCH}" = "x86_64" ] && EXTRA_LINK_FLAGS="-lmingwex"
+# VLC plugins are linked as modules; libtool drops the default libraries, so the
+# compiler-rt builtins that provide __chkstk (the stack-probe helper the
+# compiler emits for large frames) go missing and the plugin link fails with
+# "undefined symbol: __chkstk". Append the builtins archive to every link step.
+RT_BUILTINS="$("${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-clang" --print-libgcc-file-name 2>/dev/null || true)"
+[ -f "${RT_BUILTINS}" ] && EXTRA_LINK_FLAGS="${EXTRA_LINK_FLAGS} ${RT_BUILTINS}"
 for pair in "gcc:clang" "g++:clang++" "clang:clang" "clang++:clang++" ; do
   name="${pair%%:*}"; realt="${pair##*:}"
   cat > "${WRAP_DIR}/${ARCH}-w64-mingw32-${name}" <<EOF
 #!/bin/sh
-extra_link_flags=""
 for arg in "\$@"; do
   case "\$arg" in
     -c|-E|-S)
-      exec "${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-${realt}" ${LENIENT} "\$@"
+      exec "${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-${realt}" ${LENIENT} ${WINVER_FLAGS} "\$@"
       ;;
   esac
 done
-if [ -n "${EXTRA_LINK_FLAGS}" ]; then
-  # Only x86_64 uses EXTRA_LINK_FLAGS, and these wrappers are only used for
-  # target cross-compiler invocations. Apply the support library on every link
-  # step so libtool output naming does not decide whether _setjmp resolves.
-  extra_link_flags="${EXTRA_LINK_FLAGS}"
-fi
-exec "${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-${realt}" ${LENIENT} "\$@" \$extra_link_flags
+exec "${LLVM_MINGW_DIR}/bin/${ARCH}-w64-mingw32-${realt}" ${LENIENT} ${WINVER_FLAGS} "\$@" ${EXTRA_LINK_FLAGS}
 EOF
   chmod +x "${WRAP_DIR}/${ARCH}-w64-mingw32-${name}"
 done
 export PATH="${WRAP_DIR}:${PATH}"
 
-# We only need libvlc + plugins, not the NSIS installer. Provide a no-op makensis
-# so the win32 build script's package step completes without building an installer.
-sudo tee /usr/local/bin/makensis >/dev/null <<'EOF'
-#!/bin/sh
-exit 0
-EOF
-sudo chmod +x /usr/local/bin/makensis
+# ---- Phase 1: build + cache the full contrib set ----------------------------
+if [ "${PHASE}" = "contrib" ]; then
+  # mpg123's autoreconf fails under the llvm-mingw cross environment (its
+  # configure.ac uses the libtool macro LT_SYS_MODULE_EXT, which does not expand
+  # here). MP3 decode is covered by mad + ffmpeg, so drop mpg123 on Windows.
+  WIN_PRUNE="--disable-mpg123 ${CONTRIB_EXTRA_PRUNE:-}"
+  if [ -n "${CONTRIB_GROUP:-}" ]; then
+    build_contrib_group "${VLC_SRC}" "contrib-win-${ARCH}" "${TRIPLET}" "${RID}" "${CONTRIB_GROUP}" \
+      -- ${WIN_PRUNE}
+  else
+    build_full_contrib "${VLC_SRC}" "contrib-win-${ARCH}" "${TRIPLET}" \
+      -- ${WIN_PRUNE}
+    pack_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
+  fi
+  exit 0
+fi
 
-log "Running extras/package/win32/build.sh ${BUILD_ARGS[*]}"
+# ---- Phase 2: restore contribs + build libvlc -------------------------------
+restore_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
+CONTRIB_PREFIX="${VLC_SRC}/contrib/${TRIPLET}"
+
+# Pin GNUTLS_LIBS to the contrib gnutls static closure (nettle/hogweed/gmp) so
+# the TLS plugin links; VLC 3.0's contrib gnutls bundles a nettle backport that
+# otherwise leaves undefined nettle_* references at the plugin link step.
+export_gnutls_static_libs "${CONTRIB_PREFIX}"
+
+( cd "${VLC_SRC}" && ./bootstrap )
+
+BUILD_DIR="${VLC_SRC}/build-win-${ARCH}"
+rm -rf "${BUILD_DIR}"
+mkdir -p "${BUILD_DIR}"
+
+CONFIG_FLAGS=(
+  "--prefix=${INSTALL_PREFIX}"
+  "--host=${TRIPLET}"
+  "--with-contrib=${CONTRIB_PREFIX}"
+  --disable-vlc --disable-lua --disable-nls --disable-update-check
+  --disable-goom --disable-libcddb
+  --disable-fontconfig   # Windows uses the DirectWrite font provider, not fontconfig
+  # Feature parity (contrib-provided; --enable so a missing contrib fails loud):
+  --enable-taglib                                    # metadata read/write
+  --enable-dvdread --enable-dvdnav --enable-bluray   # local disc stack
+  # Native transport/network stack (contrib net group). gnutls provides TLS for
+  # http/https + native HLS/DASH; live555 provides RTSP input + RTSP VOD serving;
+  # smb2/srt/rist/microdns/nfs auto-enable from pkg-config. The Win32 BDA dtv
+  # tuner and the Win32 smb (WNet, VLC3) / smb2 (VLC4) access, plus the DirectWrite
+  # font provider, autodetect from the Windows SDK headers (llvm-mingw UCRT).
+  --enable-gnutls --enable-live555 --enable-dvbpsi
+  # zvbi (teletext), aribcam (ARIB B25) and sid (SID music) auto-detect from the
+  # contrib set; left as auto so a target that cannot build one does not hard-fail.
+  --enable-avcodec --enable-swscale
+  --enable-shared --disable-static
+)
+
 (
-  cd "${VLC_SRC}"
-  ./extras/package/win32/build.sh "${BUILD_ARGS[@]}"
+  cd "${BUILD_DIR}"
+  PKG_CONFIG_LIBDIR="${CONTRIB_PREFIX}/lib/pkgconfig" ../configure "${CONFIG_FLAGS[@]}"
+  make -j"$(jobs)"
+  make install
 )
 
 normalize_output "${RID}" "${INSTALL_PREFIX}"
+cp -a "${VLC_SRC}/COPYING"     "${ARTIFACTS_DIR}/${RID}/" 2>/dev/null || true
+cp -a "${VLC_SRC}/COPYING.LIB" "${ARTIFACTS_DIR}/${RID}/" 2>/dev/null || true

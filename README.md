@@ -44,54 +44,50 @@ are committed by hand. Each per-platform build:
 
 1. Shallow-clones VideoLAN VLC at the pinned ref (a tag for 3.x, a branch/commit
    for the 4.x preview).
-2. Applies the pipeline's **unified-diff patches** in order (`git apply` →
-   `patch -p1` → 3-way). Patches are kept in unified format so the VLC source can
+2. Applies the **unified-diff patches** in order (`git apply` →
+   `patch -p1` fallback). Patches are kept in unified format so the VLC source can
    be re-based onto a newer upstream release later; CI applies them with `git`.
-3. Resolves the third-party dependency closure (the "contribs" — ffmpeg, codecs,
-   demuxers, subtitle libs, …) using one of the three strategies below.
+3. Restores the third-party dependency closure (the "contribs" — ffmpeg, codecs,
+   demuxers, subtitle libs, …) built from source by the contrib workflows and
+   stored as compressed, split archives in [`contribs/`](contribs).
 4. `bootstrap` + `configure` for a **libvlc-only** build (no GUI player), then
    `make && make install` into a private prefix.
 5. Normalizes the result into `artifacts/<rid>/` (`libvlc*`, `libvlccore*`,
    `plugins/`, licenses) — the stable layout the NuGet packer consumes. Apple
    mobile targets (iOS/simulator/Mac Catalyst) additionally link libvlc +
-   libvlccore + every plugin and a generated `vlc_static_modules[]` registration
+   libvlccore + the selected plugins and a generated `vlc_static_modules[]` registration
    table into one signed, embedded dynamic `VLCDotNet.framework`, so consuming
    apps link libvlc **dynamically** (no app-linked archives, no libvlc
    `__Internal`).
 
-### Native-build pipelines
+### Full-source native builds
 
-The repo maintains **three independent native-build pipelines** (each a separate
-set of scripts, patches, and workflows) that differ only in how step 3 — the
-contrib dependency closure — is obtained:
+The repository uses one native-build pipeline for VLC 3 and VLC 4 across all
+15 RIDs. VLC and its contrib dependencies are built from source inside the
+GitHub Actions runner images, using compatible toolchains. The full VLC contrib
+set is enabled with explicit exclusions for unsupported or specialist packages;
+see [feature scope and platform exclusions](build/FEATURES.md).
 
-| Pipeline | Dir | Contrib strategy |
-|----------|-----|------------------|
-| **From-source (minimal)** | [`build/`](build), [`patches/`](patches) | Builds a minimal, test-required contrib set from upstream source tarballs via VLC's contrib system on every run. |
-| **VideoLAN prebuilt** | [`prebuilt/`](prebuilt) | Downloads VideoLAN's official `artifacts.videolan.org` prebuilt contrib bundles (distro `-dev` packages on Linux), with a source fallback. Toolchain-sensitive, so it only covers a subset of targets. |
-| **CI-cached full contribs** | [`cached/`](cached) | Builds the **full** VideoLAN contrib set from source **in the GitHub Actions VMs**, commits the compressed result into the repo (split into <100 MB parts), and reuses it in the libvlc build. GitHub-Actions-compatible for all targets. |
+The work is split into two phases to fit the runners' disk and time budgets:
 
-The CI-cached pipeline exists because VideoLAN's published prebuilt bundles were
-produced with toolchains that do not link against the GitHub-hosted runner
-images for most targets. Building the contribs **inside** the runner images and
-caching them in-repo makes every platform reproducible. Because a runner cannot
-build all targets' contribs in one job (limited disk), the contrib build is
-**split across multiple actions**: each action builds one target's contribs and
-commits them; the libvlc build action then checks out the repo and consumes the
-cached contribs. See [`cached/README.md`](cached/README.md).
+| Phase | Workflows | Result |
+|-------|-----------|--------|
+| **1 — Dependencies** | `contribs-vlc3`, `contribs-vlc4` | Build contribs per RID in chained `heavy` → `rest` jobs; compress, split into <100 MB parts, and commit the archives to `contribs/vlc-{3,4}.0/<rid>/`. |
+| **2 — Native runtime** | `build-vlc3`, `build-vlc4` | Restore those archives and build libvlc, plugins and Apple mobile frameworks into `artifacts/<rid>/`. |
+
+Contrib archives are reused until dependencies, patches or toolchains require
+regeneration. Run the contrib workflow first for any RID without a matching
+cache. See the [build guide](build/README.md) for commands and configuration.
 
 ## Repository layout
 
 ```
 src/VLCDotNet/            Managed libvlc P/Invoke bindings (netstandard2.0 + mobile heads)
-nuget/VLCDotNet3/         NuGet packing project (managed lib + all native binaries)
+                         Also packs VLCDotNet3 / VLCDotNet4 with native binaries
 
-build/   + patches/       Pipeline 1 — from-source minimal contribs
-prebuilt/                 Pipeline 2 — VideoLAN prebuilt contribs
-cached/                   Pipeline 3 — CI-built full contribs cached in-repo
-  cached/build/             per-platform build scripts
-  cached/patches/           unified-diff patches
-  cached/contribs/          committed, split contrib archives (produced by CI)
+build/                   Full-source native build scripts and documentation
+patches/                 VLC 3 / VLC 4 unified-diff patches
+contribs/                Committed, split contrib archives produced by CI
 
 Tests/
   Data/vlc_test_pack/       Synthetic media test pack (video / audio / subtitles)
@@ -99,7 +95,7 @@ Tests/
   VLCDotNet.Tests.Avalonia/ Desktop test app (Windows / Linux / macOS)
   VLCDotNet.Tests.Maui/     Mobile test app (iOS / Android / Mac Catalyst)
 
-.github/workflows/        build / pack-release / test CI, one set per pipeline
+.github/workflows/       contribs / build / pack-release / test CI for VLC 3 and 4
 ```
 
 ## Testing
@@ -123,7 +119,7 @@ generated video, audio, and subtitle files — see its
 - On completion the VLC logs, frame snapshots, and audio snippets are downloaded
   and verified.
 
-### Verified matrix (cached pipeline)
+### Recorded verification matrix
 
 Both production NuGets — **VLCDotNet3** (libvlc `3.0.23`) and **VLCDotNet4**
 (libvlc 4.0 `e77e49b5`) — build for all 15 RIDs and link libvlc **dynamically**
@@ -157,35 +153,40 @@ iOS device and the non-host CPU slices are cross-built and link-validated since
 the CI VMs have no matching attached hardware.
 
 When a test exposes a native defect, the fix is added as a **unified-diff patch**
-to the relevant pipeline's `patches/` directory (and/or the test suite is
+to the matching VLC series in `patches/` (and/or the test suite is
 extended) and the build is re-run.
 
 ## CI workflows
 
-Each pipeline has its own `build` → `pack-release` → `test` workflow trilogy in
-[`.github/workflows`](.github/workflows), suffixed by pipeline and VLC series
-(e.g. `build-vlc3`, `build-vlc3-prebuilt`, `build-vlc3-cached`). Builds upload
-one artifact per RID; pack-release downloads them, packs the NuGet, and publishes
-a GitHub Release; the test workflows consume the same artifacts.
+The workflows in [`.github/workflows`](.github/workflows) cover both VLC series:
 
-The CI-cached pipeline adds a phase-1 `contribs-*` workflow that builds the full
-contrib closure per RID and commits the split archives into the repo; the
-`build-*-cached` workflow then restores them to link libvlc. Both VLC series are
-covered — `contribs-vlc{3,4}-cached`, `build-vlc{3,4}-cached`,
-`pack-release-vlc{3,4}-cached`, and `test-{desktop,mobile}-vlc{3,4}-cached`.
+| Stage | VLC 3 | VLC 4 |
+|-------|-------|-------|
+| Build dependency archives | `contribs-vlc3` | `contribs-vlc4` |
+| Build native runtimes | `build-vlc3` | `build-vlc4` |
+| Pack / release NuGet | `pack-release-vlc3` | `pack-release-vlc4` |
+| Test desktop consumers | `test-desktop-vlc3` | `test-desktop-vlc4` |
+| Test mobile consumers | `test-mobile-vlc3` | `test-mobile-vlc4` |
+
+Builds upload one `vlc3-native-<rid>` or `vlc4-native-<rid>` artifact per target. The pack and
+test workflows consume those artifacts. Packing validates that all 15 RIDs are
+present before producing the NuGet; publication is controlled by the
+`publish_release` workflow input.
 
 ## Building locally
 
-The per-platform scripts can also run on a suitable host. Example (from-source
-Linux x64 on Ubuntu with the build deps installed):
+The per-platform scripts can also run on a suitable host. For Linux x64 on
+Ubuntu, install the dependencies and restore the committed contrib archive:
 
 ```sh
-VLC_VERSION=3.0.23 build/build-linux.sh x86_64
+sudo bash build/deps-linux.sh
+VLC_VERSION=3.0.23 bash build/build-linux.sh x86_64
 ls artifacts/linux-x64
 ```
 
-See each pipeline's `README` for details:
-[`build/README.md`](build/README.md) · [`cached/README.md`](cached/README.md).
+To regenerate the dependency archive first, run
+`BUILD_PHASE=contrib bash build/build-linux.sh x86_64` on a suitable host.
+See [`build/README.md`](build/README.md) for both phases and all targets.
 
 ## License
 

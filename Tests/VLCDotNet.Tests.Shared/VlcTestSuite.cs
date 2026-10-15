@@ -129,8 +129,8 @@ namespace VLCDotNet.Tests.Shared
                 Guard("Transport", "seek/pause/rate", TestTransportControls);
                 Guard("StreamOutput", "ffmpeg transcode", TestStreamOutputTranscode);
 
-                // Feature-parity coverage (cached pipeline only; other profiles
-                // leave VLC_PARITY_TESTS unset and skip this whole block).
+                // Extended codec, image, metadata and encoder coverage, enabled
+                // with VLC_PARITY_TESTS for full-source native builds.
                 if (ParityEnabled)
                 {
                     foreach (MediaSpec spec in MediaCatalog.ExtraVideos)
@@ -150,8 +150,8 @@ namespace VLCDotNet.Tests.Shared
                     Guard("Encode", "x265 h265", () => TestEncode("h265", "x265", "sout-x265.mp4"));
                 }
 
-                // Native transport/network coverage (cached pipeline only; gated by
-                // VLC_NETWORK_TESTS). Exercises the restored http/ftp/rtp/udp access
+                // Native transport/network coverage (gated by VLC_NETWORK_TESTS
+                // or VLC_NET_TESTS). Exercises the http/ftp/rtp/udp access
                 // and sout modules against ephemeral loopback servers and verifies
                 // the expected native-transport modules ship for the RID.
                 if (NetworkEnabled)
@@ -1357,11 +1357,10 @@ namespace VLCDotNet.Tests.Shared
             && !OperatingSystem.IsMacCatalyst()
             && !OperatingSystem.IsTvOS();
 
-        // The cached test workflows opt into the native transport coverage: the
+        // The test workflows opt into the native transport coverage: the
         // desktop workflows export VLC_NETWORK_TESTS=1 at runtime, the mobile
         // workflows define the VLC_NET_TESTS compile symbol (the MAUI app cannot
-        // receive process env easily). Other pipelines strip the network stack,
-        // so they do neither and these tests never run against them.
+        // receive process env easily). Local runs can enable the same coverage.
         private static bool NetworkEnabled =>
 #if VLC_NET_TESTS
             true;
@@ -1510,7 +1509,7 @@ namespace VLCDotNet.Tests.Shared
 
         // Transcodes the reference clip with a specific native video encoder
         // (x264 / x265) and verifies the result decodes. Skips when the encoder
-        // module is absent so non-parity builds are unaffected.
+        // module is absent on the target.
         private void TestEncode(string vcodec, string requiredModule, string outName)
         {
             var outcome = new TestOutcome("Encode", vcodec + " (" + requiredModule + ")");
@@ -1912,10 +1911,8 @@ namespace VLCDotNet.Tests.Shared
 #endif
             );
 
-            // The cached feature-parity test workflow passes the exact per-RID
-            // set of parity modules it expects via VLC_EXPECTED_MODULES, so the
-            // module requirement stays a build-profile concern (the shared
-            // baseline above is unchanged for the other pipelines).
+            // The native test workflows pass additional per-RID module requirements
+            // via VLC_EXPECTED_MODULES, extending the shared baseline above.
             string? extra = Environment.GetEnvironmentVariable("VLC_EXPECTED_MODULES");
             if (!string.IsNullOrWhiteSpace(extra))
             {
@@ -1994,9 +1991,8 @@ namespace VLCDotNet.Tests.Shared
         private static bool IsAppleMobileOrCatalyst() =>
             OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst();
 
-        // The cached feature-parity workflow sets VLC_PARITY_TESTS=1 to opt into
-        // the extra-format / encode / metadata coverage. Other pipelines leave it
-        // unset so those tests never run against a non-parity build.
+        // Desktop test workflows set VLC_PARITY_TESTS=1 to enable the extended
+        // format, encoder and metadata coverage. Local runs can opt in too.
         private static bool ParityEnabled =>
             !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VLC_PARITY_TESTS"));
 

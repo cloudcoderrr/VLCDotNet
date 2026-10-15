@@ -1,11 +1,19 @@
 name: test-desktop-vlc4
 
-# Runs the shared test suite (via the Avalonia app's --autorun headless mode) on
-# each desktop OS, using the native libvlc 4.0 built by build-vlc4. Verifies
-# video (frame capture), audio (PCM/RMS), subtitles, transport and file logging,
-# then uploads the VLC logs, snapshots and audio snippets for manual review.
+# Runs the shared test suite (Avalonia app --autorun headless) on each desktop
+# OS using the native libvlc built by build-vlc4. Mirrors
+# the VLC 3 desktop coverage with VLC 4 native artifacts.
 
 on:
+  push:
+    branches: [main, master]
+    paths:
+      - "build/**"
+      - "patches/**"
+      - "contribs/**"
+      - "Tests/**"
+      - "src/**"
+      - ".github/workflows/test-desktop-vlc4.yml"
   workflow_dispatch:
     inputs:
       only:
@@ -14,7 +22,7 @@ on:
         default: all
         options: [all, linux, windows, macos]
       build_run_id:
-        description: "build-vlc4 run id to pull binaries from (blank = latest successful)"
+        description: "build-vlc4 run id (blank = latest with the artifact)"
         required: false
 
 permissions:
@@ -32,24 +40,39 @@ jobs:
           - { os: macos-14,       rid: osx-arm64, family: macos }
     runs-on: ${{ matrix.os }}
     steps:
+      # Gate per-family: dispatch uses the "only" input; push uses a commit
+      # message tag [test:<family>] / [test:all]. matrix is not available in a
+      # job-level if, so gate here in a step instead. COMMIT_MSG is passed via
+      # env (not interpolated into the script) to avoid shell injection.
+      - name: Gate
+        id: gate
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          ONLY: ${{ inputs.only }}
+          FAMILY: ${{ matrix.family }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          run=false
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            if [ "$ONLY" = "all" ] || [ "$ONLY" = "$FAMILY" ]; then run=true; fi
+          else
+            case "$COMMIT_MSG" in
+              *"[test:$FAMILY]"*|*"[test:all]"*) run=true ;;
+            esac
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "gate: event=$EVENT only=$ONLY family=$FAMILY run=$run"
+
       - uses: actions/checkout@v5
+        if: steps.gate.outputs.run == 'true'
 
       - uses: actions/setup-dotnet@v5
+        if: steps.gate.outputs.run == 'true'
         with:
           dotnet-version: |
             8.0.x
             10.0.x
-
-      - name: Skip disabled family
-        id: gate
-        shell: bash
-        run: |
-          only="${{ inputs.only }}"
-          if [ "$only" != "all" ] && [ "$only" != "${{ matrix.family }}" ]; then
-            echo "run=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Resolve build run id
         if: steps.gate.outputs.run == 'true'
@@ -57,11 +80,18 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           rid="${{ inputs.build_run_id }}"
           if [ -z "$rid" ]; then
-            rid=$(gh run list --workflow build-vlc4.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+            # Pick the most recent build run that actually has this artifact.
+            for id in $(gh run list --workflow build-vlc4.yml --branch "$REF_NAME" --limit 30 --json databaseId --jq '.[].databaseId'); do
+              if gh api "repos/${{ github.repository }}/actions/runs/$id/artifacts" --jq '.artifacts[].name' 2>/dev/null | grep -qx "vlc4-native-${{ matrix.rid }}"; then
+                rid="$id"; break
+              fi
+            done
           fi
+          [ -n "$rid" ] || { echo "No build run with artifact vlc4-native-${{ matrix.rid }}" >&2; exit 1; }
           echo "id=$rid" >> "$GITHUB_OUTPUT"
           echo "Using build run $rid"
 
@@ -69,9 +99,9 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run download ${{ steps.run.outputs.id }} -n vlc4-${{ matrix.rid }} -D native
+        run: gh run download ${{ steps.run.outputs.id }} -n vlc4-native-${{ matrix.rid }} -D native
 
-      - name: Build Avalonia test app (VLC4)
+      - name: Build Avalonia test app
         if: steps.gate.outputs.run == 'true'
         run: dotnet build Tests/VLCDotNet.Tests.Avalonia/VLCDotNet.Tests.Avalonia.csproj -c Release -p:VlcMajor=4
 
@@ -84,6 +114,34 @@ jobs:
           out="Tests/VLCDotNet.Tests.Avalonia/bin/Release/net8.0"
           cp -a native/* "$out"/
           export VLC_PLUGIN_PATH="$out/plugins"
+          # Feature-parity test profile: run the extra-format / image / metadata /
+          # encoder tests and assert the parity modules this RID should ship.
+          export VLC_PARITY_TESTS=1
+          case "${{ matrix.rid }}" in
+            linux-x64|linux-arm64|linux-arm)
+              export VLC_EXPECTED_MODULES="x264,x265,mpg123,taglib,dvdread,dvdnav,libbluray" ;;
+            win-x64|win-arm64)
+              export VLC_EXPECTED_MODULES="x264,x265,taglib,dvdread,dvdnav,libbluray" ;;
+            osx-x64|osx-arm64)
+              export VLC_EXPECTED_MODULES="x264,x265,mpg123,taglib,dvdread,dvdnav,libbluray" ;;
+            *)
+              export VLC_EXPECTED_MODULES="" ;;  # other RIDs: set as their parity profile lands
+          esac
+          # Native transport restoration: run the http/ftp/rtp/udp loopback tests
+          # and assert the per-RID native-transport modules ship (the suite also
+          # logs every discovered transport module so the lists can be tightened).
+          # VLC 4 dropped the standalone access_output_udp, so it is not asserted.
+          export VLC_NETWORK_TESTS=1
+          case "${{ matrix.rid }}" in
+            linux-x64|linux-arm64|linux-arm)
+              export VLC_EXPECTED_NET_MODULES="http,ftp,tcp,udp,rtp,live555,gnutls,stream_out_rtp,access_output_http" ;;
+            win-x64|win-arm64)
+              export VLC_EXPECTED_NET_MODULES="http,ftp,tcp,udp,rtp,live555,gnutls,stream_out_rtp,access_output_http" ;;
+            osx-x64|osx-arm64)
+              export VLC_EXPECTED_NET_MODULES="http,ftp,tcp,udp,rtp,live555,securetransport,stream_out_rtp,access_output_http" ;;
+            *)
+              export VLC_EXPECTED_NET_MODULES="" ;;
+          esac
           case "${{ runner.os }}" in
             Linux)   export LD_LIBRARY_PATH="$PWD/$out:${LD_LIBRARY_PATH:-}";;
             macOS)   export DYLD_LIBRARY_PATH="$PWD/$out:${DYLD_LIBRARY_PATH:-}";;
@@ -103,18 +161,17 @@ jobs:
           if [ "${{ runner.os }}" = "Linux" ] && [ "$code" -ge 128 ]; then
             echo "---- app exited with $code (native signal); capturing backtrace ----"
             core=$(ls -t core.* 2>/dev/null | head -1)
-            command -v gdb >/dev/null 2>&1 || { sudo apt-get update -qq >/dev/null 2>&1 || true; sudo apt-get install -y gdb >/dev/null 2>&1 || true; }
             if [ -n "$core" ] && command -v gdb >/dev/null 2>&1; then
               gdb -batch -ex "bt" -ex "thread apply all bt" -ex quit "$(command -v dotnet)" "$core" 2>&1 | tail -n 160
-            else
-              echo "no core captured (core='$core'); gdb=$(command -v gdb); core_pattern=$(cat /proc/sys/kernel/core_pattern 2>/dev/null)"
             fi
           fi
           echo "---- vlc-log.txt (tail) ----"
           tail -n 40 "$out/test-output/vlc-log.txt" || true
+          echo "---- runner-report.txt (tail) ----"
+          tail -n 60 "$out/test-output/runner-report.txt" || true
 
       - name: Upload test artifacts
-        if: ${{ always() && steps.gate.outputs.run == 'true' }}
+        if: always() && steps.gate.outputs.run == 'true'
         uses: actions/upload-artifact@v6
         with:
           name: test-output-vlc4-${{ matrix.rid }}

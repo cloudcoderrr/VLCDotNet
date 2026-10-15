@@ -434,11 +434,7 @@ FodyWeavers.xsd
 
 # Cloned / downloaded VLC source trees and contrib caches (CI working dirs)
 /build/_work/
-/build/vlc-src/
-/build/contrib-cache/
-/cached/build/_work/
-/cached/build/_state/
-/prebuilt/build/_work/
+/build/_state/
 vlc-*.tar.xz
 vlc-*.tar.gz
 
@@ -449,8 +445,6 @@ vlc-*.tar.gz
 /LOCAL-HANDOFF-VLC3.txt
 /native/
 Tests/**/native/
-/nuget/**/runtimes/
-/nuget/**/native-staging/
 
 # Test output: VLC logs, snapshots, extracted audio, etc.
 /tests/**/logs/

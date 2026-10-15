@@ -37,7 +37,7 @@ Tests/Data/** -text
 *.nupkg binary
 *.snupkg binary
 
-# CI-generated, split contrib cache archives (cached/ pipeline). Binary, never
+# CI-generated, split contrib cache archives. Binary, never
 # EOL-normalized; the sibling MANIFEST stays text.
-cached/contribs/**/contrib.tar.zst.* binary
-cached/contribs/**/MANIFEST text eol=lf
+contribs/**/contrib.tar.zst.* binary
+contribs/**/MANIFEST text eol=lf

@@ -1,8 +1,8 @@
 From: VLCDotNet CI <ci@vlcdotnet>
 Subject: [PATCH] avcodec: define FF_PROFILE_AV1_* fallbacks for newer FFmpeg
 
-The prebuilt VLC contribs (used for the Windows/Apple/Android builds) ship a
-newer FFmpeg where the FF_PROFILE_AV1_MAIN / FF_PROFILE_AV1_HIGH /
+The VLC contrib dependency set can ship a newer FFmpeg where the
+FF_PROFILE_AV1_MAIN / FF_PROFILE_AV1_HIGH /
 FF_PROFILE_AV1_PROFESSIONAL aliases were dropped in favour of AV_PROFILE_*.
 VLC 3.0.23's AVPROFILE() still selects the FF_PROFILE_* spelling for some
 libavcodec versions, so modules/codec/avcodec/directx_va.c fails to compile
@@ -10,7 +10,7 @@ with "FF_PROFILE_AV1_MAIN undeclared".
 
 Provide fallback definitions guarded by #ifndef. The AV1 profile values are
 stable (main=0, high=1, professional=2), and where the symbols already exist
-(e.g. the from-source Linux FFmpeg) the guards make this a no-op.
+the guards make this a no-op.
 ---
  modules/codec/avcodec/avcommon_compat.h | 11 +++++++++++
  1 file changed, 11 insertions(+)

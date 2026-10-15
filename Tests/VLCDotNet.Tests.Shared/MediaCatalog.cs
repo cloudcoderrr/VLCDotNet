@@ -113,8 +113,8 @@ namespace VLCDotNet.Tests.Shared
 
         /// <summary>
         /// Extra containers/codecs enabled by the feature-parity contrib closure
-        /// (see cached/FEATURE-PARITY-TASK.md). Only exercised when the parity
-        /// profile is active (VLC_PARITY_TESTS); other pipelines skip them.
+        /// (see build/FEATURES.md). Only exercised when the parity
+        /// profile is active (VLC_PARITY_TESTS).
         /// </summary>
         public static readonly IReadOnlyList<MediaSpec> ExtraVideos = new List<MediaSpec>
         {

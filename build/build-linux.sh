@@ -1,301 +1,75 @@
 #!/usr/bin/env bash
 #
-# Build libvlc for Linux (x64 / arm / arm64) using the VLC contrib system and a
-# libvlc-only configure. x64 builds natively; arm/arm64 cross-compile with the
-# GNU cross toolchains against the same source-built minimal contrib closure.
+# Build libvlc for Linux (x64 / arm / arm64) against the FULL VLC contrib set,
+# built in-CI and cached in-repo (see build/lib.sh).
 #
-#   Usage: build-linux.sh <x86_64|armv7|aarch64>
+# Full-source native builds compile the dependency closure so the runtime
+# is self-contained and reproducible. arm/arm64 build natively inside a
+# QEMU-emulated ubuntu:22.04 container (the workflow sets that up); this script
+# itself is architecture-agnostic.
+#
+# Two phases, selected by BUILD_PHASE:
+#   BUILD_PHASE=contrib  build-linux.sh <x86_64|armv7|aarch64>   -> cache contribs
+#   build-linux.sh <x86_64|armv7|aarch64>         (default libvlc) -> build libvlc
 #
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 ARCH="${1:?arch required: x86_64 | armv7 | aarch64}"
+PHASE="${BUILD_PHASE:-libvlc}"
 case "${ARCH}" in
   x86_64)  RID="linux-x64";   TRIPLET="x86_64-linux-gnu" ;;
   armv7)   RID="linux-arm";   TRIPLET="arm-linux-gnueabihf" ;;
   aarch64) RID="linux-arm64"; TRIPLET="aarch64-linux-gnu" ;;
   *) die "Unsupported Linux arch: ${ARCH}" ;;
 esac
-# Native when the host arch already matches the target -- e.g. armv7/aarch64
-# built inside a QEMU-emulated ubuntu container (as the prebuilt pipeline does).
-# Native builds take the same reliable path as linux-x64, with a stock libtool
-# that emits the versioned .so directly, so none of the cross workarounds below
-# run. Cross-compilation stays as a fallback for a mismatched host.
-case "${ARCH}:$(uname -m)" in
-  x86_64:x86_64|aarch64:aarch64|armv7:armv7l|armv7:armv7|armv7:arm) CROSS=0 ;;
-  *) CROSS=1 ;;
-esac
 
 VLC_SRC="${WORK_DIR}/vlc-linux-${ARCH}"
 INSTALL_PREFIX="${WORK_DIR}/install-linux-${ARCH}"
 mkdir -p "${WORK_DIR}"
 
-# Line-buffer make so build progress is visible in real time. On cross builds
-# also cap each step so a wedged compiler/linker aborts fast (cross libtool has
-# historically stalled in reconfigure loops); native/emulated builds are the
-# reliable path and only need the job-level wall-clock timeout.
-MAKE_STEP_TIMEOUT="${MAKE_STEP_TIMEOUT:-40m}"
-if [ "${CROSS}" = "1" ]; then
-  mk() { timeout --kill-after=30s "${MAKE_STEP_TIMEOUT}" stdbuf -oL -eL make "$@"; }
-else
-  mk() { stdbuf -oL -eL make "$@"; }
-fi
-
-# sidplay2's xsid tables trigger narrowing diagnostics on the Linux cross
-# toolchains; keep the contrib build lenient enough to compile that legacy C++.
+# sidplay (SID codec) legacy C++ trips narrowing diagnostics on modern GCC.
 export CXXFLAGS="${CXXFLAGS:-} -Wno-narrowing"
 
 clone_vlc "${VLC_SRC}"
 apply_patches "${VLC_SRC}"
 
-if [ "${CROSS}" = "1" ]; then
-  log "Cross build: relaxing libvlccore link flags in src/Makefile.am before bootstrap"
-  perl -0pi -e 's{libvlccore_la_LDFLAGS = \\\R\h*\$\(LDFLAGS_libvlccore\) \\\R\h*-no-undefined \\\R\h*-export-symbols \$\(srcdir\)/libvlccore\.sym \\\R\h*-version-info (\d+:\d+:\d+)}{libvlccore_la_LDFLAGS = \\\n\t\$(LDFLAGS_libvlccore) \\\n\t-version-info $1}ms' "${VLC_SRC}/src/Makefile.am"
-  # libvlc keeps -no-undefined, which makes the cross libtool refuse to emit the
-  # real libvlc.so.N (libvlc references libvlccore symbols resolved at load
-  # time). Drop -no-undefined and -export-symbols so the versioned shared object
-  # is produced, mirroring the libvlccore relaxation above.
-  log "Cross build: relaxing libvlc link flags in lib/Makefile.am before bootstrap"
-  perl -0pi -e 's{libvlc_la_LDFLAGS = \\\R\h*\$\(LDFLAGS_libvlc\) \\\R\h*-no-undefined \\\R\h*(-version-number \S+) \\\R\h*-export-symbols \$\(srcdir\)/libvlc\.sym}{libvlc_la_LDFLAGS = \\\n\t\$(LDFLAGS_libvlc) \\\n\t$1}ms' "${VLC_SRC}/lib/Makefile.am"
+# ---- Phase 1: build + cache the full contrib set ----------------------------
+if [ "${PHASE}" = "contrib" ]; then
+  # Cross-compile the contrib set when the runner architecture differs from the
+  # target (building arm/arm64 contribs on an x86_64 runner). A full contrib
+  # closure under QEMU emulation is far too slow; the contrib build needs no
+  # target execution, so cross-compiling is both fast and reliable. (The libvlc
+  # phase still runs on the target under QEMU for its ldd-based bundling.)
+  if [ "${ARCH}" != "x86_64" ] && [ "$(uname -m)" = "x86_64" ]; then
+    log "Cross-compiling ${RID} contribs with the ${TRIPLET} toolchain"
+    command -v "${TRIPLET}-gcc" >/dev/null 2>&1 || die "cross toolchain ${TRIPLET}-gcc not installed"
+    # Deliberately do NOT export CC/CXX here: VLC's contrib bootstrap detects the
+    # BUILD triplet via `cc -dumpmachine` and derives the cross compiler
+    # ($(HOST)-gcc) from --host itself. Exporting CC=<triplet>-gcc would make it
+    # detect BUILD==HOST, disable cross mode, and configure would then try to run
+    # target binaries ("cannot run C compiled programs"). extras/tools must also
+    # build as native host tools, which relies on the native cc.
+  fi
+  if [ -n "${CONTRIB_GROUP:-}" ]; then
+    build_contrib_group "${VLC_SRC}" "contrib-linux-${ARCH}" "${TRIPLET}" "${RID}" "${CONTRIB_GROUP}" \
+      ${CONTRIB_EXTRA_PRUNE:+-- ${CONTRIB_EXTRA_PRUNE}}
+  else
+    build_full_contrib "${VLC_SRC}" "contrib-linux-${ARCH}" "${TRIPLET}" \
+      ${CONTRIB_EXTRA_PRUNE:+-- ${CONTRIB_EXTRA_PRUNE}}
+    pack_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
+  fi
+  exit 0
 fi
 
-if [ "${CROSS}" = "1" ]; then
-  export CC="${TRIPLET}-gcc"
-  export CXX="${TRIPLET}-g++"
-  export LD="${TRIPLET}-gcc"
-  export AR="${TRIPLET}-ar"
-  export RANLIB="${TRIPLET}-ranlib"
-  export STRIP="${TRIPLET}-strip"
-  export PKG_CONFIG_LIBDIR="/usr/lib/${TRIPLET}/pkgconfig:/usr/${TRIPLET}/lib/pkgconfig"
-fi
+# ---- Phase 2: restore contribs + build libvlc -------------------------------
+restore_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
+CONTRIB_PREFIX="${VLC_SRC}/contrib/${TRIPLET}"
 
-manual_link_shared_lib() {
-  local lib_name="$1" log_file="$2"
-  local cmd out soname devel_name
-  local lai_file=".libs/${lib_name}.lai"
-  local library_names="" versioned_name=""
-
-  cmd="$(grep "^../doltlibtool .* -o ${lib_name}\\.la " "$log_file" | tail -n 1 || true)"
-  [ -n "$cmd" ] || { warn "manual link: could not find ${lib_name} link command in $log_file"; return 1; }
-
-  log "Cross build: attempting manual ${lib_name} shared link fallback"
-
-  if [ -f "$lai_file" ]; then
-    library_names="$(sed -n "s/^library_names='\(.*\)'$/\1/p" "$lai_file" | tail -n 1)"
-  fi
-  [ -n "$library_names" ] || { warn "manual link: could not read library_names from $lai_file"; return 1; }
-  # shellcheck disable=SC2086
-  set -- $library_names
-  versioned_name="${1:-}"
-  soname="${2:-${1:-}}"
-  devel_name="${3:-${2:-${1:-}}}"
-  [ -n "$versioned_name" ] || { warn "manual link: could not determine output name for $lib_name from $lai_file"; return 1; }
-
-  local compiler=""
-  local -a pre_flags objs libs manual
-  # shellcheck disable=SC2086
-  eval "set -- $cmd"
-
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      */doltlibtool|doltlibtool|*/libtool|libtool|--tag=*|--mode=*|--silent|--quiet)
-        shift
-        ;;
-      *)
-        break
-        ;;
-    esac
-  done
-
-  [ $# -gt 0 ] || { warn "manual link: could not identify compiler from $log_file"; return 1; }
-  compiler="$1"
-  shift
-
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      -o)
-        shift 2
-        ;;
-      -rpath)
-        shift 2
-        ;;
-      -version-info)
-        shift 2
-        ;;
-      -export-symbols|-export-symbols-regex|-release)
-        shift 2
-        ;;
-      -no-undefined|-avoid-version|-module)
-        shift
-        ;;
-      *.lo)
-        objs+=("$1")
-        shift
-        ;;
-      *.la)
-        libs+=("$1")
-        shift
-        ;;
-      -l*|-L*|-Wl,*|-pthread)
-        libs+=("$1")
-        shift
-        ;;
-      *)
-        pre_flags+=("$1")
-        shift
-        ;;
-    esac
-  done
-
-  out=".libs/${versioned_name}"
-  manual=("$compiler" -shared -Wl,-soname,"$soname")
-  manual+=("${pre_flags[@]}")
-
-  local obj dir base real
-  for obj in "${objs[@]}"; do
-    dir="$(dirname "$obj")"
-    base="$(basename "$obj" .lo)"
-    if [ "$dir" = "." ]; then
-      real=".libs/${base}.o"
-    else
-      real="${dir}/.libs/${base}.o"
-    fi
-    manual+=("$real")
-  done
-
-  local lib libdir libbase resolved
-  for lib in "${libs[@]}"; do
-    case "$lib" in
-      *.la)
-        libdir="$(dirname "$lib")"
-        libbase="$(basename "$lib" .la)"
-        if [ -f "${libdir}/.libs/${libbase}.so" ]; then
-          resolved="${libdir}/.libs/${libbase}.so"
-        elif [ -f "${libdir}/.libs/${libbase}.a" ]; then
-          resolved="${libdir}/.libs/${libbase}.a"
-        else
-          resolved="$lib"
-        fi
-        manual+=("$resolved")
-        ;;
-      *)
-        manual+=("$lib")
-        ;;
-    esac
-  done
-
-  manual+=(-o "$out")
-  "${manual[@]}"
-  if [ "$soname" != "$versioned_name" ]; then
-    ln -sf "$versioned_name" ".libs/${soname}"
-  fi
-  if [ "$devel_name" != "$soname" ]; then
-    ln -sf "$soname" ".libs/${devel_name}"
-  fi
-}
-
-link_shared_soname_chain() {
-  local libs_dir="$1" lib_name="$2"
-  local lai_file="${libs_dir}/${lib_name}.lai"
-  local library_names="" versioned_name="" soname="" devel_name=""
-
-  if [ -f "$lai_file" ]; then
-    library_names="$(sed -n "s/^library_names='\(.*\)'$/\1/p" "$lai_file" | tail -n 1)"
-  fi
-  [ -n "$library_names" ] || { warn "could not read library_names from $lai_file"; return 1; }
-
-  # shellcheck disable=SC2086
-  set -- $library_names
-  versioned_name="${1:-}"
-  soname="${2:-${1:-}}"
-  devel_name="${3:-${2:-${1:-}}}"
-  [ -n "$versioned_name" ] || { warn "could not determine output name for $lib_name from $lai_file"; return 1; }
-
-  if [ "$soname" != "$versioned_name" ]; then
-    ln -sf "$versioned_name" "${libs_dir}/${soname}"
-  fi
-  if [ "$devel_name" != "$soname" ]; then
-    ln -sf "$soname" "${libs_dir}/${devel_name}"
-  fi
-}
-
-stage_cross_linux_prefix() {
-  local build_dir="$1" prefix="$2" contrib_prefix="$3"
-  local plugins_root="${prefix}/lib/vlc/plugins"
-  local libs_root="${prefix}/lib"
-  local f
-
-  rm -rf "${prefix}"
-  mkdir -p "${plugins_root}" "${libs_root}"
-
-  for f in \
-    "${build_dir}/lib/.libs"/libvlc*.so* \
-    "${build_dir}/src/.libs"/libvlccore*.so*; do
-    [ -e "$f" ] && cp -aL "$f" "${libs_root}/" || true
-  done
-
-  if [ -d "${contrib_prefix}/lib" ]; then
-    ( cd "${contrib_prefix}/lib" && find . -maxdepth 1 -type f \( -name '*.so' -o -name '*.so.*' \) -print0 \
-        | while IFS= read -r -d '' m; do
-            cp -aL "$m" "${libs_root}/"
-          done )
-  fi
-
-  local install_plan line dest plugin_so plugin_src plugin_la
-  install_plan="$(make -C modules -n install 2>/dev/null | grep -- '--mode=install /usr/bin/install -c .*plugins/' || true)"
-  [ -n "${install_plan}" ] || die "Could not derive cross Linux plugin install plan from modules/Makefile"
-
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    dest="${line##* }"
-    dest="${dest#\'}"
-    dest="${dest%\'}"
-    mkdir -p "$dest"
-    while IFS= read -r plugin_la; do
-      [ -n "${plugin_la}" ] || continue
-      plugin_so="${plugin_la%.la}.so"
-      plugin_src="${build_dir}/modules/.libs/${plugin_so}"
-      [ -f "${plugin_src}" ] || die "Expected built plugin ${plugin_src} was not found"
-      cp -aL "${plugin_src}" "${dest}/"
-    done < <(printf '%s\n' "$line" | grep -oE '[A-Za-z0-9_./-]+\.la' | grep -E '/|^lib')
-  done <<< "${install_plan}"
-}
-
-# ---- 1. contribs --------------------------------------------------------------
-CONTRIB_BUILD="${VLC_SRC}/contrib/contrib-${ARCH}"
-mkdir -p "${CONTRIB_BUILD}"
-(
-  cd "${CONTRIB_BUILD}"
-  # Build only the contrib closure needed for local-file playback of the test
-  # media: ffmpeg decoders, Opus (ffmpeg's opus decoder is disabled), libass
-  # subtitles, Matroska and MPEG-TS (libdvbpsi). --disable-all empties the
-  # default ~80-package set so bootstrap resolves just these packages plus their
-  # dependencies.
-  BOOT_ARGS=($(minimal_local_playback_contrib_flags 1))
-  if [ "${CROSS}" = "1" ]; then
-    # Explicit --build is required so autoconf treats this as a cross build and
-    # never tries to execute target binaries on the x86_64 runner.
-    BOOT_ARGS+=(--host="${TRIPLET}" --build="x86_64-linux-gnu")
-  fi
-  ../bootstrap "${BOOT_ARGS[@]}"
-  make -j"$(jobs)" fetch
-  if ! make -j"$(jobs)"; then
-    warn "Parallel contrib build failed; retrying serially for a clean error"
-    if ! make -j1; then
-      warn "Contrib build failed. Dumping ffmpeg config.log tails for diagnosis:"
-      find "${CONTRIB_BUILD}" -path '*ffmpeg*/config.log' \
-        -exec sh -c 'echo "----- $1 -----"; tail -n 80 "$1"' _ {} \; 2>/dev/null || true
-      exit 1
-    fi
-  fi
-)
-
-# ---- 2. bootstrap + configure -------------------------------------------------
-# gnutls in the 3.0 contrib links a bundled nettle backport that leaves undefined
-# symbols in dependent plugins (vnc/srt). We only play local files, so remove
-# gnutls/srt from the contrib prefix to keep those modules out of the build.
-CONTRIB_PREFIX_DIR="${VLC_SRC}/contrib/${TRIPLET}"
-strip_local_only_network_contribs "${CONTRIB_PREFIX_DIR}"
+# Pin GNUTLS_LIBS to the contrib gnutls static closure (nettle/hogweed/gmp) so
+# the TLS plugin links; VLC 3.0's contrib gnutls bundles a nettle backport that
+# otherwise leaves undefined nettle_* references at the plugin link step.
+export_gnutls_static_libs "${CONTRIB_PREFIX}"
 
 ( cd "${VLC_SRC}" && ./bootstrap )
 
@@ -303,170 +77,55 @@ BUILD_DIR="${VLC_SRC}/build-${ARCH}"
 rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
 
-CODEC_FLAGS=($(requested_codec_config_flags))
-
 CONFIG_FLAGS=(
   "--prefix=${INSTALL_PREFIX}"
-  "--with-contrib=${VLC_SRC}/contrib/${TRIPLET}"
-  # VLC enables AM_MAINTAINER_MODE, so make re-runs aclocal/automake/autoconf and
-  # a full ./configure whenever it thinks the autotools inputs are stale. On the
-  # cross legs the patched configure.ac/Makefile.am plus restored-cache mtimes
-  # trip that on every make step, each re-running configure (~1h) -> the job
-  # looked hung for hours. Disable the rebuild rules; bootstrap already ran.
-  --disable-maintainer-mode
+  "--with-contrib=${CONTRIB_PREFIX}"
   --disable-vlc          # libvlc only, no player binary
-  --disable-qt
-  --disable-skins2
-  --disable-nls
-  --disable-lua
-  --disable-a52
-  --enable-avcodec       # FFmpeg-based decoders for the test media
+  --disable-qt --disable-skins2 --disable-nls --disable-lua --disable-a52
+  --enable-avcodec       # FFmpeg-based decoders (from contrib)
   --enable-swscale
-  --disable-vdpau
-  --disable-sdl-image   # not needed for tests; avoids broken cross link paths
-  --disable-xcb          # headless: video verified via vmem callbacks, no X11
-  --disable-alsa         # headless: audio verified via amem callbacks
-  --disable-pulse
-  --disable-bluray       # local-file playback only; avoid optical-disc deps
-  --disable-vnc          # not needed; avoids linking gnutls/nettle
-  --disable-gnutls       # local files only; no TLS module
-  --disable-srt          # not needed; avoids linking gnutls/nettle
-  --disable-chromaprint  # not needed; avoids non-PIC libavcodec FFT link error
-  --enable-shared        # build libvlccore.so; plugins link it by name (cross)
-  --disable-static
-  --disable-fast-install # cross libtool otherwise defers the real libvlccore.so
+  # Feature parity (contrib-provided; --enable so a missing contrib fails loud).
+  --enable-taglib                                    # metadata read/write
+  --enable-dvdread --enable-dvdnav --enable-bluray   # local disc stack
+  # Native transport/network stack (contrib net group: gnutls/live555/librist/
+  # smb2/microdns/nfs/srt/...). --enable the explicit ones so a missing contrib
+  # fails loud; srt/rist/smb2/nfs/microdns/sat-ip auto-enable from pkg-config.
+  --enable-gnutls        # TLS provider for http/https + native HLS/DASH
+  --enable-live555       # RTSP input + RTSP VOD serving + realrtsp
+  --enable-dvbpsi        # TS PSI tables + the Linux dtv/dvb tuner access
+  --disable-sdl-image    # images covered by png/jpeg/avcodec
+  # X11/XCB + OpenGL/EGL/GLES + Wayland display and ALSA/PulseAudio output
+  # auto-detect from the -dev libs deps-linux.sh installs. Headless CI builds and
+  # loads them; real desktop apps use them for video output / audio.
+  --disable-chromaprint
+  --enable-shared --disable-static
 )
-CONFIG_FLAGS+=("${CODEC_FLAGS[@]}")
-[ "${CROSS}" = "1" ] && CONFIG_FLAGS+=("--host=${TRIPLET}" "--build=x86_64-linux-gnu")
+
+# VA-API/VDPAU hardware decode (Linux with a supported GPU/driver). The NATIVE
+# x86_64 contrib ffmpeg autodetects the system libva/libdrm/libvdpau through the
+# contrib PKG_CONFIG_LIBDIR (which includes /usr/lib/<triplet>/pkgconfig), so the
+# vaapi/vdpau hwaccels link; --enable makes a regression fail loud. The arm/arm64
+# contribs cross-build without the target libva, so hardware decode is left out
+# there and avcodec falls back to software decode.
+if [ "${ARCH}" = "x86_64" ]; then
+  CONFIG_FLAGS+=(--enable-vaapi --enable-vdpau)
+else
+  CONFIG_FLAGS+=(--disable-vaapi --disable-vdpau)
+fi
 
 (
   cd "${BUILD_DIR}"
-  if [ "${CROSS}" = "1" ]; then
-    # Configure bakes linker flags into generated Makefiles, so cross-build
-    # rpath-link hints must be present before ../configure runs.
-    export LDFLAGS="${LDFLAGS-} -Wl,-rpath-link,$(pwd)/src/.libs -Wl,-rpath-link,$(pwd)/lib/.libs"
-  fi
-  timeout --kill-after=30s "${MAKE_STEP_TIMEOUT}" stdbuf -oL -eL ../configure "${CONFIG_FLAGS[@]}"
-  if [ "${CROSS}" = "1" ] && [ -f libtool ]; then
-    # Cross libtool otherwise emits libvlccore.la/libvlc.la + dangling .so
-    # symlinks but never the real .so.N. Force shared-library mode up front (and
-    # again before each relink below) so the versioned object is produced. This
-    # also avoids the -B relink that would re-run ./config.status --recheck (a
-    # full, ~40-minute reconfigure the make-step timeout then kills). Idempotent.
-    log "Cross build: forcing build_libtool_libs=yes in libtool before building"
-    perl -0pi -e 's/^build_libtool_libs=.*/build_libtool_libs=yes/m; s/^build_old_libs=.*/build_old_libs=no/m' libtool
-  fi
-  # Build the support lib and libvlccore before the plugins. Under a single
-  # "make -j" the recursive src/ and modules/ sub-makes overlap on the cross
-  # toolchains, so a plugin can try to link ../src/.libs/libvlccore.so before
-  # libtool has finalized it. Building compat + src first is deterministic.
-  mk -j"$(jobs)" -C compat
-  if [ "${CROSS}" = "1" ]; then
-    # The aarch64/armv7 cross libtool has been observed to emit only
-    # libvlccore.la + dangling dev symlinks, never the real libvlccore.so.N
-    # (make -C src install then fails: cannot stat .libs/libvlccore.so.9.0.1).
-    # Trace the actual libvlccore link so the real ld/libtool command is
-    # captured, then list what landed in src/.libs.
-    log "Cross build: tracing the libvlccore link (V=1) for diagnosis"
-    mk -C src V=1 libvlccore.la 2>&1 | tee "${WORK_DIR}/libvlccore-${ARCH}.log" || true
-    log "libvlccore artifacts produced under src/.libs:"
-    ls -la src/.libs/ 2>/dev/null | grep -i vlccore || log "(no libvlccore.* in src/.libs)"
-    log "last 60 lines of the libvlccore link trace:"
-    tail -n 60 "${WORK_DIR}/libvlccore-${ARCH}.log" || true
-  fi
-  mk -j"$(jobs)" -C src
-  if [ "${CROSS}" = "1" ]; then
-    shopt -s nullglob
-    core_real=(src/.libs/libvlccore.so.*.*.*)
-    shopt -u nullglob
-    if [ ${#core_real[@]} -eq 0 ]; then
-      warn "Cross build did not emit a versioned libvlccore shared object after make -C src; forcing a serial relink"
-      if ./libtool --config 2>/dev/null | grep -q '^build_libtool_libs=no$'; then
-        warn "libtool reports build_libtool_libs=no for the cross build; forcing shared-library mode before relink"
-        perl -0pi -e 's/^build_libtool_libs=no$/build_libtool_libs=yes/m; s/^build_old_libs=yes$/build_old_libs=no/m' libtool
-      fi
-      log "evaluated libtool shared-library mode before relink:"
-      ./libtool --config 2>/dev/null | grep -E '^(build_libtool_libs|build_old_libs)=' || true
-      rm -f src/libvlccore.la src/.libs/libvlccore.la src/.libs/libvlccore.lai src/.libs/libvlccore.a src/.libs/libvlccore.so* 2>/dev/null || true
-      mk -C src V=1 libvlccore.la 2>&1 | tee "${WORK_DIR}/libvlccore-relink-${ARCH}.log" || true
-      shopt -s nullglob
-      core_real=(src/.libs/libvlccore.so.*.*.*)
-      shopt -u nullglob
-      if [ ${#core_real[@]} -eq 0 ]; then
-        ( cd src && manual_link_shared_lib libvlccore "${WORK_DIR}/libvlccore-relink-${ARCH}.log" ) || true
-        shopt -s nullglob
-        core_real=(src/.libs/libvlccore.so.*.*.*)
-        shopt -u nullglob
-      fi
-    fi
-    if [ ${#core_real[@]} -gt 0 ]; then
-      if link_shared_soname_chain src/.libs libvlccore; then
-        core_base="$(basename "${core_real[0]}")"
-        core_chain="$(sed -n "s/^library_names='\(.*\)'$/\1/p" src/.libs/libvlccore.lai | tail -n 1)"
-        log "Synthesized cross-build libvlccore symlink chain: ${core_chain:-${core_base}}"
-      else
-        core_base="$(basename "${core_real[0]}")"
-        warn "Falling back to direct libvlccore symlink synthesis for ${core_base}"
-        ln -sf "${core_base}" src/.libs/libvlccore.so
-      fi
-    else
-      warn "Cross build still has no versioned libvlccore shared object under src/.libs after forced relink"
-      log "evaluated libtool shared-library mode after forced relink:"
-      ./libtool --config 2>/dev/null | grep -E '^(build_libtool_libs|build_old_libs)=' || true
-      log "src/.libs/libvlccore.lai contents:"
-      sed -n '1,160p' src/.libs/libvlccore.lai 2>/dev/null || true
-      log "last 80 lines of the forced relink trace:"
-      tail -n 80 "${WORK_DIR}/libvlccore-relink-${ARCH}.log" 2>/dev/null || true
-      ls -la src/.libs/ 2>/dev/null | grep -i vlccore || true
-      exit 1
-    fi
-    mk -j"$(jobs)" -C lib
-    shopt -s nullglob
-    libvlc_real=(lib/.libs/libvlc.so.*.*.*)
-    shopt -u nullglob
-    if [ ${#libvlc_real[@]} -eq 0 ]; then
-      warn "Cross build did not emit a versioned libvlc shared object after make -C lib; forcing a serial relink"
-      if ./libtool --config 2>/dev/null | grep -q '^build_libtool_libs=no$'; then
-        warn "libtool reports build_libtool_libs=no for the cross build; forcing shared-library mode before relink"
-        perl -0pi -e 's/^build_libtool_libs=no$/build_libtool_libs=yes/m; s/^build_old_libs=yes$/build_old_libs=no/m' libtool
-      fi
-      rm -f lib/libvlc.la lib/.libs/libvlc.la lib/.libs/libvlc.lai lib/.libs/libvlc.a lib/.libs/libvlc.so* 2>/dev/null || true
-      mk -C lib V=1 libvlc.la 2>&1 | tee "${WORK_DIR}/libvlc-relink-${ARCH}.log" || true
-      shopt -s nullglob
-      libvlc_real=(lib/.libs/libvlc.so.*.*.*)
-      shopt -u nullglob
-      if [ ${#libvlc_real[@]} -eq 0 ]; then
-        ( cd lib && manual_link_shared_lib libvlc "${WORK_DIR}/libvlc-relink-${ARCH}.log" ) || true
-        shopt -s nullglob
-        libvlc_real=(lib/.libs/libvlc.so.*.*.*)
-        shopt -u nullglob
-      fi
-    fi
-    if [ ${#libvlc_real[@]} -gt 0 ]; then
-      if link_shared_soname_chain lib/.libs libvlc; then
-        libvlc_chain="$(sed -n "s/^library_names='\(.*\)'$/\1/p" lib/.libs/libvlc.lai | tail -n 1)"
-        log "Synthesized cross-build libvlc symlink chain: ${libvlc_chain:-$(basename "${libvlc_real[0]}")}"
-      else
-        ln -sf "$(basename "${libvlc_real[0]}")" lib/.libs/libvlc.so
-      fi
-    else
-      warn "Cross build still has no versioned libvlc shared object under lib/.libs after forced relink"
-      log "lib/.libs/libvlc.lai contents:"
-      sed -n '1,160p' lib/.libs/libvlc.lai 2>/dev/null || true
-      log "last 80 lines of the libvlc forced relink trace:"
-      tail -n 80 "${WORK_DIR}/libvlc-relink-${ARCH}.log" 2>/dev/null || true
-      ls -la lib/.libs/ 2>/dev/null | grep -i libvlc || true
-      exit 1
-    fi
-  fi
-  mk -j"$(jobs)"
-  if [ "${CROSS}" = "1" ]; then
-    stage_cross_linux_prefix "$(pwd)" "${INSTALL_PREFIX}" "${VLC_SRC}/contrib/${TRIPLET}"
-  else
-    mk install
-  fi
+  PKG_CONFIG_PATH="${CONTRIB_PREFIX}/lib/pkgconfig" ../configure "${CONFIG_FLAGS[@]}"
+  make -j"$(jobs)"
+  make install
 )
 
 normalize_output "${RID}" "${INSTALL_PREFIX}"
+
+# Make the artifact relocatable: bundle the non-system shared-object closure
+# next to libvlc and rewrite rpaths to $ORIGIN (needs to run on the target arch,
+# which is why arm/arm64 build under QEMU).
+bundle_linux_deps "${ARTIFACTS_DIR}/${RID}"
+
 cp -a "${VLC_SRC}/COPYING"     "${ARTIFACTS_DIR}/${RID}/" 2>/dev/null || true
 cp -a "${VLC_SRC}/COPYING.LIB" "${ARTIFACTS_DIR}/${RID}/" 2>/dev/null || true

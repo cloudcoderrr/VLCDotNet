@@ -1,46 +1,104 @@
 name: build-vlc4
 
-# Builds libvlc 4.0.x (preview, tracks VideoLAN master) from source for every
-# supported platform and uploads one artifact per RID (vlc4-<rid>). Trigger
-# manually; use "only" to build a single platform family while iterating, and
-# "ref" to pin a specific master commit/branch if HEAD is broken.
+# Phase 2 of the full-source native build pipeline. Builds libvlc 4.0.x for every platform
+# by RESTORING the full contrib set committed to contribs/vlc-4.0/<rid>/
+# by contribs-vlc4, then linking libvlc against it. Uploads one artifact
+# per RID (vlc4-native-<rid>). Run contribs-vlc4 for a family first.
 #
-# VLC 4.0 is unreleased; expect from-source breaks and iterate via patches under
-# patches/vlc-4.0/. Kept fully separate from the VLCDotNet3 pipeline.
+# Trigger: workflow_dispatch with "only", or push to main/master with a commit
+# message tag [build:<family>] / [build:all].
 
 on:
+  push:
+    branches: [main, master]
+    paths:
+      - "build/**"
+      - "patches/**"
+      - ".github/workflows/build-vlc4.yml"
   workflow_dispatch:
     inputs:
+      ref:
+        description: "VLC git ref/sha to build. Blank = pinned master sha."
+        required: false
       only:
         description: "Platform family to build"
         type: choice
         default: all
         options: [all, windows, linux, apple, android]
-      ref:
-        description: "VLC git ref to build (blank = master)"
+      rids:
+        description: "Optional comma-separated RID allowlist (e.g. linux-x64). Blank = all in family."
         required: false
 
 concurrency:
-  group: build-vlc4-${{ github.ref }}-${{ inputs.only }}
+  group: build-vlc4-${{ github.ref }}-${{ inputs.only || github.sha }}
   cancel-in-progress: false
 
 permissions:
   contents: read
 
 env:
-  VLC_SERIES: "4"
-  VLC_REF: ${{ inputs.ref || 'master' }}
   VLC_VERSION: "4.0-master"
+  VLC_SERIES: "4"
+  VLC_REF: "${{ inputs.ref || 'e77e49b5dff7484dbf70cd1540a6a568e1890280' }}"
 
 jobs:
-  windows:
-    if: ${{ inputs.only == 'all' || inputs.only == 'windows' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 350
+  linux:
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && (inputs.only == 'all' || inputs.only == 'linux'))
+       || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[build:linux]') || contains(github.event.head_commit.message, '[build:all]'))) }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
-        arch: [x86_64, aarch64]
+        include:
+          - { arch: x86_64,  rid: linux-x64,   emulated: false, platform: "" }
+          - { arch: aarch64, rid: linux-arm64, emulated: true,  platform: "linux/arm64" }
+          - { arch: armv7,   rid: linux-arm,   emulated: true,  platform: "linux/arm/v7" }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Gate RID
+        id: f
+        shell: bash
+        env: { ALLOW: "${{ inputs.rids }}", RID: "${{ matrix.rid }}" }
+        run: |
+          run=true
+          if [ -n "$ALLOW" ]; then case ",$ALLOW," in *",$RID,"*) run=true ;; *) run=false ;; esac; fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - name: Build libvlc (native ${{ matrix.arch }})
+        if: ${{ steps.f.outputs.run == 'true' && !matrix.emulated }}
+        run: |
+          sudo bash build/deps-linux.sh
+          bash build/build-linux.sh ${{ matrix.arch }}
+      - name: Set up QEMU
+        if: ${{ steps.f.outputs.run == 'true' && matrix.emulated }}
+        uses: docker/setup-qemu-action@v3
+      - name: Build libvlc (emulated ${{ matrix.arch }})
+        if: ${{ steps.f.outputs.run == 'true' && matrix.emulated }}
+        run: |
+          docker run --rm --platform ${{ matrix.platform }} \
+            -e VLC_VERSION -e VLC_SERIES -e VLC_REF \
+            -v "$PWD:/work" -w /work ubuntu:22.04 \
+            bash -c 'set -e; bash build/deps-linux.sh && bash build/build-linux.sh ${{ matrix.arch }}'
+      - uses: actions/upload-artifact@v6
+        if: ${{ steps.f.outputs.run == 'true' }}
+        with:
+          name: vlc4-native-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error
+
+  windows:
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && (inputs.only == 'all' || inputs.only == 'windows'))
+       || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[build:windows]') || contains(github.event.head_commit.message, '[build:all]'))) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64,  rid: win-x64 }
+          - { arch: aarch64, rid: win-arm64 }
     steps:
       - uses: actions/checkout@v5
       - name: Install cross build dependencies
@@ -49,80 +107,53 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential automake autopoint libtool-bin pkg-config gettext \
             git bison flex nasm yasm cmake ninja-build meson zip p7zip-full \
-            gperf help2man nsis dos2unix curl xz-utils
-      - name: Build (${{ matrix.arch }})
+            gperf help2man dos2unix curl xz-utils zstd file
+      - name: Build libvlc (${{ matrix.arch }})
         run: bash build/build-windows.sh ${{ matrix.arch }}
-      - name: Map arch to RID
-        id: rid
-        run: echo "rid=$([ '${{ matrix.arch }}' = 'x86_64' ] && echo win-x64 || echo win-arm64)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v6
         with:
-          name: vlc4-${{ steps.rid.outputs.rid }}
-          path: artifacts/${{ steps.rid.outputs.rid }}
+          name: vlc4-native-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
           if-no-files-found: error
 
-  linux:
-    if: ${{ inputs.only == 'all' || inputs.only == 'linux' }}
+  android:
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && (inputs.only == 'all' || inputs.only == 'android'))
+       || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[build:android]') || contains(github.event.head_commit.message, '[build:all]'))) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { arch: x86_64,  rid: linux-x64,   emulated: false }
-          - { arch: armv7,   rid: linux-arm,   emulated: true,  platform: linux/arm/v7 }
-          - { arch: aarch64, rid: linux-arm64, emulated: true,  platform: linux/arm64 }
+          - { arch: x86_64, rid: android-x64 }
+          - { arch: arm64,  rid: android-arm64 }
+          - { arch: arm,    rid: android-arm }
     steps:
       - uses: actions/checkout@v5
-      - name: Install build dependencies (native)
-        if: ${{ !matrix.emulated }}
+      - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential automake autopoint libtool-bin pkg-config gettext \
-            git bison flex nasm yasm cmake ninja-build meson curl xz-utils \
-            gperf help2man libxau-dev libpthread-stubs0-dev
-      - name: Cache VLC source + contrib build
-        uses: actions/cache@v5
-        with:
-          path: build/_work
-          key: vlc4-linux-${{ matrix.arch }}-${{ env.VLC_VERSION }}-v2-${{ github.run_id }}
-          restore-keys: |
-            vlc4-linux-${{ matrix.arch }}-${{ env.VLC_VERSION }}-v2-
-      - name: Build (native ${{ matrix.arch }})
-        if: ${{ !matrix.emulated }}
-        run: bash build/build-linux.sh ${{ matrix.arch }}
-      - name: Set up QEMU
-        if: ${{ matrix.emulated }}
-        uses: docker/setup-qemu-action@v3
-      # arm/arm64 build natively inside a QEMU-emulated container so libvlc links
-      # with a stock libtool (the cross toolchains never emit the versioned .so).
-      # Still built from source: contrib is compiled from source in the container.
-      - name: Build (emulated ${{ matrix.arch }})
-        if: ${{ matrix.emulated }}
-        run: |
-          docker run --rm --platform ${{ matrix.platform }} \
-            -e VLC_SERIES -e VLC_REF -e VLC_VERSION \
-            -v "$PWD:/work" -w /work ubuntu:24.04 \
-            bash -c 'set -e
-              export DEBIAN_FRONTEND=noninteractive
-              apt-get update
-              apt-get install -y --no-install-recommends \
-                build-essential automake autoconf autopoint libtool-bin pkg-config gettext \
-                git bison flex nasm yasm cmake ninja-build meson curl ca-certificates \
-                xz-utils zstd gperf help2man patchelf libxau-dev libpthread-stubs0-dev \
-                perl file python3
-              bash build/build-linux.sh ${{ matrix.arch }}'
+            git bison flex nasm yasm cmake ninja-build meson curl xz-utils zstd unzip \
+            gperf help2man
+      - name: Resolve Android NDK
+        run: echo "ANDROID_NDK_HOME=${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}" >> "$GITHUB_ENV"
+      - name: Build libvlc (${{ matrix.arch }})
+        run: bash build/build-android.sh ${{ matrix.arch }}
       - uses: actions/upload-artifact@v6
         with:
-          name: vlc4-${{ matrix.rid }}
+          name: vlc4-native-${{ matrix.rid }}
           path: artifacts/${{ matrix.rid }}
           if-no-files-found: error
 
   apple:
-    if: ${{ inputs.only == 'all' || inputs.only == 'apple' }}
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && (inputs.only == 'all' || inputs.only == 'apple'))
+       || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[build:apple]') || contains(github.event.head_commit.message, '[build:all]'))) }}
     runs-on: macos-14
-    timeout-minutes: 350
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -138,47 +169,17 @@ jobs:
       - uses: actions/checkout@v5
       - name: Install build tools
         run: |
-          brew install automake libtool pkg-config nasm yasm meson ninja gettext bison flex gperf help2man || true
+          brew install automake libtool pkg-config nasm yasm meson ninja gettext bison flex gperf help2man zstd || true
           PY_USER_BIN="$(python3 -c 'import sysconfig; print(sysconfig.get_path("scripts", "posix_user"))')"
           python3 -m pip install --user --break-system-packages 'cmake<3.29'
           export PATH="$PY_USER_BIN:$PATH"
           cmake --version
           echo "$PY_USER_BIN" >> "$GITHUB_PATH"
           echo "/opt/homebrew/opt/bison/bin:/opt/homebrew/opt/gettext/bin:/opt/homebrew/opt/flex/bin" >> "$GITHUB_PATH"
-      - name: Build (${{ matrix.platform }}/${{ matrix.arch }})
+      - name: Build libvlc (${{ matrix.platform }}/${{ matrix.arch }})
         run: bash build/build-apple.sh ${{ matrix.platform }} ${{ matrix.arch }}
       - uses: actions/upload-artifact@v6
         with:
-          name: vlc4-${{ matrix.rid }}
-          path: artifacts/${{ matrix.rid }}
-          if-no-files-found: error
-
-  android:
-    if: ${{ inputs.only == 'all' || inputs.only == 'android' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 350
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { arch: arm,    rid: android-arm }
-          - { arch: arm64,  rid: android-arm64 }
-          - { arch: x86_64, rid: android-x64 }
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential automake autopoint libtool-bin pkg-config gettext \
-            git bison flex nasm yasm cmake ninja-build meson curl xz-utils unzip \
-            gperf help2man
-      - name: Resolve Android NDK
-        run: echo "ANDROID_NDK_HOME=${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}" >> "$GITHUB_ENV"
-      - name: Build (${{ matrix.arch }})
-        run: bash build/build-android.sh ${{ matrix.arch }}
-      - uses: actions/upload-artifact@v6
-        with:
-          name: vlc4-${{ matrix.rid }}
+          name: vlc4-native-${{ matrix.rid }}
           path: artifacts/${{ matrix.rid }}
           if-no-files-found: error

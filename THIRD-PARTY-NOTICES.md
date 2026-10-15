@@ -11,8 +11,8 @@ built from the **VLC media player** sources published by the VideoLAN project.
 - The VLC application and many of the plugins/contribs bundled here are licensed
   under the **GNU General Public License (GPL)**. These third-party components
   remain under their upstream licenses when redistributed in the NuGet package.
-  GPL-only encoders that are unnecessary for playback (e.g. x264/x265) are
-  disabled at build time.
+  The builds include x264/x265 encoders on supported targets; those encoders
+  retain their upstream GPL licenses.
 
 A copy of the license text is installed by VLC as `COPYING.LIB` (LGPL) and
 `COPYING` (GPL) inside the VLC source tree and is reproduced in the built
@@ -20,9 +20,9 @@ artifacts.
 
 ## Network / transport components
 
-The cached-contrib pipeline ships VLC's complete native transport/network stack
-(see `cached/FEATURE-RESTORATION-TASK.md`), which bundles additional third-party
-libraries. Each is redistributed under its own upstream license:
+Full-source native builds enable VLC's native transport/network stack subject
+to platform exclusions (see [build/FEATURES.md](build/FEATURES.md)), bundling
+additional third-party libraries. Each retains its own upstream license:
 
 - **GnuTLS** (TLS provider for `http`/`https` and native HLS/DASH) —
   LGPL-2.1-or-later, together with **Nettle** and **GMP**
