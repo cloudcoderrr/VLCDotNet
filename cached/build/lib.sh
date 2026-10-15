@@ -64,11 +64,16 @@ CONTRIB_ZSTD_LEVEL="${CONTRIB_ZSTD_LEVEL:-19}"
 #   aom                             AV1 ENCODER (AV1 DECODE is covered by dav1d;
 #                                   libaom NEON fails to build on armv7)
 #   lua / luac                      VLC scripting (host-owned; excluded)
+#   cddb                            CD metadata lookup (needs BOTH disc AND net;
+#                                   re-enabled by the net restoration but not a
+#                                   restoration feature, and its configure trips
+#                                   -Werror=unguarded-availability-new on the
+#                                   macOS SDK). Never shipped, so keep it pruned.
 # gnutls' crypto deps (nettle/gmp/gcrypt/gpg-error) now build for the TLS stack;
 # the Apple targets re-prune them in APPLE_PRUNE and use securetransport instead
 # (gpg-error's mkheader OOMs under the iOS cross build). Override
 # CONTRIB_DEFAULT_PRUNE to change the set.
-CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE:---disable-opencv4 --disable-opencv --disable-protobuf --disable-chromaprint --disable-libplacebo --disable-projectM --disable-goom --disable-qt --disable-qtdeclarative --disable-qtshadertools --disable-qtsvg --disable-qtwayland --disable-medialibrary --disable-breakpad --disable-xcb --disable-x262 --disable-aom --disable-lua --disable-luac}"
+CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE:---disable-opencv4 --disable-opencv --disable-protobuf --disable-chromaprint --disable-libplacebo --disable-projectM --disable-goom --disable-qt --disable-qtdeclarative --disable-qtshadertools --disable-qtsvg --disable-qtwayland --disable-medialibrary --disable-breakpad --disable-xcb --disable-x262 --disable-aom --disable-lua --disable-luac --disable-cddb}"
 
 log()  { printf '\033[1;36m[vlcdotnet-cached]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[vlcdotnet-cached]\033[0m %s\n' "$*" >&2; }
@@ -467,7 +472,10 @@ export_gnutls_static_libs() {
     [ -f "${libdir}/${a}" ] && members="${members}${members:+,}${libdir}/${a}"
   done
   [ -n "${members}" ] || return 0
-  local closure="-Wl,--start-group,${members},--end-group"
+  # gnutls also pulls zlib (compress/uncompress/compressBound) on some targets
+  # (e.g. the Android srt plugin links gnutls); -lz resolves it from the system /
+  # NDK / mingw zlib and is harmless where unneeded.
+  local closure="-Wl,--start-group,${members},--end-group -lz"
   export GNUTLS_STATIC_CLOSURE="${closure}"
   export LIBS="${LIBS:-}${LIBS:+ }${closure}"
   log "Appended gnutls crypto closure to LIBS: ${closure}"
