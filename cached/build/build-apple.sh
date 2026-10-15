@@ -133,8 +133,10 @@ esac
 # crypto-dependent net packages (srt/ssh2/vncclient/shout) are dropped with them.
 # The rest of the net group (live555/librist/smb2/microdns/nfs/upnp) builds and
 # ships, so RTSP/RIST/SMB/mDNS-Bonjour/NFS/UPnP all work on Apple over http(s)
-# served by securetransport.
-APPLE_PRUNE=(--disable-gnutls --disable-nettle --disable-gmp --disable-gcrypt --disable-gpg-error --disable-srt --disable-ssh2 --disable-vncclient --disable-shout)
+# served by securetransport. sparkle (the macOS auto-updater framework) is also
+# dropped: libvlc builds --disable-sparkle, and its legacy build system fails on
+# the current macOS SDK.
+APPLE_PRUNE=(--disable-gnutls --disable-nettle --disable-gmp --disable-gcrypt --disable-gpg-error --disable-srt --disable-ssh2 --disable-vncclient --disable-shout --disable-sparkle)
 case "${PLATFORM}" in
   ios|iossimulator)
     # Mobile ships no optical-disc hardware, so drop the disc stack (desktop-only).
