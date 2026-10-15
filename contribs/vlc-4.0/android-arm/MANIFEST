@@ -1,0 +1,13 @@
+rid=android-arm
+triplet=arm-linux-androideabi
+series=4
+vlc_version=4.0-master
+vlc_ref=e77e49b5dff7484dbf70cd1540a6a568e1890280
+build_prefix=/home/runner/work/VLCDotNet/VLCDotNet/build/_work/vlc-android-arm/contrib/arm-linux-androideabi
+archive=contrib.tar.zst
+parts=2
+part_size=95000000
+sha256=9a18cbd053138ac578c3c82fa11b35ebda5ab1dd981096ee0058696587d70e76
+bytes=104339724
+created=2026-10-15T20:40:13Z
+restore=cat contrib.tar.zst.* | zstd -d | tar -x

@@ -1,0 +1,13 @@
+rid=android-arm64
+triplet=aarch64-linux-android
+series=4
+vlc_version=4.0-master
+vlc_ref=e77e49b5dff7484dbf70cd1540a6a568e1890280
+build_prefix=/home/runner/work/VLCDotNet/VLCDotNet/build/_work/vlc-android-arm64/contrib/aarch64-linux-android
+archive=contrib.tar.zst
+parts=2
+part_size=95000000
+sha256=d4878c9a8b503f40f375bc56cbe92364d1b5734ce9c3fd55b72de4758f0b8637
+bytes=111656198
+created=2026-10-15T20:37:03Z
+restore=cat contrib.tar.zst.* | zstd -d | tar -x
