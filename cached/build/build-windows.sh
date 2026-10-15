@@ -97,6 +97,11 @@ fi
 restore_contrib "${VLC_SRC}" "${TRIPLET}" "${RID}"
 CONTRIB_PREFIX="${VLC_SRC}/contrib/${TRIPLET}"
 
+# Pin GNUTLS_LIBS to the contrib gnutls static closure (nettle/hogweed/gmp) so
+# the TLS plugin links; VLC 3.0's contrib gnutls bundles a nettle backport that
+# otherwise leaves undefined nettle_* references at the plugin link step.
+export_gnutls_static_libs "${CONTRIB_PREFIX}"
+
 ( cd "${VLC_SRC}" && ./bootstrap )
 
 BUILD_DIR="${VLC_SRC}/build-win-${ARCH}"

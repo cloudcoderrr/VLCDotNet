@@ -443,6 +443,36 @@ restore_contrib() {
   log "Restored contrib prefix at ${new_prefix}"
 }
 
+# export_gnutls_static_libs <contrib-prefix>
+# Pins GNUTLS_CFLAGS / GNUTLS_LIBS to the FULL static closure of the contrib
+# gnutls so VLC's PKG_CHECK_MODULES([GNUTLS]) uses it verbatim instead of the
+# bare `pkg-config --libs gnutls` (which returns only -lgnutls). VLC 3.0's
+# contrib gnutls statically bundles a NETTLE BACKPORT whose objects reference
+# base nettle/hogweed/gmp symbols (nettle_mpz_*, nettle_sha3_permute,
+# nettle_memxor, ...); without the private closure on the plugin link line those
+# are "undefined reference" errors. `--static` resolves gnutls -> hogweed ->
+# nettle -> gmp in the correct order. No-op when gnutls is not in the contrib
+# (e.g. the Apple targets, which use securetransport).
+export_gnutls_static_libs() {
+  local prefix="$1"
+  local pcdir="${prefix}/lib/pkgconfig"
+  [ -f "${pcdir}/gnutls.pc" ] || return 0
+  command -v pkg-config >/dev/null 2>&1 || return 0
+  local cflags libs
+  cflags="$(PKG_CONFIG_PATH="${pcdir}" pkg-config --cflags gnutls 2>/dev/null || true)"
+  libs="$(PKG_CONFIG_PATH="${pcdir}" pkg-config --libs --static gnutls 2>/dev/null || true)"
+  # Fallback: if --static did not pull the private closure, append it explicitly.
+  case " ${libs} " in
+    *" -lnettle "*) : ;;
+    *) libs="${libs} -lhogweed -lnettle -lgmp" ;;
+  esac
+  if [ -n "${libs}" ]; then
+    export GNUTLS_CFLAGS="${cflags}"
+    export GNUTLS_LIBS="${libs}"
+    log "Pinned GNUTLS_LIBS to the static closure: ${libs}"
+  fi
+}
+
 # strip_excluded_plugins <artifact-dir>
 # Optional denylist filter for the staged dynamic runtime. The cached pipeline
 # now SHIPS VLC's complete native transport/network stack (HTTP/HTTPS/FTP/RTP/
