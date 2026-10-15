@@ -1,0 +1,34 @@
+Guard vlc_getProxyUrl against uninitialised JNI fields on Android.
+
+VLC's Android vlc_getProxyUrl() fetches the system proxy via the cached JNI
+references fields.System.clazz / fields.System.getProperty. Those are only
+initialised by JNI_OnLoad, which the Android dynamic loader calls for a
+System.loadLibrary() load but NOT for a plain dlopen() -- which is exactly how a
+.NET P/Invoke host resolves libvlc (by library name, no Java bootstrap). With
+the fields left NULL, the CallStaticObjectMethod() calls dereference a NULL
+class/methodID and the process dies with SIGSEGV the first time any network
+access module (http/https/ftp/rtp/...) is opened.
+
+Skip the Android system-proxy lookup (report "no proxy") when those fields are
+not initialised, so libvlc's native transport works under a non-JNI host.
+---
+--- a/src/android/specific.c
++++ b/src/android/specific.c
+@@ -346,6 +346,14 @@ char *vlc_getProxyUrl(const char *url)
+     JNIEnv *env;
+     bool b_detach;
+     char *psz_ret = NULL;
+     const char *psz_host = NULL, *psz_port = NULL;
+     jstring jhost = NULL, jport = NULL;
+ 
++    /* fields.System is only initialised by JNI_OnLoad, which Android invokes for
++     * System.loadLibrary() but NOT for a plain dlopen() (e.g. a .NET P/Invoke
++     * host that resolves libvlc by name). Without it the CallStaticObjectMethod
++     * calls below dereference a NULL class/methodID and crash (SIGSEGV). Skip the
++     * Android system-proxy lookup in that case and report "no proxy". */
++    if (fields.System.clazz == NULL || fields.System.getProperty == NULL)
++        return NULL;
++
+     env = get_env(&b_detach);
+     if (env == NULL)
+         return NULL;
