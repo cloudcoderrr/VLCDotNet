@@ -609,9 +609,11 @@ stage_static_vlc() {
       # stream_filter). Ancillary plugins (preparser, addons, stream_extractor
       # and most of misc) bundle shared helper objects that duplicate-symbol when
       # force-loaded together into one framework, so misc is limited to the TLS
-      # providers (securetransport/gnutls).
+      # providers (securetransport/gnutls). video_filter is intentionally excluded
+      # (not transport-related; VLC 3's puzzle + swscale both export
+      # ppsz_mode_descriptions, which collides when force-loaded together).
       case "${cat}" in
-        access|access_output|stream_out|services_discovery|stream_filter|mux|audio_filter|audio_output|codec|demux|meta_engine|packetizer|spu|text_renderer|video_chroma|video_output|video_filter)
+        access|access_output|stream_out|services_discovery|stream_filter|mux|audio_filter|audio_output|codec|demux|meta_engine|packetizer|spu|text_renderer|video_chroma|video_output)
           stage_module=1 ;;
         misc)
           case "${modname}" in
