@@ -1,0 +1,13 @@
+rid=android-arm64
+triplet=aarch64-linux-android
+series=3
+vlc_version=3.0.23
+vlc_ref=3.0.23
+build_prefix=/home/runner/work/VLCDotNet/VLCDotNet/build/_work/vlc-android-arm64/contrib/aarch64-linux-android
+archive=contrib.tar.zst
+parts=2
+part_size=95000000
+sha256=1220918cb5999816a4701ad1891ae689e853576e8ae356431fd2bf17a0bd027d
+bytes=106722541
+created=2026-10-15T20:32:27Z
+restore=cat contrib.tar.zst.* | zstd -d | tar -x

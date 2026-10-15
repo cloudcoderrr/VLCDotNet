@@ -1,0 +1,13 @@
+rid=linux-arm
+triplet=arm-linux-gnueabihf
+series=3
+vlc_version=3.0.23
+vlc_ref=3.0.23
+build_prefix=/home/runner/work/VLCDotNet/VLCDotNet/build/_work/vlc-linux-armv7/contrib/arm-linux-gnueabihf
+archive=contrib.tar.zst
+parts=2
+part_size=95000000
+sha256=dcf9adab68b2d0cab79afefa6c6bc68b0c422ebd1b5686ab5db8df7e5af14a49
+bytes=181965981
+created=2026-10-15T20:39:13Z
+restore=cat contrib.tar.zst.* | zstd -d | tar -x
