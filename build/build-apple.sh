@@ -150,18 +150,20 @@ case "${PLATFORM}" in
     # the host (SIGKILL). Re-enabling needs a meson native-file injected into
     # VLC's contrib meson invocation (see build/README.md).
     APPLE_PRUNE+=(--disable-disc --disable-schroedinger --disable-vpx --disable-ass --disable-harfbuzz --disable-fribidi --disable-librist --disable-nfs)
-    # VLC 4.0 only: asdcplib (Digital Cinema) is not a required module, and VLC 4's
-    # x265 cmake passes an empty -mmacosx-version-min= to the iOS assembler, so
-    # drop the encoders on VLC 4 mobile (VideoToolbox provides H.264/H.265 encode).
-    [ "${VLC_SERIES}" != "3" ] && APPLE_PRUNE+=(--disable-asdcplib --disable-x264 --disable-x265) ;;
+    # VLC 4.0 only: asdcplib (Digital Cinema) is not a required module. x264/x265
+    # are KEPT on VLC 4 iOS/simulator for parity with VLC 3 iOS; the VLC 4 x265
+    # cmake empty -mmacosx-version-min= is avoided by seeding VLC_DEPLOYMENT_TARGET
+    # (CONTRIB_MK, set from MINVER above).
+    [ "${VLC_SERIES}" != "3" ] && APPLE_PRUNE+=(--disable-asdcplib) ;;
   maccatalyst)
     # Catalyst requires only avcodec+sout+videotoolbox; libvpx's VP9 RTC C++ does
     # not compile for the macabi arm64 target, and schroedinger/orc are unstable.
     # Catalyst uses the iOS API family, so the optical-disc stack is dropped too.
-    # x264/x265's asm objects are tagged 'macOS' (not 'macabi'), so their static
-    # libs fail to link into a Catalyst app; H.264/H.265 ENCODE on Catalyst uses
-    # VideoToolbox instead.
-    APPLE_PRUNE+=(--disable-disc --disable-x264 --disable-x265 --disable-schroedinger --disable-vpx)
+    # x264/x265 are KEPT (software H.264/H.265 encode). Their asm is assembled via
+    # the C compiler with the exported CFLAGS, which carry the macabi -target, so
+    # the objects are tagged for the Catalyst ABI and the static encoder libs link
+    # into the Catalyst dynamic framework. Validated empirically at the link step.
+    APPLE_PRUNE+=(--disable-disc --disable-schroedinger --disable-vpx)
     # VLC 4.0 Catalyst arm64 only: mpg123's NEON64 asm (dct36_neon64.S) is
     # assembled with a 'macOS' platform tag under the macabi cross, so it cannot
     # link into the Catalyst arm64 dynamic framework. MP3 decode falls back to
