@@ -139,6 +139,24 @@ jobs:
           fi
           ls -R artifacts | head -n 60
 
+      - name: Strip native binaries (remove debug info)
+        run: |
+          set -e
+          # The static-contrib build embeds ffmpeg into several plugins with debug
+          # info (libavcodec/libavformat_plugin ~75-90 MB each), inflating the nupkg
+          # toward the 2 GiB GitHub release-asset limit. Strip debug info (keeps the
+          # dynamic symbols VLC's dlsym(vlc_entry__*) needs). llvm-strip handles
+          # ELF (linux/android), PE (windows) and Mach-O (apple).
+          brew list llvm >/dev/null 2>&1 || brew install llvm
+          STRIP="$(brew --prefix llvm)/bin/llvm-strip"
+          before=$(du -sm artifacts | cut -f1)
+          find artifacts -type f \( -name '*.so' -o -name '*.so.*' -o -name '*.dll' -o -name '*.dylib' \) -print0 \
+            | while IFS= read -r -d '' f; do "$STRIP" --strip-debug "$f" 2>/dev/null || true; done
+          find artifacts -path '*/VLCDotNet.framework/VLCDotNet' -type f -print0 \
+            | while IFS= read -r -d '' f; do "$STRIP" --strip-debug "$f" 2>/dev/null || true; done
+          after=$(du -sm artifacts | cut -f1)
+          echo "artifacts: ${before} MB -> ${after} MB"
+
       - name: Pack VLCDotNet3
         run: dotnet pack src/VLCDotNet/VLCDotNet.csproj -c Release -p:VlcMobileTargets=true -p:PackageVersion=${{ steps.rel.outputs.version }} -o out
 
