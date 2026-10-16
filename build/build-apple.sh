@@ -159,11 +159,13 @@ case "${PLATFORM}" in
     # Catalyst requires only avcodec+sout+videotoolbox; libvpx's VP9 RTC C++ does
     # not compile for the macabi arm64 target, and schroedinger/orc are unstable.
     # Catalyst uses the iOS API family, so the optical-disc stack is dropped too.
-    # x264/x265 are KEPT (software H.264/H.265 encode). Their asm is assembled via
-    # the C compiler with the exported CFLAGS, which carry the macabi -target, so
-    # the objects are tagged for the Catalyst ABI and the static encoder libs link
-    # into the Catalyst dynamic framework. Validated empirically at the link step.
-    APPLE_PRUNE+=(--disable-disc --disable-schroedinger --disable-vpx)
+    # x264 is KEPT (software H.264 encode): its asm is assembled by the C compiler
+    # with the exported CFLAGS (macabi -target), so the objects link into the
+    # Catalyst framework. x265 is DROPPED on Catalyst: its cmake asm step emits an
+    # empty -mmacosx-version-min= (no MINVER on the macabi target) and omits the
+    # macabi -target, so its aarch64 asm cannot assemble/link. H.265 encode on
+    # Catalyst uses VideoToolbox instead.
+    APPLE_PRUNE+=(--disable-disc --disable-x265 --disable-schroedinger --disable-vpx)
     # VLC 4.0 Catalyst arm64 only: mpg123's NEON64 asm (dct36_neon64.S) is
     # assembled with a 'macOS' platform tag under the macabi cross, so it cannot
     # link into the Catalyst arm64 dynamic framework. MP3 decode falls back to
