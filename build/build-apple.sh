@@ -232,8 +232,10 @@ esac
 # macOS is a reference-supported desktop: enable the local optical-disc stack and
 # libxml2 (the mobile disc stack was pruned from their contrib closures). Later
 # --enable flags win over the base --disable-bluray/--disable-libxml2 above.
+# screen = desktop screen-capture access; vcd enables the VCD + Audio-CD (cdda)
+# access modules (both base-disabled above; no contrib dependency on macOS).
 case "${PLATFORM}" in
-  macos) CONFIG_FLAGS+=(--enable-bluray --enable-dvdread --enable-dvdnav --enable-libxml2) ;;
+  macos) CONFIG_FLAGS+=(--enable-bluray --enable-dvdread --enable-dvdnav --enable-libxml2 --enable-screen --enable-vcd) ;;
 esac
 case "${PLATFORM}" in
   ios|iossimulator|maccatalyst) CONFIG_FLAGS+=(--enable-static --disable-shared --enable-static-modules) ;;
@@ -241,6 +243,10 @@ case "${PLATFORM}" in
 esac
 
 CONFIGURE_ENV=("${CONTRIB_ENV[@]}" "PKG_CONFIG_LIBDIR=${CONTRIB_PREFIX}/lib/pkgconfig")
+
+# Shared product module policy (configure-level removals, e.g. --disable-ncurses).
+vlc_product_config_flags
+CONFIG_FLAGS+=("${VLC_PRODUCT_CONFIG_FLAGS[@]}")
 
 (
   cd "${BUILD_DIR}"

@@ -39,7 +39,8 @@ namespace VLCDotNet.Tests.Shared
             "flac",
             "mad",
             "mpc",
-            "schroedinger",
+            // schroedinger (Dirac) is removed by the module policy; Dirac
+            // container parsing still works via packetizer_dirac/diracsys.
             "sid",
             "stream_out_standard",
             "stream_out_transcode",

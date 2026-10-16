@@ -489,26 +489,98 @@ export_gnutls_static_libs() {
   log "Appended gnutls crypto closure to LIBS: ${closure}"
 }
 
-# strip_excluded_plugins <artifact-dir>
-# Optional denylist filter for the staged dynamic runtime. The native build
-# now SHIPS VLC's complete native transport/network stack (HTTP/HTTPS/FTP/RTP/
-# RTSP/UDP/TCP/SAT-IP/RIST/SMB/mDNS/discovery/...), so the denylist is EMPTY by
-# default and nothing is stripped. It stays as a hook: set VLC_EXCLUDED_NET_MODULES
-# (space-separated module base names, no lib/_plugin affixes) in the environment
-# to drop specific modules from both the dynamic file tree and the Apple static
-# registration table (stage_static_vlc consumes the same list).
+# ---------------------------------------------------------------------------
+# Module delivery policy.
+#
+# A fixed set of VLC plugins is built by the full contrib closure but NOT
+# delivered in the shipped runtime, per the project's feature policy. Removing
+# them at the delivery stage (rather than via per-target configure flags, most
+# of which do not exist) keeps the committed contrib caches valid: only the
+# libvlc runtime phase is affected. The mandatory set below cannot be overridden
+# by the caller; VLC_EXCLUDED_MODULES / VLC_EXCLUDED_NET_MODULES only ADD to it.
+# ---------------------------------------------------------------------------
+
+# Mandatory removals on every target/series: legacy or desktop-only player
+# controls (hotkeys/win_hotkeys/gestures/oldrc/rc/ncurses/ntservice), debug and
+# benchmark filters (blendbench/stats), a deprecated hardware codec (crystalhd),
+# the addon storage backends (addonsfsstorage/addonsvorepository), the Dirac
+# codec (schroedinger) and the optional visual effects (ball/puzzle/psychedelic/
+# oldmovie/vhs/ripple/wave/caca/visual/glspectrum).
+VLC_MANDATORY_EXCLUDED_MODULES="hotkeys win_hotkeys gestures ntservice oldrc rc ncurses blendbench stats crystalhd addonsfsstorage addonsvorepository schroedinger ball puzzle psychedelic oldmovie vhs ripple wave caca visual glspectrum"
+
+# vlc_series_excluded_modules
+# Series-specific mandatory removals. VLC 4 drops the experimental Rust AV1
+# encoder (rav1e): AV1 encoding is not a shipped feature and the module is
+# unstable in the 4.0 tree. VLC 3 keeps whatever it builds.
+vlc_series_excluded_modules() {
+  case "${VLC_SERIES:-3}" in
+    4) printf '%s' "rav1e" ;;
+    *) printf '%s' "" ;;
+  esac
+}
+
+# Optional caller hooks (space-separated module base names, no lib/_plugin
+# affixes). Additive only; cannot remove a mandatory exclusion.
+VLC_EXCLUDED_MODULES="${VLC_EXCLUDED_MODULES-}"
 VLC_EXCLUDED_NET_MODULES="${VLC_EXCLUDED_NET_MODULES-}"
 
+# Specific video_filter modules registered into the Apple static framework. The
+# rest of the (large) video_filter category is omitted to keep the embedded
+# framework lean and avoid force-load symbol collisions.
+VLC_APPLE_VIDEO_FILTERS="${VLC_APPLE_VIDEO_FILTERS:-adjust deinterlace transform rotate croppadd canvas fps blend scale}"
+
+# effective_excluded_modules
+# Echoes the de-duplicated effective removal set for the current VLC_SERIES: the
+# mandatory base plus the series-specific and caller-provided additions.
+effective_excluded_modules() {
+  printf '%s %s %s %s\n' \
+    "${VLC_MANDATORY_EXCLUDED_MODULES}" \
+    "$(vlc_series_excluded_modules)" \
+    "${VLC_EXCLUDED_MODULES}" \
+    "${VLC_EXCLUDED_NET_MODULES}" \
+    | tr ' ' '\n' | sed '/^$/d' | sort -u | tr '\n' ' '
+}
+
+# vlc_module_excluded <module-base-name>
+# Succeeds when the module is in the effective removal set for the current series.
+vlc_module_excluded() {
+  local name="$1" m
+  for m in $(effective_excluded_modules); do
+    [ "${m}" = "${name}" ] && return 0
+  done
+  return 1
+}
+
+# vlc_product_config_flags
+# Populates VLC_PRODUCT_CONFIG_FLAGS with the policy-driven configure switches
+# shared by every target build (removals that DO have a configure option, so the
+# plugin is never built in the first place).
+vlc_product_config_flags() {
+  VLC_PRODUCT_CONFIG_FLAGS=(--disable-ncurses)
+}
+
+# strip_excluded_plugins <artifact-dir>
+# Removes the excluded module plugin files (effective_excluded_modules) from the
+# staged dynamic plugin tree.
 strip_excluded_plugins() {
   local out="$1"
   [ -d "${out}/plugins" ] || return 0
   local n removed=0 f
-  for n in ${VLC_EXCLUDED_NET_MODULES}; do
+  for n in $(effective_excluded_modules); do
     while IFS= read -r -d '' f; do
       rm -f "$f" && removed=$((removed + 1))
     done < <(find "${out}/plugins" -type f -name "lib${n}_plugin.*" -print0 2>/dev/null)
   done
-  log "Stripped ${removed} excluded native-networking plugin file(s) from ${out}"
+  log "Stripped ${removed} excluded plugin file(s) from ${out}"
+}
+
+# write_removed_modules_manifest <artifact-dir>
+# Records the effective removal policy next to the staged runtime so the release
+# preflight (check-module-policy.sh) and audits can see what was dropped.
+write_removed_modules_manifest() {
+  local out="$1"
+  mkdir -p "${out}"
+  effective_excluded_modules | tr ' ' '\n' | sed '/^$/d' | sort -u > "${out}/removed-modules.txt"
 }
 
 # normalize_output <rid> <install-prefix>
@@ -569,8 +641,10 @@ normalize_output() {
     [ -f "${prefix}/../${l}" ] && cp -a "${prefix}/../${l}" "${out}/" || true
   done
 
-  # Apply the optional module denylist (empty by default: ship the full stack).
+  # Apply the module removal policy, then record what was dropped so release
+  # preflight and audits can verify the delivered plugin set.
   strip_excluded_plugins "${out}"
+  write_removed_modules_manifest "${out}"
 
   log "Wrote ${rid} -> ${out}"
   ( cd "${out}" && find . -maxdepth 2 -type f | sort | head -n 40 )
@@ -591,6 +665,7 @@ stage_static_vlc() {
   log "Staging static plugin + contrib archives for ${rid}"
 
   local syms="" a staged_modules=""
+  local excluded=" $(effective_excluded_modules) "
   local plugdir="${prefix}/lib/vlc/plugins"
   if [ -d "${plugdir}" ]; then
     while IFS= read -r -d '' a; do
@@ -598,8 +673,8 @@ stage_static_vlc() {
       base="$(basename "$a" .a)"
       cat="$(basename "$(dirname "$a")")"
       modname="$(printf '%s' "${base#lib}" | sed 's/_plugin$//')"
-      # Optional env denylist (empty by default).
-      case " ${VLC_EXCLUDED_NET_MODULES} " in
+      # Policy denylist (control/effects/addons/...) plus the optional hook.
+      case "${excluded}" in
         *" ${modname} "*) continue ;;
       esac
       # Register the media decode/demux/output categories PLUS the full native
@@ -607,12 +682,17 @@ stage_static_vlc() {
       # stream_filter). Ancillary plugins (preparser, addons, stream_extractor
       # and most of misc) bundle shared helper objects that duplicate-symbol when
       # force-loaded together into one framework, so misc is limited to the TLS
-      # providers (securetransport/gnutls). video_filter is intentionally excluded
-      # (not transport-related; VLC 3's puzzle + swscale both export
-      # ppsz_mode_descriptions, which collides when force-loaded together).
+      # providers (securetransport/gnutls). video_filter is staged for the
+      # specific mobile effect modules only (VLC_APPLE_VIDEO_FILTERS); the
+      # colliding effects (e.g. VLC 3's puzzle vs swscale ppsz_mode_descriptions)
+      # are in the removal denylist and never reach this point.
       case "${cat}" in
         access|access_output|stream_out|services_discovery|stream_filter|mux|audio_filter|audio_output|codec|demux|meta_engine|packetizer|spu|text_renderer|video_chroma|video_output)
           stage_module=1 ;;
+        video_filter)
+          case " ${VLC_APPLE_VIDEO_FILTERS} " in
+            *" ${modname} "*) stage_module=1 ;;
+          esac ;;
         misc)
           case "${modname}" in
             securetransport|gnutls) stage_module=1 ;;

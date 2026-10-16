@@ -168,6 +168,10 @@ if [ "${VLC_SERIES}" != "3" ]; then
   export LDFLAGS="${LDFLAGS} -L${CONTRIB_PREFIX}/lib"
 fi
 
+# Shared product module policy (configure-level removals, e.g. --disable-ncurses).
+vlc_product_config_flags
+CONFIG_FLAGS+=("${VLC_PRODUCT_CONFIG_FLAGS[@]}")
+
 if [ "${ARCH}" = "arm" ] || [ "${ARCH}" = "arm64" ] || [ "${ARCH}" = "x86_64" ]; then
   # All Android ABIs need the compiler-rt builtins for some plugins: armv7 for
   # 64-bit int<->float, aarch64 for the outline-atomics helpers

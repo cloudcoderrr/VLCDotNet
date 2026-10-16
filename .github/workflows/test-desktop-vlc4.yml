@@ -123,7 +123,7 @@ jobs:
             win-x64|win-arm64)
               export VLC_EXPECTED_MODULES="x264,x265,taglib,dvdread,dvdnav,libbluray" ;;
             osx-x64|osx-arm64)
-              export VLC_EXPECTED_MODULES="x264,x265,mpg123,taglib,dvdread,dvdnav,libbluray" ;;
+              export VLC_EXPECTED_MODULES="x264,x265,mpg123,taglib,dvdread,dvdnav,libbluray,screen,cdda" ;;
             *)
               export VLC_EXPECTED_MODULES="" ;;  # other RIDs: set as their parity profile lands
           esac

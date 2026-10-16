@@ -130,6 +130,10 @@ CONFIG_FLAGS=(
   --enable-shared --disable-static
 )
 
+# Shared product module policy (configure-level removals, e.g. --disable-ncurses).
+vlc_product_config_flags
+CONFIG_FLAGS+=("${VLC_PRODUCT_CONFIG_FLAGS[@]}")
+
 (
   cd "${BUILD_DIR}"
   PKG_CONFIG_LIBDIR="${CONTRIB_PREFIX}/lib/pkgconfig" ../configure "${CONFIG_FLAGS[@]}"

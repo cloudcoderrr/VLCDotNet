@@ -113,6 +113,10 @@ else
   CONFIG_FLAGS+=(--disable-vaapi --disable-vdpau)
 fi
 
+# Shared product module policy (configure-level removals, e.g. --disable-ncurses).
+vlc_product_config_flags
+CONFIG_FLAGS+=("${VLC_PRODUCT_CONFIG_FLAGS[@]}")
+
 (
   cd "${BUILD_DIR}"
   PKG_CONFIG_PATH="${CONTRIB_PREFIX}/lib/pkgconfig" ../configure "${CONFIG_FLAGS[@]}"
