@@ -799,6 +799,7 @@ stage_dynamic_vlc() {
     -framework CoreMedia -framework CoreVideo -framework CoreAudio
     -framework AudioToolbox -framework AVFoundation -framework AVKit
     -framework VideoToolbox -framework CoreImage -framework Metal
+    -framework Accelerate
     -framework Security -framework SystemConfiguration
     -lc++ -liconv -lbz2 -lz
   )
