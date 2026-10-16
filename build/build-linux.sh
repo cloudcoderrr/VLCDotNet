@@ -97,6 +97,7 @@ CONFIG_FLAGS=(
   # X11/XCB + OpenGL/EGL/GLES + Wayland display and ALSA/PulseAudio output
   # auto-detect from the -dev libs deps-linux.sh installs. Headless CI builds and
   # loads them; real desktop apps use them for video output / audio.
+  --disable-chromaprint
   --enable-shared --disable-static
 )
 
