@@ -143,9 +143,13 @@ case "${PLATFORM}" in
     # gmp back in despite --disable-gmp; gmp's build-machine compiler self-test
     # fails under the iOS cross env ("CC_FOR_BUILD doesn't seem to work"), so drop
     # librist/nfs on iOS/simulator (RIST/NFS stay on the other 13 RIDs; http(s)
-    # still works through securetransport). libass + harfbuzz + fribidi ARE kept
-    # (ASS/SSA subtitle rendering); they build on freetype, which stays enabled.
-    APPLE_PRUNE+=(--disable-disc --disable-schroedinger --disable-vpx --disable-librist --disable-nfs)
+    # still works through securetransport).
+    # libass/harfbuzz/fribidi are dropped on iOS: fribidi 1.0.12's meson build
+    # compiles a native:true code generator, but on the same-arch macOS arm64
+    # host the exported iOS CC/CFLAGS produce an iOS binary that cannot run on
+    # the host (SIGKILL). Re-enabling needs a meson native-file injected into
+    # VLC's contrib meson invocation (see build/README.md).
+    APPLE_PRUNE+=(--disable-disc --disable-schroedinger --disable-vpx --disable-ass --disable-harfbuzz --disable-fribidi --disable-librist --disable-nfs)
     # VLC 4.0 only: asdcplib (Digital Cinema) is not a required module, and VLC 4's
     # x265 cmake passes an empty -mmacosx-version-min= to the iOS assembler, so
     # drop the encoders on VLC 4 mobile (VideoToolbox provides H.264/H.265 encode).
@@ -227,7 +231,7 @@ CONFIG_FLAGS=(
   --enable-avcodec --enable-swscale
 )
 case "${PLATFORM}" in
-  ios|iossimulator) CONFIG_FLAGS+=(--enable-libass --disable-macosx-avfoundation) ;;
+  ios|iossimulator) CONFIG_FLAGS+=(--disable-fribidi --disable-harfbuzz --disable-libass --disable-macosx-avfoundation) ;;
   maccatalyst)      CONFIG_FLAGS+=(--disable-macosx-avfoundation) ;;
 esac
 # macOS is a reference-supported desktop: enable the local optical-disc stack and
