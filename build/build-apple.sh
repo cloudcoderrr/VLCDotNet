@@ -150,21 +150,19 @@ case "${PLATFORM}" in
     # the host (SIGKILL). Re-enabling needs a meson native-file injected into
     # VLC's contrib meson invocation (see build/README.md).
     APPLE_PRUNE+=(--disable-disc --disable-schroedinger --disable-vpx --disable-ass --disable-harfbuzz --disable-fribidi --disable-librist --disable-nfs)
-    # VLC 4.0 only: asdcplib (Digital Cinema) is not a required module. x264/x265
-    # are KEPT on VLC 4 iOS/simulator for parity with VLC 3 iOS; the VLC 4 x265
-    # cmake empty -mmacosx-version-min= is avoided by seeding VLC_DEPLOYMENT_TARGET
-    # (CONTRIB_MK, set from MINVER above).
-    [ "${VLC_SERIES}" != "3" ] && APPLE_PRUNE+=(--disable-asdcplib) ;;
+    # VLC 4.0 only: asdcplib (Digital Cinema) is not a required module. Keep x264
+    # (software H.264 encode: its asm is tagged for the iOS/simulator target via
+    # CFLAGS and links correctly). Drop x265: VLC 4's x265 cmake hardcodes
+    # -mmacosx-version-min on its aarch64 asm, tagging it 'macOS', so it cannot
+    # link into the iOS/simulator arm64 framework (H.265 encode via VideoToolbox).
+    [ "${VLC_SERIES}" != "3" ] && APPLE_PRUNE+=(--disable-asdcplib --disable-x265) ;;
   maccatalyst)
     # Catalyst requires only avcodec+sout+videotoolbox; libvpx's VP9 RTC C++ does
     # not compile for the macabi arm64 target, and schroedinger/orc are unstable.
-    # Catalyst uses the iOS API family, so the optical-disc stack is dropped too.
-    # x264 is KEPT (software H.264 encode): its asm is assembled by the C compiler
-    # with the exported CFLAGS (macabi -target), so the objects link into the
-    # Catalyst framework. x265 is DROPPED on Catalyst: its cmake asm step emits an
-    # empty -mmacosx-version-min= (no MINVER on the macabi target) and omits the
-    # macabi -target, so its aarch64 asm cannot assemble/link. H.265 encode on
-    # Catalyst uses VideoToolbox instead.
+    # x264/x265 are DROPPED on Catalyst: their aarch64 asm objects are tagged
+    # 'macOS' (x264's asm omits the macabi -target; x265's cmake hardcodes
+    # -mmacosx-version-min), so ld rejects them when linking the static encoder
+    # libs into the macabi framework. H.264/H.265 ENCODE on Catalyst uses VideoToolbox.
     APPLE_PRUNE+=(--disable-disc --disable-x265 --disable-schroedinger --disable-vpx)
     # VLC 4.0 Catalyst arm64 only: mpg123's NEON64 asm (dct36_neon64.S) is
     # assembled with a 'macOS' platform tag under the macabi cross, so it cannot
