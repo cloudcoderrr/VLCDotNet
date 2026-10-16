@@ -79,12 +79,12 @@ CONTRIB_ENV=(HAVE_ANDROID=1 ANDROID_API="${API}" ANDROID_ABI="${ABI}" ANDROID_ND
 
 # ---- Phase 1: build + cache the full contrib set ----------------------------
 if [ "${PHASE}" = "contrib" ]; then
-  # Android ships no optical-disc hardware, so drop the disc stack (dvd*/bluray)
-  # from the parity closure (it is desktop-only and bluray needs fontconfig,
-  # which Android does not use). mpg123's autoreconf also fails under the NDK
-  # cross env (LT_SYS_MODULE_EXT); MP3 decode is covered by mad + ffmpeg.
+  # Keep the optical-disc stack (libdvdread/libdvdnav/libbluray): Android has no
+  # optical hardware, but disc IMAGES / ISOs are a valid input. libbluray builds
+  # minimally here (no BD-J, no fontconfig). mpg123's autoreconf fails under the
+  # NDK cross env (LT_SYS_MODULE_EXT); MP3 decode is covered by mad + ffmpeg.
   # Network dependencies remain enabled by the baseline contrib configuration.
-  ANDROID_PRUNE="--disable-disc --disable-mpg123 ${CONTRIB_EXTRA_PRUNE:-}"
+  ANDROID_PRUNE="--disable-mpg123 ${CONTRIB_EXTRA_PRUNE:-}"
   # VLC 4.0's sidplay2 does not compile against the NDK libc++ (<fstream>
   # references ::fseeko/::ftello) on Android; SID music is deferred on VLC 4
   # Android (it builds fine for VLC 3). Scope the prune to that combination.
@@ -129,7 +129,7 @@ CONFIG_FLAGS=(
   --disable-lua --disable-a52
   --enable-taglib        # metadata read/write (feature parity, contrib-provided)
   --disable-sdl-image
-  --disable-bluray       # Android ships no optical-disc stack
+  --enable-dvdread --enable-dvdnav --enable-bluray   # disc-image / ISO stack
   --disable-xcb --disable-alsa --disable-pulse --disable-vdpau
   --disable-v4l2 --disable-ncurses
   # Native transport/network stack (contrib net group). gnutls provides TLS for
