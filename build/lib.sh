@@ -48,7 +48,6 @@ CONTRIB_ZSTD_LEVEL="${CONTRIB_ZSTD_LEVEL:-19}"
 # contrib ffmpeg picks up its network protocols (AVIO). Only host-owned or
 # genuinely-unbuildable NON-transport packages are dropped here:
 #   opencv4/opencv/protobuf         computer-vision analysis (specialist extra)
-#   chromaprint                     audio fingerprinting (specialist extra)
 #   libplacebo                      GPU HDR renderer (needs glslang/shaderc/vulkan;
 #                                   HDR/tone-map handled by other paths for now)
 #   projectM/goom                   external visualization engines (specialist)
@@ -71,7 +70,7 @@ CONTRIB_ZSTD_LEVEL="${CONTRIB_ZSTD_LEVEL:-19}"
 # the Apple targets re-prune them in APPLE_PRUNE and use securetransport instead
 # (gpg-error's mkheader OOMs under the iOS cross build). Override
 # CONTRIB_DEFAULT_PRUNE to change the set.
-CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE:---disable-opencv4 --disable-opencv --disable-protobuf --disable-chromaprint --disable-libplacebo --disable-projectM --disable-goom --disable-qt --disable-qtdeclarative --disable-qtshadertools --disable-qtsvg --disable-qtwayland --disable-medialibrary --disable-breakpad --disable-xcb --disable-x262 --disable-aom --disable-lua --disable-luac --disable-cddb}"
+CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE:---disable-opencv4 --disable-opencv --disable-protobuf --disable-libplacebo --disable-projectM --disable-goom --disable-qt --disable-qtdeclarative --disable-qtshadertools --disable-qtsvg --disable-qtwayland --disable-medialibrary --disable-breakpad --disable-xcb --disable-x262 --disable-aom --disable-lua --disable-luac --disable-cddb}"
 
 log()  { printf '\033[1;36m[vlcdotnet-native]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[vlcdotnet-native]\033[0m %s\n' "$*" >&2; }
