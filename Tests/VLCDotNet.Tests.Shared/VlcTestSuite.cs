@@ -824,6 +824,16 @@ namespace VLCDotNet.Tests.Shared
                     }
 
                     media = NewMedia(input);
+                    // Force software decoding for the transcode source. On the
+                    // Android emulator the default h264 decoder is the hardware
+                    // mediacodec module, which needs a rendering Surface and fails
+                    // in this surfaceless sout transcode ("cannot continue streaming
+                    // due to errors with codec h264" -> only the audio stream makes
+                    // it into the file). Preferring avcodec with no hw accel keeps
+                    // the decode path headless-safe and is a no-op on the desktop
+                    // heads that already decode in software.
+                    LibVlc.libvlc_media_add_option(media, ":codec=avcodec");
+                    LibVlc.libvlc_media_add_option(media, ":avcodec-hw=none");
                     LibVlc.libvlc_media_add_option(media, ":sout-avformat-mux=mp4");
                     LibVlc.libvlc_media_add_option(media,
                         ":sout=#transcode{vcodec=mp4v,vb=900,acodec=mp4a,ab=128}:std{access=file,mux=avformat,dst='" + EscapeSoutPath(output) + "'}");
