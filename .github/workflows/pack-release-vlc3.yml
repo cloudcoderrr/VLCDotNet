@@ -139,18 +139,33 @@ jobs:
           fi
           ls -R artifacts | head -n 60
 
-      - name: Strip Mach-O debug info (keep nupkg < 2 GiB)
+      - name: Strip native debug info (keep nupkg < 2 GiB)
         run: |
-          set -e
-          # The static-contrib build embeds ffmpeg into several plugins with debug
-          # info (libavcodec/libavformat ~75-90 MB each), inflating the nupkg toward
-          # the 2 GiB GitHub release-asset limit. Strip debug info from the Mach-O
-          # binaries (macOS dylibs + the embedded Apple mobile frameworks) with the
-          # built-in strip (no extra tooling/disk). -S keeps the external symbols
-          # the P/Invoke entrypoint and VLC's dlsym(vlc_entry__*) need.
+          set -euo pipefail
+          # The static-contrib build embeds ffmpeg into several plugins with DWARF
+          # debug info (libavcodec/libavformat ~75-90 MB each) on EVERY platform,
+          # pushing the nupkg past the 2 GiB GitHub release-asset limit. macOS'
+          # built-in strip only understands Mach-O, so the ELF (.so, Linux/Android)
+          # and PE (.dll, Windows) plugins stayed fat. Fetch llvm-mingw's llvm-strip
+          # (universal macOS build, ~100 MB vs Homebrew llvm's ~5 GB that overflowed
+          # the runner) which strips ELF, PE and Mach-O alike. --strip-debug removes
+          # only DWARF sections: all symbol tables are kept, so dlopen,
+          # dlsym(vlc_entry__*) and the libvlc export surface stay intact.
+          tool_dir="$RUNNER_TEMP/llvm-mingw"
+          mkdir -p "$tool_dir"
+          curl -fSL --retry 3 \
+            "https://github.com/mstorsjo/llvm-mingw/releases/download/20240619/llvm-mingw-20240619-ucrt-macos-universal.tar.xz" \
+            -o "$RUNNER_TEMP/llvm-mingw.tar.xz"
+          tar -xf "$RUNNER_TEMP/llvm-mingw.tar.xz" -C "$tool_dir" --strip-components=1
+          llvm_strip="$tool_dir/bin/llvm-strip"
+          "$llvm_strip" --version
           before=$(du -sm artifacts | cut -f1)
+          # Mach-O (macOS dylibs + embedded Apple mobile frameworks): built-in strip.
           find artifacts \( -name '*.dylib' -o -path '*/VLCDotNet.framework/VLCDotNet' \) -type f -print0 \
             | while IFS= read -r -d '' f; do strip -S "$f" 2>/dev/null || true; done
+          # ELF (.so) + PE (.dll): llvm-strip handles the cross targets macOS strip can't.
+          find artifacts -type f \( -name '*.so' -o -name '*.so.*' -o -name '*.dll' \) -print0 \
+            | while IFS= read -r -d '' f; do "$llvm_strip" --strip-debug "$f" 2>/dev/null || true; done
           after=$(du -sm artifacts | cut -f1)
           echo "artifacts: ${before} MB -> ${after} MB"
 
