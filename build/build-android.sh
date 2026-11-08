@@ -51,7 +51,10 @@ export CFLAGS="${CFLAGS:-} -Wno-error=implicit-function-declaration -Wno-error=i
 export CXXFLAGS="${CXXFLAGS:-} -Wno-error=incompatible-pointer-types -Wno-c++11-narrowing"
 
 if [ "${ARCH}" = "arm" ]; then
-  export CFLAGS="${CFLAGS} -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
+  # armv7/API21 bionic does not declare fseeko/ftello (added at API 24) and the
+  # NDK clang makes implicit declarations hard errors; map them to the 32-bit
+  # fseek/ftell (sufficient for contrib codec offsets) so flac et al. build.
+  export CFLAGS="${CFLAGS} -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -Dfseeko=fseek -Dftello=ftell"
   export CXXFLAGS="${CXXFLAGS} -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_LIBCPP_HAS_NO_OFF_T_FUNCTIONS"
   export AS="${CC}"
 fi
