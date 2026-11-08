@@ -64,6 +64,10 @@ CONTRIB_ZSTD_LEVEL="${CONTRIB_ZSTD_LEVEL:-19}"
 #   aom                             AV1 ENCODER (AV1 DECODE is covered by dav1d;
 #                                   libaom NEON fails to build on armv7)
 #   lua / luac                      VLC scripting (host-owned; excluded)
+#   sdl-image                       redundant image loader (PNG/JPEG/etc. covered
+#                                   by png/jpeg/avcodec; its 3.0.24 CMake fails on
+#                                   the Android NDK cross build). libvlc never
+#                                   ships the sdl_image plugin.
 #   cddb                            CD metadata lookup (needs BOTH disc AND net;
 #                                   re-enabled by the net restoration but not a
 #                                   restoration feature, and its configure trips
@@ -73,7 +77,7 @@ CONTRIB_ZSTD_LEVEL="${CONTRIB_ZSTD_LEVEL:-19}"
 # the Apple targets re-prune them in APPLE_PRUNE and use securetransport instead
 # (gpg-error's mkheader OOMs under the iOS cross build). Override
 # CONTRIB_DEFAULT_PRUNE to change the set.
-CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE:---disable-opencv4 --disable-opencv --disable-protobuf --disable-chromaprint --disable-libplacebo --disable-projectM --disable-goom --disable-qt --disable-qtdeclarative --disable-qtshadertools --disable-qtsvg --disable-qtwayland --disable-medialibrary --disable-breakpad --disable-xcb --disable-x262 --disable-aom --disable-lua --disable-luac --disable-cddb}"
+CONTRIB_DEFAULT_PRUNE="${CONTRIB_DEFAULT_PRUNE:---disable-opencv4 --disable-opencv --disable-protobuf --disable-chromaprint --disable-libplacebo --disable-projectM --disable-goom --disable-qt --disable-qtdeclarative --disable-qtshadertools --disable-qtsvg --disable-qtwayland --disable-medialibrary --disable-breakpad --disable-xcb --disable-x262 --disable-aom --disable-lua --disable-luac --disable-sdl-image --disable-cddb}"
 
 log()  { printf '\033[1;36m[vlcdotnet-native]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[vlcdotnet-native]\033[0m %s\n' "$*" >&2; }
