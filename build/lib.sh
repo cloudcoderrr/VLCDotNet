@@ -20,7 +20,7 @@
 set -euo pipefail
 
 # The VLC tag to build. Kept in sync with <VlcVersion> in Directory.Build.props.
-VLC_VERSION="${VLC_VERSION:-3.0.23}"
+VLC_VERSION="${VLC_VERSION:-3.0.24}"
 VLC_GIT="${VLC_GIT:-https://code.videolan.org/videolan/vlc.git}"
 
 # Series selector: 3 (stable, default) or 4 (unreleased 4.0 preview). VLC_REF is

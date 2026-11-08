@@ -34,7 +34,7 @@ permissions:
   contents: read
 
 env:
-  VLC_VERSION: "3.0.23"
+  VLC_VERSION: "3.0.24"
   VLC_SERIES: "3"
 
 jobs:
@@ -49,6 +49,7 @@ jobs:
       matrix:
         include:
           - { arch: x86_64,  rid: linux-x64,   emulated: false, platform: "" }
+          - { arch: i686,    rid: linux-x86,   emulated: false, platform: "" }
           - { arch: aarch64, rid: linux-arm64, emulated: true,  platform: "linux/arm64" }
           - { arch: armv7,   rid: linux-arm,   emulated: true,  platform: "linux/arm/v7" }
     steps:
@@ -64,7 +65,7 @@ jobs:
       - name: Build libvlc (native ${{ matrix.arch }})
         if: ${{ steps.f.outputs.run == 'true' && !matrix.emulated }}
         run: |
-          sudo bash build/deps-linux.sh
+          if [ "${{ matrix.arch }}" != "i686" ]; then sudo bash build/deps-linux.sh; fi
           bash build/build-linux.sh ${{ matrix.arch }}
       - name: Set up QEMU
         if: ${{ steps.f.outputs.run == 'true' && matrix.emulated }}
@@ -94,6 +95,7 @@ jobs:
       matrix:
         include:
           - { arch: x86_64,  rid: win-x64 }
+          - { arch: i686,    rid: win-x86 }
           - { arch: aarch64, rid: win-arm64 }
     steps:
       - uses: actions/checkout@v5

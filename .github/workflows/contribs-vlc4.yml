@@ -37,7 +37,7 @@ permissions:
 env:
   VLC_VERSION: "4.0-master"
   VLC_SERIES: "4"
-  VLC_REF: "${{ inputs.ref || 'e77e49b5dff7484dbf70cd1540a6a568e1890280' }}"
+  VLC_REF: "${{ inputs.ref || 'f94b611735dbcb4cd21a7a106b713b442128c4b7' }}"
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -57,6 +57,7 @@ jobs:
       matrix:
         include:
           - { arch: x86_64,  rid: linux-x64 }
+          - { arch: i686,    rid: linux-x86 }
           - { arch: aarch64, rid: linux-arm64 }
           - { arch: armv7,   rid: linux-arm }
     steps:
@@ -84,7 +85,7 @@ jobs:
         if: steps.f.outputs.run == 'true'
         env: { BUILD_PHASE: contrib, CONTRIB_GROUP: heavy }
         run: |
-          sudo bash build/deps-linux.sh
+          if [ "${{ matrix.arch }}" != "i686" ]; then sudo bash build/deps-linux.sh; fi
           bash build/build-linux.sh ${{ matrix.arch }}
       - name: Dump ffmpeg config.log on failure
         if: failure() && steps.f.outputs.run == 'true'
@@ -109,6 +110,7 @@ jobs:
       matrix:
         include:
           - { arch: x86_64,  rid: linux-x64 }
+          - { arch: i686,    rid: linux-x86 }
           - { arch: aarch64, rid: linux-arm64 }
           - { arch: armv7,   rid: linux-arm }
     steps:
@@ -139,7 +141,7 @@ jobs:
         if: steps.f.outputs.run == 'true'
         env: { BUILD_PHASE: contrib, CONTRIB_GROUP: rest }
         run: |
-          sudo bash build/deps-linux.sh
+          if [ "${{ matrix.arch }}" != "i686" ]; then sudo bash build/deps-linux.sh; fi
           bash build/build-linux.sh ${{ matrix.arch }}
       - name: Dump ffmpeg config.log on failure
         if: failure() && steps.f.outputs.run == 'true'
@@ -163,6 +165,7 @@ jobs:
       matrix:
         include:
           - { arch: x86_64,  rid: win-x64 }
+          - { arch: i686,    rid: win-x86 }
           - { arch: aarch64, rid: win-arm64 }
     steps:
       - uses: actions/checkout@v5
@@ -210,6 +213,7 @@ jobs:
       matrix:
         include:
           - { arch: x86_64,  rid: win-x64 }
+          - { arch: i686,    rid: win-x86 }
           - { arch: aarch64, rid: win-arm64 }
     steps:
       - uses: actions/checkout@v5

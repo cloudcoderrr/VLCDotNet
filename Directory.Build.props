@@ -6,7 +6,7 @@
       Bump this to build a newer VLC 3.0.x release; the value flows into the
       GitHub Actions build matrix and the NuGet package version.
     -->
-    <VlcVersion>3.0.23</VlcVersion>
+    <VlcVersion>3.0.24</VlcVersion>
 
     <!--
       VLC 4.x (preview) coordinates for the VLCDotNet4 package. 4.0.0 is not yet
@@ -19,7 +19,7 @@
       pinned to a known-good commit without editing the tree.
     -->
     <VlcVersion4>4.0.0-preview</VlcVersion4>
-    <VlcRef4>master</VlcRef4>
+    <VlcRef4>f94b611735dbcb4cd21a7a106b713b442128c4b7</VlcRef4>
 
     <!--
       Selects which package a build produces. Default 3 (VLCDotNet3). CI packs

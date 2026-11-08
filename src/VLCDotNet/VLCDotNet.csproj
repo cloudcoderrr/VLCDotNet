@@ -89,8 +89,10 @@
   -->
   <ItemGroup Label="Desktop native runtimes">
     <None Include="$(VlcArtifacts)/win-x64/**/*"      Pack="true" PackagePath="runtimes/win-x64/native/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/win-x86/**/*"      Pack="true" PackagePath="runtimes/win-x86/native/%(RecursiveDir)%(Filename)%(Extension)" />
     <None Include="$(VlcArtifacts)/win-arm64/**/*"    Pack="true" PackagePath="runtimes/win-arm64/native/%(RecursiveDir)%(Filename)%(Extension)" />
     <None Include="$(VlcArtifacts)/linux-x64/**/*"    Pack="true" PackagePath="runtimes/linux-x64/native/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/linux-x86/**/*"    Pack="true" PackagePath="runtimes/linux-x86/native/%(RecursiveDir)%(Filename)%(Extension)" />
     <None Include="$(VlcArtifacts)/linux-arm/**/*"    Pack="true" PackagePath="runtimes/linux-arm/native/%(RecursiveDir)%(Filename)%(Extension)" />
     <None Include="$(VlcArtifacts)/linux-arm64/**/*"  Pack="true" PackagePath="runtimes/linux-arm64/native/%(RecursiveDir)%(Filename)%(Extension)" />
     <None Include="$(VlcArtifacts)/osx-x64/**/*"      Pack="true" PackagePath="runtimes/osx-x64/native/%(RecursiveDir)%(Filename)%(Extension)" />

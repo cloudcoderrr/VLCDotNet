@@ -1,24 +1,27 @@
 #!/usr/bin/env bash
 #
-# Build libvlc for Linux (x64 / arm / arm64) against the FULL VLC contrib set,
-# built in-CI and cached in-repo (see build/lib.sh).
+# Build libvlc for Linux (x64 / x86 / arm / arm64) against the FULL VLC contrib
+# set, built in-CI and cached in-repo (see build/lib.sh).
 #
 # Full-source native builds compile the dependency closure so the runtime
 # is self-contained and reproducible. arm/arm64 build natively inside a
-# QEMU-emulated ubuntu:22.04 container (the workflow sets that up); this script
-# itself is architecture-agnostic.
+# QEMU-emulated ubuntu:22.04 container; x86 (i686) builds natively inside an
+# i386/ubuntu container (32-bit x86 executes directly on the amd64 kernel, so no
+# QEMU is needed). The workflow sets the container up; this script itself is
+# architecture-agnostic.
 #
 # Two phases, selected by BUILD_PHASE:
-#   BUILD_PHASE=contrib  build-linux.sh <x86_64|armv7|aarch64>   -> cache contribs
-#   build-linux.sh <x86_64|armv7|aarch64>         (default libvlc) -> build libvlc
+#   BUILD_PHASE=contrib  build-linux.sh <x86_64|i686|armv7|aarch64>   -> cache contribs
+#   build-linux.sh <x86_64|i686|armv7|aarch64>         (default libvlc) -> build libvlc
 #
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-ARCH="${1:?arch required: x86_64 | armv7 | aarch64}"
+ARCH="${1:?arch required: x86_64 | i686 | armv7 | aarch64}"
 PHASE="${BUILD_PHASE:-libvlc}"
 case "${ARCH}" in
   x86_64)  RID="linux-x64";   TRIPLET="x86_64-linux-gnu" ;;
+  i686)    RID="linux-x86";   TRIPLET="i686-linux-gnu" ;;
   armv7)   RID="linux-arm";   TRIPLET="arm-linux-gnueabihf" ;;
   aarch64) RID="linux-arm64"; TRIPLET="aarch64-linux-gnu" ;;
   *) die "Unsupported Linux arch: ${ARCH}" ;;
@@ -27,6 +30,25 @@ esac
 VLC_SRC="${WORK_DIR}/vlc-linux-${ARCH}"
 INSTALL_PREFIX="${WORK_DIR}/install-linux-${ARCH}"
 mkdir -p "${WORK_DIR}"
+
+# i686 on an x86_64 host: 32-bit x86 executes natively on the amd64 kernel (no
+# QEMU), but Ubuntu 22.04 ships no complete i386 archive. Re-run the whole build
+# inside an i386/debian container that provides a full native 32-bit toolchain.
+# Inside the container `uname -m` is i686, so this guard is false and the build
+# proceeds natively. Outputs land on the bind-mounted workspace and are chowned
+# back to the host user so later upload/commit steps can read them.
+if [ "${ARCH}" = "i686" ] && [ "$(uname -m)" = "x86_64" ] && [ -z "${VLCDOTNET_IN_I386_CONTAINER:-}" ]; then
+  log "Re-executing the i686 build inside i386/debian:bookworm (native 32-bit, no QEMU)"
+  command -v docker >/dev/null 2>&1 || die "docker is required to build i686 (i386 container)"
+  exec docker run --rm --platform linux/386 \
+    -e VLC_VERSION -e VLC_SERIES -e VLC_REF -e VLC_GIT \
+    -e BUILD_PHASE -e CONTRIB_GROUP -e CONTRIB_GROUPS \
+    -e CONTRIB_DEFAULT_PRUNE -e CONTRIB_EXTRA_PRUNE -e VLC_EXCLUDED_NET_MODULES \
+    -e VLCDOTNET_IN_I386_CONTAINER=1 -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
+    -v "${REPO_ROOT}:/work" -w /work i386/debian:bookworm \
+    linux32 bash -c 'set -e; bash build/deps-linux.sh && bash build/build-linux.sh i686; \
+      chown -R "${HOST_UID}:${HOST_GID}" artifacts contribs build/_state 2>/dev/null || true'
+fi
 
 # sidplay (SID codec) legacy C++ trips narrowing diagnostics on modern GCC.
 export CXXFLAGS="${CXXFLAGS:-} -Wno-narrowing"
@@ -41,7 +63,9 @@ if [ "${PHASE}" = "contrib" ]; then
   # closure under QEMU emulation is far too slow; the contrib build needs no
   # target execution, so cross-compiling is both fast and reliable. (The libvlc
   # phase still runs on the target under QEMU for its ldd-based bundling.)
-  if [ "${ARCH}" != "x86_64" ] && [ "$(uname -m)" = "x86_64" ]; then
+  # i686 is excluded: it builds natively in an i386 container (uname -m = i686),
+  # so this x86_64-host cross path does not apply to it.
+  if [ "${ARCH}" != "x86_64" ] && [ "${ARCH}" != "i686" ] && [ "$(uname -m)" = "x86_64" ]; then
     log "Cross-compiling ${RID} contribs with the ${TRIPLET} toolchain"
     command -v "${TRIPLET}-gcc" >/dev/null 2>&1 || die "cross toolchain ${TRIPLET}-gcc not installed"
     # Deliberately do NOT export CC/CXX here: VLC's contrib bootstrap detects the

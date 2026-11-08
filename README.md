@@ -121,8 +121,8 @@ generated video, audio, and subtitle files — see its
 
 ### Recorded verification matrix
 
-Both production NuGets — **VLCDotNet3** (libvlc `3.0.23`) and **VLCDotNet4**
-(libvlc 4.0 `e77e49b5`) — build for all 15 RIDs and link libvlc **dynamically**
+Both production NuGets — **VLCDotNet3** (libvlc `3.0.24`) and **VLCDotNet4**
+(libvlc 4.0 `f94b6117`) — build for all 17 RIDs and link libvlc **dynamically**
 everywhere (no app-linked archives, no libvlc `__Internal`): desktop resolves
 `libvlc.{dll,so,dylib}` by name, Android ships `libvlc.so` as an
 `AndroidNativeLibrary`, and Apple mobile embeds the signed, dynamic
@@ -180,7 +180,7 @@ Ubuntu, install the dependencies and restore the committed contrib archive:
 
 ```sh
 sudo bash build/deps-linux.sh
-VLC_VERSION=3.0.23 bash build/build-linux.sh x86_64
+VLC_VERSION=3.0.24 bash build/build-linux.sh x86_64
 ls artifacts/linux-x64
 ```
 

@@ -17,16 +17,15 @@ Linux ARM builds and does not affect host tools or other platforms.
  1 file changed, 3 insertions(+)
 
 diff --git a/contrib/src/ffmpeg/rules.mak b/contrib/src/ffmpeg/rules.mak
-index 0fe31de..5f0f415 100644
 --- a/contrib/src/ffmpeg/rules.mak
 +++ b/contrib/src/ffmpeg/rules.mak
-@@ -109,6 +109,9 @@ endif
+@@ -108,6 +108,9 @@
  # ARM stuff
  ifeq ($(ARCH),arm)
  FFMPEGCONF += --arch=arm
 +ifdef HAVE_LINUX
 +FFMPEGCONF += --extra-cflags="$(CFLAGS) -mfpu=vfpv3-d16"
 +endif
- ifdef HAVE_NEON
- FFMPEGCONF += --enable-neon
+ ifdef HAVE_ARMV7A
+ FFMPEGCONF += --cpu=cortex-a8
  endif

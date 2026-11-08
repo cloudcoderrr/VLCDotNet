@@ -32,7 +32,7 @@ permissions:
   contents: write
 
 env:
-  VLC_VERSION: "3.0.23"
+  VLC_VERSION: "3.0.24"
   VLC_SERIES: "3"
 
 jobs:
@@ -53,6 +53,7 @@ jobs:
       matrix:
         include:
           - { arch: x86_64,  rid: linux-x64 }
+          - { arch: i686,    rid: linux-x86 }
           - { arch: aarch64, rid: linux-arm64 }
           - { arch: armv7,   rid: linux-arm }
     steps:
@@ -80,7 +81,7 @@ jobs:
         if: steps.f.outputs.run == 'true'
         env: { BUILD_PHASE: contrib, CONTRIB_GROUP: heavy }
         run: |
-          sudo bash build/deps-linux.sh
+          if [ "${{ matrix.arch }}" != "i686" ]; then sudo bash build/deps-linux.sh; fi
           bash build/build-linux.sh ${{ matrix.arch }}
       - name: Dump ffmpeg config.log on failure
         if: failure() && steps.f.outputs.run == 'true'
@@ -105,6 +106,7 @@ jobs:
       matrix:
         include:
           - { arch: x86_64,  rid: linux-x64 }
+          - { arch: i686,    rid: linux-x86 }
           - { arch: aarch64, rid: linux-arm64 }
           - { arch: armv7,   rid: linux-arm }
     steps:
@@ -135,7 +137,7 @@ jobs:
         if: steps.f.outputs.run == 'true'
         env: { BUILD_PHASE: contrib, CONTRIB_GROUP: rest }
         run: |
-          sudo bash build/deps-linux.sh
+          if [ "${{ matrix.arch }}" != "i686" ]; then sudo bash build/deps-linux.sh; fi
           bash build/build-linux.sh ${{ matrix.arch }}
       - name: Dump ffmpeg config.log on failure
         if: failure() && steps.f.outputs.run == 'true'
@@ -159,6 +161,7 @@ jobs:
       matrix:
         include:
           - { arch: x86_64,  rid: win-x64 }
+          - { arch: i686,    rid: win-x86 }
           - { arch: aarch64, rid: win-arm64 }
     steps:
       - uses: actions/checkout@v5
@@ -206,6 +209,7 @@ jobs:
       matrix:
         include:
           - { arch: x86_64,  rid: win-x64 }
+          - { arch: i686,    rid: win-x86 }
           - { arch: aarch64, rid: win-arm64 }
     steps:
       - uses: actions/checkout@v5

@@ -1,24 +1,25 @@
 #!/usr/bin/env bash
 #
-# Build libvlc for Windows (x64 / arm64) with llvm-mingw (UCRT) against the FULL
-# VLC contrib set, built in-CI and cached in-repo (see build/lib.sh).
+# Build libvlc for Windows (x64 / x86 / arm64) with llvm-mingw (UCRT) against the
+# FULL VLC contrib set, built in-CI and cached in-repo (see build/lib.sh).
 #
 # This uses an explicit contrib + configure flow (not extras/package/win32/
 # build.sh) so the contrib and libvlc phases can run as separate actions.
 #
 # Two phases, selected by BUILD_PHASE:
-#   BUILD_PHASE=contrib  build-windows.sh <x86_64|aarch64>  -> cache contribs
-#   build-windows.sh <x86_64|aarch64>          (default libvlc) -> build libvlc
+#   BUILD_PHASE=contrib  build-windows.sh <x86_64|i686|aarch64>  -> cache contribs
+#   build-windows.sh <x86_64|i686|aarch64>          (default libvlc) -> build libvlc
 #
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-ARCH="${1:?arch required: x86_64 | aarch64}"
+ARCH="${1:?arch required: x86_64 | i686 | aarch64}"
 PHASE="${BUILD_PHASE:-libvlc}"
 case "${ARCH}" in
   x86_64)  RID="win-x64";   TRIPLET="x86_64-w64-mingw32" ;;
+  i686)    RID="win-x86";   TRIPLET="i686-w64-mingw32" ;;
   aarch64) RID="win-arm64"; TRIPLET="aarch64-w64-mingw32" ;;
-  *) die "Unsupported Windows arch: ${ARCH} (expected x86_64 or aarch64)" ;;
+  *) die "Unsupported Windows arch: ${ARCH} (expected x86_64, i686 or aarch64)" ;;
 esac
 
 VLC_SRC="${WORK_DIR}/vlc-win-${ARCH}"
@@ -50,9 +51,9 @@ mkdir -p "${WRAP_DIR}"
 LENIENT="-Wno-error=incompatible-function-pointer-types -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
 WINVER_FLAGS="-D_WIN32_WINNT=0x0A000000 -DWINVER=0x0A00"
 EXTRA_LINK_FLAGS=""
-# x86_64 UCRT contribs (freetype, SDL_image) emit _setjmp references; resolve
-# them via mingw-w64's support library at cross-link time.
-[ "${ARCH}" = "x86_64" ] && EXTRA_LINK_FLAGS="-lmingwex"
+# x86_64/i686 UCRT contribs (freetype, SDL_image) emit _setjmp references;
+# resolve them via mingw-w64's support library at cross-link time.
+case "${ARCH}" in x86_64|i686) EXTRA_LINK_FLAGS="-lmingwex" ;; esac
 # VLC plugins are linked as modules; libtool drops the default libraries, so the
 # compiler-rt builtins that provide __chkstk (the stack-probe helper the
 # compiler emits for large frames) go missing and the plugin link fails with
