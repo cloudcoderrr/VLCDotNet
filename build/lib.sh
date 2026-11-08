@@ -207,7 +207,14 @@ build_full_contrib() {
     env ${cenv[@]+"${cenv[@]}"} ../bootstrap --host="${triplet}" ${bootstrap_flags[@]+"${bootstrap_flags[@]}"}
   )
   log "Fetching contrib sources for ${triplet}"
-  ( cd "${cbuild}" && env ${cenv[@]+"${cenv[@]}"} make ${cmk[@]+"${cmk[@]}"} -j"$(jobs)" fetch )
+  local _fetch_n=0 _fetch_max="${CONTRIB_FETCH_RETRIES:-6}"
+  until ( cd "${cbuild}" && env ${cenv[@]+"${cenv[@]}"} make ${cmk[@]+"${cmk[@]}"} -j"$(jobs)" fetch ); do
+    _fetch_n=$((_fetch_n + 1))
+    [ "${_fetch_n}" -ge "${_fetch_max}" ] && die "contrib fetch failed after ${_fetch_max} attempts (VideoLAN mirror 504/404?)"
+    find "${src}/contrib/tarballs" -maxdepth 1 -type f -empty -delete 2>/dev/null || true
+    warn "contrib fetch attempt ${_fetch_n} failed; retrying in $((_fetch_n * 20))s (transient mirror error)"
+    sleep $((_fetch_n * 20))
+  done
   log "Building full contrib set for ${triplet} (long pole)"
   ( cd "${cbuild}" && { env ${cenv[@]+"${cenv[@]}"} make ${cmk[@]+"${cmk[@]}"} -j"$(jobs)" \
       || env ${cenv[@]+"${cenv[@]}"} make ${cmk[@]+"${cmk[@]}"} -j1 ; } )
@@ -314,7 +321,14 @@ build_contrib_group() {
     log "[${group}] Bootstrapping contrib for ${triplet}"
     ( cd "${cbuild}" && env ${cenv[@]+"${cenv[@]}"} ../bootstrap --host="${triplet}" ${bootstrap_flags[@]+"${bootstrap_flags[@]}"} )
     log "[${group}] Fetching all contrib sources for ${triplet}"
-    ( cd "${cbuild}" && env ${cenv[@]+"${cenv[@]}"} make ${cmk[@]+"${cmk[@]}"} -j"$(jobs)" fetch )
+    local _fetch_n=0 _fetch_max="${CONTRIB_FETCH_RETRIES:-6}"
+    until ( cd "${cbuild}" && env ${cenv[@]+"${cenv[@]}"} make ${cmk[@]+"${cmk[@]}"} -j"$(jobs)" fetch ); do
+      _fetch_n=$((_fetch_n + 1))
+      [ "${_fetch_n}" -ge "${_fetch_max}" ] && die "contrib fetch failed after ${_fetch_max} attempts (VideoLAN mirror 504/404?)"
+      find "${src}/contrib/tarballs" -maxdepth 1 -type f -empty -delete 2>/dev/null || true
+      warn "[${group}] contrib fetch attempt ${_fetch_n} failed; retrying in $((_fetch_n * 20))s (transient mirror error)"
+      sleep $((_fetch_n * 20))
+    done
   else
     load_contrib_state "${src}" "${rid}"
     # Keep make from treating restored stamps as stale against their prereqs.
