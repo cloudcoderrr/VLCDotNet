@@ -154,7 +154,7 @@ jobs:
     if: >-
       ${{ (github.event_name == 'workflow_dispatch' && (inputs.only == 'all' || inputs.only == 'apple'))
        || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[build:apple]') || contains(github.event.head_commit.message, '[build:all]'))) }}
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 180
     strategy:
       fail-fast: false

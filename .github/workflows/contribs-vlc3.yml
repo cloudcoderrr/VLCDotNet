@@ -362,7 +362,7 @@ jobs:
 
   apple:
     if: ${{ inputs.only == 'all' || inputs.only == 'apple' }}
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 350
     strategy:
       fail-fast: false
@@ -414,7 +414,7 @@ jobs:
   apple-rest:
     needs: apple
     if: ${{ inputs.only == 'all' || inputs.only == 'apple' }}
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 350
     strategy:
       fail-fast: false

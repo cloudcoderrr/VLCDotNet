@@ -37,7 +37,7 @@ jobs:
         include:
           - { os: ubuntu-latest,  rid: linux-x64, family: linux }
           - { os: windows-latest, rid: win-x64,   family: windows }
-          - { os: macos-14,       rid: osx-arm64, family: macos }
+          - { os: macos-15,       rid: osx-arm64, family: macos }
     runs-on: ${{ matrix.os }}
     steps:
       # Gate per-family: dispatch uses the "only" input; push uses a commit
