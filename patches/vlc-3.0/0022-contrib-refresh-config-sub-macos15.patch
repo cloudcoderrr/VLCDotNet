@@ -1,26 +1,28 @@
 From: VLCDotNet CI <ci@vlcdotnet>
-Subject: [PATCH] contrib: refresh config.sub before configure (macOS 15 / Darwin 24)
+Subject: [PATCH] contrib: refresh config.sub in MAKEBUILDDIR (macOS 15 / Darwin 24)
 
 On macOS 15 the build triplet from `clang -dumpmachine` is
-`arm64-apple-darwin24.6.0`. Many old autotools contrib packages (dvdcss,
-dvdread, dvdnav, a52, dca, libmpeg2, lame, opus, ...) ship a config.sub that
-predates Apple-Silicon `arm64` support, so configure aborts with
-"config.sub arm64-apple-darwin24.6.0 failed". Only ~30 packages call
-$(UPDATE_AUTOCONFIG); the rest rely on their bundled config.sub.
+`arm64-apple-darwin24.6.0`. Old autotools contrib packages that do not
+autoreconf (e.g. dvdcss) ship a config.sub predating Apple-Silicon `arm64`
+support, so configure aborts with "config.sub arm64-apple-darwin24.6.0 failed".
 
-Make the shared MAKECONFIGURE macro refresh config.sub/config.guess from the
-host automake first, so every autotools package gets an arm64-aware config.sub.
-This is a no-op where a fresh config.sub is already present, and harmless on
+Refresh config.sub/config.guess from the host automake in MAKEBUILDDIR, which
+every out-of-source autotools package runs as a standalone recipe line before
+MAKECONFIGURE. It must go in MAKEBUILDDIR, not MAKECONFIGURE: packages such as
+gnutls prefix a cache variable onto MAKECONFIGURE (gl_cv_...=yes $(MAKECONFIGURE)),
+and a leading $(UPDATE_AUTOCONFIG) for-loop there makes the shell reject
+"VAR=value for ..." with 'Syntax error: do unexpected'. MAKEBUILDDIR is never
+VAR-prefixed, so this is safe; no-op where config.sub is already fresh and on
 non-Darwin toolchains.
 ---
 --- a/contrib/src/main.mak
 +++ b/contrib/src/main.mak
 @@ -453,7 +453,7 @@
- MAKEBUILDDIR = mkdir -p $(BUILD_DIR) && rm -f $(BUILD_DIR)/config.status
+-MAKEBUILDDIR = mkdir -p $(BUILD_DIR) && rm -f $(BUILD_DIR)/config.status
++MAKEBUILDDIR = mkdir -p $(BUILD_DIR) && rm -f $(BUILD_DIR)/config.status && $(UPDATE_AUTOCONFIG)
  MAKEBUILD = $(MAKE) -C $(BUILD_DIR)
  MAKECONFDIR = cd $(BUILD_DIR) && $(HOSTVARS) $(BUILD_SRC)
--MAKECONFIGURE = $(MAKECONFDIR)/configure $(HOSTCONF)
-+MAKECONFIGURE = $(UPDATE_AUTOCONFIG) && $(MAKECONFDIR)/configure $(HOSTCONF)
+ MAKECONFIGURE = $(MAKECONFDIR)/configure $(HOSTCONF)
  
  # Work around for https://lists.nongnu.org/archive/html/bug-gnulib/2020-05/msg00237.html
  # When using a single command, make might take a shortcut and fork/exec
