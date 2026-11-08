@@ -1,0 +1,26 @@
+From: VLCDotNet CI <ci@vlcdotnet>
+Subject: [PATCH] contrib: refresh config.sub before configure (macOS 15 / Darwin 24)
+
+On macOS 15 the build triplet from `clang -dumpmachine` is
+`arm64-apple-darwin24.6.0`. Many old autotools contrib packages (dvdcss,
+dvdread, dvdnav, a52, dca, libmpeg2, lame, opus, ...) ship a config.sub that
+predates Apple-Silicon `arm64` support, so configure aborts with
+"config.sub arm64-apple-darwin24.6.0 failed". Only ~30 packages call
+$(UPDATE_AUTOCONFIG); the rest rely on their bundled config.sub.
+
+Make the shared MAKECONFIGURE macro refresh config.sub/config.guess from the
+host automake first, so every autotools package gets an arm64-aware config.sub.
+This is a no-op where a fresh config.sub is already present, and harmless on
+non-Darwin toolchains.
+---
+--- a/contrib/src/main.mak
++++ b/contrib/src/main.mak
+@@ -453,7 +453,7 @@
+ MAKEBUILDDIR = mkdir -p $(BUILD_DIR) && rm -f $(BUILD_DIR)/config.status
+ MAKEBUILD = $(MAKE) -C $(BUILD_DIR)
+ MAKECONFDIR = cd $(BUILD_DIR) && $(HOSTVARS) $(BUILD_SRC)
+-MAKECONFIGURE = $(MAKECONFDIR)/configure $(HOSTCONF)
++MAKECONFIGURE = $(UPDATE_AUTOCONFIG) && $(MAKECONFDIR)/configure $(HOSTCONF)
+ 
+ # Work around for https://lists.nongnu.org/archive/html/bug-gnulib/2020-05/msg00237.html
+ # When using a single command, make might take a shortcut and fork/exec

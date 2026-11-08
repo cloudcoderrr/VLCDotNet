@@ -150,12 +150,15 @@ case "${PLATFORM}" in
     # the host (SIGKILL). Re-enabling needs a meson native-file injected into
     # VLC's contrib meson invocation (see build/README.md).
     APPLE_PRUNE+=(--disable-disc --disable-schroedinger --disable-vpx --disable-ass --disable-harfbuzz --disable-fribidi --disable-librist --disable-nfs)
-    # VLC 4.0 only: asdcplib (Digital Cinema) is not a required module. Keep x264
-    # (software H.264 encode: its asm is tagged for the iOS/simulator target via
-    # CFLAGS and links correctly). Drop x265: VLC 4's x265 cmake hardcodes
-    # -mmacosx-version-min on its aarch64 asm, tagging it 'macOS', so it cannot
-    # link into the iOS/simulator arm64 framework (H.265 encode via VideoToolbox).
-    [ "${VLC_SERIES}" != "3" ] && APPLE_PRUNE+=(--disable-asdcplib --disable-x265) ;;
+    # asdcplib (Digital Cinema) is not a required module and DEPS on nettle -> gmp,
+    # which fails to cross-build for iOS/simulator (gmp "CC_FOR_BUILD doesn't seem
+    # to work"), so prune it on both series. Keep x264 (software H.264 encode: its
+    # asm is tagged for the iOS/simulator target via CFLAGS and links correctly).
+    # Drop x265 on VLC 4 only: its cmake hardcodes -mmacosx-version-min on the
+    # aarch64 asm, tagging it 'macOS', so it cannot link into the iOS/simulator
+    # arm64 framework (H.265 encode via VideoToolbox).
+    APPLE_PRUNE+=(--disable-asdcplib)
+    [ "${VLC_SERIES}" != "3" ] && APPLE_PRUNE+=(--disable-x265) ;;
   maccatalyst)
     # Catalyst requires only avcodec+sout+videotoolbox; libvpx's VP9 RTC C++ does
     # not compile for the macabi arm64 target, and schroedinger/orc are unstable.
