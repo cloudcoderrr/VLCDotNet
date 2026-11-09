@@ -168,11 +168,12 @@ case "${PLATFORM}" in
     # -mmacosx-version-min), so ld rejects them when linking the static encoder
     # libs into the macabi framework. H.264/H.265 ENCODE on Catalyst uses VideoToolbox.
     APPLE_PRUNE+=(--disable-disc --disable-x265 --disable-schroedinger --disable-vpx)
-    # Catalyst arm64 (both series): mpg123's NEON64 asm (dct36_neon64.S) is
-    # assembled with a 'macOS' platform tag under the macabi cross, so it cannot
-    # link into the Catalyst arm64 dynamic framework. MP3 decode falls back to
-    # mad + avcodec (both retained). Catalyst x64 has no NEON64 asm and keeps it.
-    [ "${ARCH}" = "arm64" ] && APPLE_PRUNE+=(--disable-mpg123) ;;
+    # Catalyst arm64 (both series): mpg123's NEON64 asm (dct36_neon64.S) and
+    # x264's aarch64 asm are assembled with a 'macOS' platform tag under the
+    # macabi cross (x264 omits the macabi -target), so they cannot link into the
+    # Catalyst arm64 dynamic framework. MP3 decode falls back to mad + avcodec;
+    # H.264 encode uses VideoToolbox. Catalyst x64 has no such asm and keeps them.
+    [ "${ARCH}" = "arm64" ] && APPLE_PRUNE+=(--disable-mpg123 --disable-x264) ;;
 esac
 
 # macOS host autoreconf needs gettext's iconv.m4 (AM_ICONV) and libtool's m4 on
