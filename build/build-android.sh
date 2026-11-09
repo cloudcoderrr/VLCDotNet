@@ -129,6 +129,12 @@ mkdir -p "${BUILD_DIR}"
 CONFIG_FLAGS=(
   "--prefix=${INSTALL_PREFIX}"
   "--host=${TRIPLET}"
+  # Pin the BUILD triplet to the real x86_64 Linux host. Otherwise config.guess
+  # derives it from the NDK clang (CC) as x86_64-pc-linux-android, which equals
+  # the android-x64 host triplet, so VLC's `$(build) = $(host)` gate runs the
+  # target vlc-cache-gen on the host and fails ("cannot execute"). arm/arm64
+  # differ by CPU and already skip it; this makes x86_64 skip it too.
+  "--build=x86_64-pc-linux-gnu"
   "--with-contrib=${CONTRIB_PREFIX}"
   --disable-vlc --disable-qt --disable-skins2 --disable-nls
   --disable-lua --disable-a52
