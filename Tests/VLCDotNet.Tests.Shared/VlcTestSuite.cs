@@ -342,6 +342,18 @@ namespace VLCDotNet.Tests.Shared
                 Thread.Sleep(800);
 
                 FrameStats stats = cap.Analyze();
+                // The very first video decode on a cold Android emulator can take
+                // several seconds to emit its first frame (Vulkan probe + chroma
+                // filter setup + Mono JIT warm-up), which otherwise leaves the
+                // first measured test at frames=0. Extend the wait only while
+                // nothing has decoded yet so warmed-up tests stay fast.
+                int extraWaitMs = 0;
+                while (stats.Frames == 0 && extraWaitMs < 10000)
+                {
+                    Thread.Sleep(1000);
+                    extraWaitMs += 1000;
+                    stats = cap.Analyze();
+                }
                 outcome.Details.Add(stats.ToString());
 
                 string bmp = Path.Combine(_env.OutputDirectory, "snapshot-" + GetArtifactStem(spec.FileName) + ".bmp");
