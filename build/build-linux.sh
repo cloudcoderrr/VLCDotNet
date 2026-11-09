@@ -122,7 +122,11 @@ CONFIG_FLAGS=(
   # auto-detect from the -dev libs deps-linux.sh installs. Headless CI builds and
   # loads them; real desktop apps use them for video output / audio.
   --enable-chromaprint   # audio fingerprint output (stream_out_chromaprint, contrib)
-  --enable-fluidsynth    # SoundFont MIDI synthesis via the fluidlite contrib
+  # SoundFont MIDI via the real fluidsynth 2.1.8 contrib is left at configure
+  # 'auto': its fluidsynth.pc Requires glib-2.0, which resolves under the
+  # contrib-scoped PKG_CONFIG_PATH on arm/arm64/x86 but not reliably on x64, so
+  # forcing --enable-fluidsynth hard-fails there. Auto keeps the module wherever
+  # the dependency resolves without breaking the build.
   --enable-shared --disable-static
 )
 
