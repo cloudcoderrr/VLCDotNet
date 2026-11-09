@@ -154,11 +154,12 @@ case "${PLATFORM}" in
     # which fails to cross-build for iOS/simulator (gmp "CC_FOR_BUILD doesn't seem
     # to work"), so prune it on both series. Keep x264 (software H.264 encode: its
     # asm is tagged for the iOS/simulator target via CFLAGS and links correctly).
-    # Drop x265 on VLC 4 only: its cmake hardcodes -mmacosx-version-min on the
-    # aarch64 asm, tagging it 'macOS', so it cannot link into the iOS/simulator
-    # arm64 framework (H.265 encode via VideoToolbox).
+    # Drop x265 on arm64 (both series): its cmake hardcodes -mmacosx-version-min
+    # on the aarch64 asm, tagging it 'macOS', so it cannot link into the arm64
+    # iOS/simulator framework under Xcode 16. x86_64 iOS/sim keep x265; VLC 4
+    # drops it there too. H.265 encode uses VideoToolbox.
     APPLE_PRUNE+=(--disable-asdcplib)
-    [ "${VLC_SERIES}" != "3" ] && APPLE_PRUNE+=(--disable-x265) ;;
+    { [ "${VLC_SERIES}" != "3" ] || [ "${ARCH}" = "arm64" ]; } && APPLE_PRUNE+=(--disable-x265) ;;
   maccatalyst)
     # Catalyst requires only avcodec+sout+videotoolbox; libvpx's VP9 RTC C++ does
     # not compile for the macabi arm64 target, and schroedinger/orc are unstable.
@@ -167,11 +168,11 @@ case "${PLATFORM}" in
     # -mmacosx-version-min), so ld rejects them when linking the static encoder
     # libs into the macabi framework. H.264/H.265 ENCODE on Catalyst uses VideoToolbox.
     APPLE_PRUNE+=(--disable-disc --disable-x265 --disable-schroedinger --disable-vpx)
-    # VLC 4.0 Catalyst arm64 only: mpg123's NEON64 asm (dct36_neon64.S) is
+    # Catalyst arm64 (both series): mpg123's NEON64 asm (dct36_neon64.S) is
     # assembled with a 'macOS' platform tag under the macabi cross, so it cannot
     # link into the Catalyst arm64 dynamic framework. MP3 decode falls back to
     # mad + avcodec (both retained). Catalyst x64 has no NEON64 asm and keeps it.
-    { [ "${VLC_SERIES}" != "3" ] && [ "${ARCH}" = "arm64" ]; } && APPLE_PRUNE+=(--disable-mpg123) ;;
+    [ "${ARCH}" = "arm64" ] && APPLE_PRUNE+=(--disable-mpg123) ;;
 esac
 
 # macOS host autoreconf needs gettext's iconv.m4 (AM_ICONV) and libtool's m4 on

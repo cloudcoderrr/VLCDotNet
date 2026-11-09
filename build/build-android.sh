@@ -24,6 +24,11 @@ case "${ARCH}" in
   *) die "Unsupported Android arch: ${ARCH}" ;;
 esac
 
+# armv7 bionic declares fseeko/ftello (and 64-bit file I/O) only from API 24;
+# flac 1.4.2 calls them directly and the NDK clang hard-errors on implicit
+# declarations. Raise the armv7 floor to 24 (the 64-bit ABIs stay at 21).
+if [ "${ARCH}" = "arm" ] && [ "${API}" -lt 24 ]; then API=24; fi
+
 : "${ANDROID_NDK_HOME:?ANDROID_NDK_HOME must point at the Android NDK}"
 NDK_TC="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64"
 [ -d "${NDK_TC}" ] || die "NDK toolchain not found at ${NDK_TC}"
@@ -51,10 +56,7 @@ export CFLAGS="${CFLAGS:-} -Wno-error=implicit-function-declaration -Wno-error=i
 export CXXFLAGS="${CXXFLAGS:-} -Wno-error=incompatible-pointer-types -Wno-c++11-narrowing"
 
 if [ "${ARCH}" = "arm" ]; then
-  # armv7/API21 bionic does not declare fseeko/ftello (added at API 24) and the
-  # NDK clang makes implicit declarations hard errors; map them to the 32-bit
-  # fseek/ftell (sufficient for contrib codec offsets) so flac et al. build.
-  export CFLAGS="${CFLAGS} -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -Dfseeko=fseek -Dftello=ftell"
+  export CFLAGS="${CFLAGS} -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
   export CXXFLAGS="${CXXFLAGS} -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_LIBCPP_HAS_NO_OFF_T_FUNCTIONS"
   export AS="${CC}"
 fi
