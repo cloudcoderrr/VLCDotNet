@@ -140,8 +140,16 @@ jobs:
             *)
               export VLC_EXPECTED_NET_MODULES="" ;;
           esac
+          # Deliberately do NOT put the native dir on LD_LIBRARY_PATH on Linux.
+          # libvlc is found by the .NET resolver in the app base dir and resolves
+          # its bundled deps via the $ORIGIN RPATH baked in by bundle_linux_deps
+          # (exactly how the NuGet works in production). Prepending $out here would
+          # shadow the runner's newer system libraries (libsystemd/libicu/...) with
+          # the older ones bundled from the build image, crashing the .NET host
+          # ("Couldn't find a valid ICU package") and coreutils ("head: libsystemd
+          # .so.0: version LIBSYSTEMD_254 not found"). macOS strips DYLD_* for
+          # system binaries under SIP, so the dylib path export is harmless there.
           case "${{ runner.os }}" in
-            Linux)   export LD_LIBRARY_PATH="$PWD/$out:${LD_LIBRARY_PATH:-}";;
             macOS)   export DYLD_LIBRARY_PATH="$PWD/$out:${DYLD_LIBRARY_PATH:-}";;
           esac
           if [ "${{ runner.os }}" = "Linux" ]; then
