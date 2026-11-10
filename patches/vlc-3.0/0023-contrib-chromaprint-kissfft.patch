@@ -22,6 +22,6 @@ diff --git a/contrib/src/chromaprint/rules.mak b/contrib/src/chromaprint/rules.m
  .chromaprint: chromaprint toolchain.cmake
  	$(CMAKECLEAN)
 -	$(HOSTVARS_CMAKE) $(CMAKE) -DBUILD_TESTS=OFF
-+	$(HOSTVARS_CMAKE) $(CMAKE) -DBUILD_TESTS=OFF -DFFT_LIB=kissfft
++	$(HOSTVARS_CMAKE) $(CMAKE) -DBUILD_TESTS=OFF -DFFT_LIB=kissfft -DKISSFFT_SOURCE_DIR=$(abspath $<)/src/3rdparty/kissfft
  	+$(CMAKEBUILD)
  	$(CMAKEINSTALL)
