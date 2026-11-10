@@ -24,10 +24,12 @@ case "${ARCH}" in
   *) die "Unsupported Android arch: ${ARCH}" ;;
 esac
 
-# armv7 bionic declares fseeko/ftello (and 64-bit file I/O) only from API 24;
-# flac 1.4.2 calls them directly and the NDK clang hard-errors on implicit
-# declarations. Raise the armv7 floor to 24 (the 64-bit ABIs stay at 21).
-if [ "${ARCH}" = "arm" ] && [ "${API}" -lt 24 ]; then API=24; fi
+# armv7 bionic declares fseeko/ftello (and 64-bit file I/O) only from API 24.
+# VLC 3's flac 1.4.2 calls them directly, so the NDK clang hard-errors on implicit
+# declarations and needs the raise. VLC 4's flac 1.5.0 instead falls back to
+# "#define fseeko fseek" when fseeko is undeclared, which CONFLICTS with bionic's
+# own fseeko at API 24 -- so keep armv7 at the default API 21 for VLC 4.
+if [ "${ARCH}" = "arm" ] && [ "${VLC_SERIES}" = "3" ] && [ "${API}" -lt 24 ]; then API=24; fi
 
 : "${ANDROID_NDK_HOME:?ANDROID_NDK_HOME must point at the Android NDK}"
 NDK_TC="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64"

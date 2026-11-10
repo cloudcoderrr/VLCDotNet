@@ -1,0 +1,29 @@
+From: GitHub Copilot <copilot@github.com>
+Subject: [PATCH] contrib: don't use getentropy for gcrypt on Apple
+
+gcrypt 1.12.2 adds an rndgetentropy backend. Its configure runs on the macOS
+build host, where getentropy is declared in <unistd.h>, so HAVE_GETENTROPY is
+cached yes. The iOS / iOS-simulator SDKs declare getentropy only in
+<sys/random.h>, so cross-compiling rndgetentropy.c for those targets fails with
+"use of undeclared identifier 'getentropy'" under Xcode 16.
+
+Force ac_cv_func_getentropy=no on all Apple targets so gcrypt uses its
+/dev/urandom (rndunix) backend instead. This is functionally equivalent for the
+RNG and keeps the build portable across the macOS/iOS SDK split.
+---
+ contrib/src/gcrypt/rules.mak | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/contrib/src/gcrypt/rules.mak b/contrib/src/gcrypt/rules.mak
+--- a/contrib/src/gcrypt/rules.mak
++++ b/contrib/src/gcrypt/rules.mak
+@@ -49,6 +49,10 @@ endif
+ ifdef HAVE_DARWIN_OS
+ GCRYPT_CONF += ac_cv_sys_symbol_underscore=yes
++# iOS/tvOS SDKs declare getentropy only in <sys/random.h>; gcrypt's macOS-host
++# configure detects it in <unistd.h>, so the cross target fails to compile
++# rndgetentropy.c. Use the /dev/urandom RNG backend on all Apple targets.
++GCRYPT_CONF += ac_cv_func_getentropy=no
+ endif
+ ifdef HAVE_ANDROID
+ ifeq ($(ANDROID_ABI), x86)
