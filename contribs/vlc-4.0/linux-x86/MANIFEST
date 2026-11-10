@@ -1,0 +1,13 @@
+rid=linux-x86
+triplet=i686-linux-gnu
+series=4
+vlc_version=4.0-master
+vlc_ref=f94b611735dbcb4cd21a7a106b713b442128c4b7
+build_prefix=/work/build/_work/vlc-linux-i686/contrib/i686-linux-gnu
+archive=contrib.tar.zst
+parts=2
+part_size=95000000
+sha256=2cd9206208ca7132009e16f8722e1a5a01bf3bc3d3ad6b9195a30df059f6d69e
+bytes=184592757
+created=2026-11-10T16:16:14Z
+restore=cat contrib.tar.zst.* | zstd -d | tar -x
