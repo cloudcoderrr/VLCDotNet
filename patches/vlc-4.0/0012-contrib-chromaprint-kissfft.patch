@@ -1,0 +1,29 @@
+From: GitHub Copilot <copilot@github.com>
+Subject: [PATCH] contrib: build chromaprint with bundled kissfft
+
+chromaprint 1.6.0 auto-selects FFmpeg's libavutil av_tx FFT backend when
+FFmpeg is present. Linking the static libavutil into VLC's shared
+stream_out_chromaprint plugin fails on x86_64 because tx_float.o emits a
+non-PIC relocation (R_X86_64_PC32 against ff_tx_tab_32_float) that cannot be
+used in a shared object, and ffmpeg's --enable-pic does not make that object
+position-independent.
+
+Force the bundled KissFFT backend (vendored at src/3rdparty/kissfft) so the
+plugin computes its FFT without linking libavutil at all. The fingerprint
+output is unchanged. KISSFFT_SOURCE_DIR is pre-set so FindKissFFT's find_path is
+bypassed: on cross builds the toolchain restricts find_path to the sysroot,
+which cannot see the in-tree kissfft.
+---
+ contrib/src/chromaprint/rules.mak | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/contrib/src/chromaprint/rules.mak b/contrib/src/chromaprint/rules.mak
+--- a/contrib/src/chromaprint/rules.mak
++++ b/contrib/src/chromaprint/rules.mak
+@@ -27,5 +27,5 @@
+ .chromaprint: chromaprint toolchain.cmake
+ 	$(CMAKECLEAN)
+-	$(HOSTVARS_CMAKE) $(CMAKE) -DBUILD_TESTS=OFF
++	$(HOSTVARS_CMAKE) $(CMAKE) -DBUILD_TESTS=OFF -DFFT_LIB=kissfft -DKISSFFT_SOURCE_DIR=$(abspath $<)/src/3rdparty/kissfft
+ 	+$(CMAKEBUILD)
+ 	$(CMAKEINSTALL)

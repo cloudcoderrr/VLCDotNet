@@ -15,14 +15,14 @@ diff --git a/src/Makefile.am b/src/Makefile.am
 index 9d93ba4..9288ff6 100644
 --- a/src/Makefile.am
 +++ b/src/Makefile.am
-@@ -629,6 +629,7 @@ libvlccore_la_LDFLAGS += -avoid-version
+@@ -630,6 +630,7 @@ libvlccore_la_LDFLAGS += -avoid-version
  endif
  if HAVE_ANDROID
  libvlccore_la_LDFLAGS += -avoid-version
 +libvlccore_la_LDFLAGS += -Wl,--version-script=$(srcdir)/libvlccore_jni.sym
  endif
  
- libvlccore_win32_rc.$(OBJEXT): libvlccore_win32_rc.rc $(top_srcdir)/extras/package/win32/libvlccore.dll.manifest
+ libvlccore_win32_rc.$(OBJEXT): libvlccore_win32_rc.rc $(top_builddir)/extras/package/win32/libvlccore.dll.manifest
 diff --git a/src/libvlccore_jni.sym b/src/libvlccore_jni.sym
 new file mode 100644
 index 0000000..2209b52
