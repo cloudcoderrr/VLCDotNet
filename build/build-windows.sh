@@ -128,6 +128,7 @@ CONFIG_FLAGS=(
   # zvbi (teletext), aribcam (ARIB B25) and sid (SID music) auto-detect from the
   # contrib set; left as auto so a target that cannot build one does not hard-fail.
   --enable-avcodec --enable-swscale
+  --enable-chromaprint   # audio fingerprint output (stream_out_chromaprint, contrib)
   --enable-shared --disable-static
 )
 

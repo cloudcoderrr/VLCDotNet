@@ -149,6 +149,7 @@ CONFIG_FLAGS=(
   # backend (hardware decode is MediaCodec, enabled separately).
   --enable-gnutls --enable-live555 --enable-dvbpsi
   --enable-avcodec --enable-swscale
+  --enable-chromaprint   # audio fingerprint output (stream_out_chromaprint, contrib)
   --enable-shared --disable-static
 )
 
