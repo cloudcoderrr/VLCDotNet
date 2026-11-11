@@ -108,7 +108,13 @@ jobs:
       - name: Download all native artifacts
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run download ${{ steps.run.outputs.id }} -D artifacts_dl
+        run: |
+          # Retry up to 4 times: GitHub artifact storage can transiently time out.
+          for attempt in 1 2 3 4; do
+            gh run download ${{ steps.run.outputs.id }} -D artifacts_dl && break
+            echo "download attempt $attempt failed; retrying in 20s" >&2
+            sleep 20
+          done
 
       - name: Stage artifacts/<rid>
         run: |
