@@ -29,7 +29,9 @@ EXTRA_CFLAGS=""
 case "${PLATFORM}" in
   macos)
     SDK="macosx";          RID="osx-${ARCH/x86_64/x64}"
-    MINVER="-mmacosx-version-min=10.11" ;;
+    # VLC 4's VLCSampleBufferDisplay.m references macOS 10.13 CoreVideo HDR keys
+    # under -Werror=unguarded-availability; VLC 3 keeps the broader 10.11 floor.
+    if [ "${VLC_SERIES}" = "4" ]; then MINVER="-mmacosx-version-min=10.13"; else MINVER="-mmacosx-version-min=10.11"; fi ;;
   ios)
     SDK="iphoneos";        RID="ios-${ARCH}"
     MINVER="-miphoneos-version-min=12.0" ;;

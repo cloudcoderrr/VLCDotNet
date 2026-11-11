@@ -99,7 +99,7 @@ jobs:
       matrix:
         include:
           - { arch: x86_64,  rid: win-x64 }
-          - { arch: i686,    rid: win-x86 }
+          # win-x86 excluded: VLC4 direct3d9 links DXVAHD_CreateDevice, absent from llvm-mingw 32-bit import libs
           - { arch: aarch64, rid: win-arm64 }
     steps:
       - uses: actions/checkout@v5
