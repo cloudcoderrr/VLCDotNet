@@ -47,32 +47,70 @@ namespace VLCDotNet
             }
         }
 
-        /// <summary>The OS-appropriate libvlc file names, most-specific first.</summary>
+        /// <summary>Candidate libvlc file names for this OS (short symlink names).</summary>
         private static string[] LibVlcNames => OperatingSystem.IsMacOS()
             ? new[] { "libvlc.dylib", "libvlc.5.dylib" }
             : new[] { "libvlc.so", "libvlc.so.5" };
 
+        /// <summary>Glob matching every libvlc variant (incl. the real versioned file).</summary>
+        private static string GlobPattern => OperatingSystem.IsMacOS() ? "libvlc.*dylib" : "libvlc.so*";
+
         /// <summary>
-        /// Returns the directory that contains the native libvlc for this OS
-        /// (the app base or a <c>runtimes/&lt;rid&gt;/native</c> folder), or
-        /// <see langword="null"/> when none is found. Used both to load libvlc and
-        /// to locate the sibling <c>plugins</c> directory.
+        /// Returns the directory containing the native libvlc for this OS (the app
+        /// base or a <c>runtimes/&lt;rid&gt;/native</c> folder), or <see langword="null"/>.
+        /// Used to locate the sibling <c>plugins</c> directory.
         /// </summary>
         internal static string? FindNativeDirectory()
         {
             string baseDir = AppContext.BaseDirectory ?? Directory.GetCurrentDirectory();
             foreach (string dir in NativeSearchDirectories(baseDir))
             {
-                foreach (string name in LibVlcNames)
+                if (LibVlcFilesIn(dir).Count > 0)
                 {
-                    if (File.Exists(Path.Combine(dir, name)))
-                    {
-                        return dir;
-                    }
+                    return dir;
                 }
             }
 
             return null;
+        }
+
+        // Every real/symlinked libvlc binary in a directory, longest name first so
+        // the real versioned file (never a dangling symlink) is tried before the
+        // short symlink names that NuGet pack/restore can leave broken.
+        private static List<string> LibVlcFilesIn(string dir)
+        {
+            var result = new List<string>();
+            if (!Directory.Exists(dir))
+            {
+                return result;
+            }
+
+            foreach (string name in LibVlcNames)
+            {
+                string p = Path.Combine(dir, name);
+                if (File.Exists(p))
+                {
+                    result.Add(p);
+                }
+            }
+
+            try
+            {
+                foreach (string p in Directory.GetFiles(dir, GlobPattern))
+                {
+                    if (Path.GetFileName(p).StartsWith("libvlc.", StringComparison.Ordinal) && !result.Contains(p))
+                    {
+                        result.Add(p);
+                    }
+                }
+            }
+            catch
+            {
+                // ignore directory enumeration faults
+            }
+
+            result.Sort((a, b) => Path.GetFileName(b).Length.CompareTo(Path.GetFileName(a).Length));
+            return result;
         }
 
         private static IntPtr Resolve(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
@@ -82,38 +120,32 @@ namespace VLCDotNet
                 return IntPtr.Zero; // defer other libraries (e.g. libc) to the default resolver
             }
 
-            string? dir = FindNativeDirectory();
-            string? lastError = null;
-            if (dir is not null)
+            string baseDir = AppContext.BaseDirectory ?? Directory.GetCurrentDirectory();
+            var errors = new List<string>();
+            foreach (string dir in NativeSearchDirectories(baseDir))
             {
-                foreach (string name in LibVlcNames)
+                foreach (string path in LibVlcFilesIn(dir))
                 {
-                    string path = Path.Combine(dir, name);
-                    if (!File.Exists(path))
-                    {
-                        continue;
-                    }
-
                     try
                     {
                         return NativeLibrary.Load(path);
                     }
                     catch (Exception ex)
                     {
-                        lastError = $"{path}: {ex.Message}";
+                        errors.Add($"{path}: {ex.Message}");
                     }
                 }
             }
 
-            // Fall back to the default name-based resolution.
             if (NativeLibrary.TryLoad(libraryName, assembly, searchPath, out IntPtr handle))
             {
                 return handle;
             }
 
-            if (lastError is not null)
+            Console.Error.WriteLine("[VLCDotNet] could not load native libvlc. Tried:");
+            foreach (string e in errors)
             {
-                Console.Error.WriteLine($"[VLCDotNet] could not load native libvlc: {lastError}");
+                Console.Error.WriteLine("  " + e);
             }
 
             return IntPtr.Zero;

@@ -56,6 +56,15 @@ jobs:
       - name: Build Avalonia test app
         run: dotnet build Maui/tests/VLCDotNet.ViewTests.Avalonia/VLCDotNet.ViewTests.Avalonia.csproj -c Release
 
+      - name: Show native libvlc layout
+        shell: bash
+        run: |
+          out="Maui/tests/VLCDotNet.ViewTests.Avalonia/bin/Release/net8.0"
+          echo "---- runtimes/${{ matrix.rid }}/native (libvlc*) ----"
+          ls -la "$out/runtimes/${{ matrix.rid }}/native" 2>/dev/null | grep -i 'libvlc' || true
+          echo "---- plugin count ----"
+          find "$out/runtimes/${{ matrix.rid }}/native/plugins" -name '*.so' -o -name '*.dylib' -o -name '*.dll' 2>/dev/null | wc -l || true
+
       - name: Run headless view tests
         id: run
         shell: bash
