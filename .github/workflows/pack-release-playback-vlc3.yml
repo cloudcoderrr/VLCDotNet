@@ -100,6 +100,19 @@ jobs:
           echo "id=$rid" >> "$GITHUB_OUTPUT"
           echo "Using build run $rid"
 
+      - name: Free disk space (macOS runner)
+        run: |
+          df -h / || true
+          # The pack only BUILDS the managed library heads; it never runs
+          # simulators, so iOS/tvOS/watchOS simulator runtimes and devices are
+          # safe to remove and free several GB for the 17-RID artifact set + nupkg.
+          xcrun simctl delete all 2>/dev/null || true
+          sudo rm -rf ~/Library/Developer/CoreSimulator/Devices/* 2>/dev/null || true
+          sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/* 2>/dev/null || true
+          sudo rm -rf /Library/Developer/CoreSimulator/Profiles/Runtimes/* 2>/dev/null || true
+          sudo rm -rf ~/Library/Caches/* 2>/dev/null || true
+          df -h / || true
+
       - name: Download all native artifacts
         env:
           GH_TOKEN: ${{ github.token }}
@@ -116,11 +129,14 @@ jobs:
           ALLOW_PARTIAL: ${{ inputs.allow_partial }}
         run: |
           set -e
+          mkdir -p artifacts
           for d in artifacts_dl/vlc3play-native-*; do
             [ -d "$d" ] || continue
             rid=$(basename "$d" | sed 's/^vlc3play-native-//')
-            mkdir -p "artifacts/$rid"
-            cp -a "$d"/. "artifacts/$rid/"
+            # MOVE (not copy) so the ~2 GB download set is not duplicated on the
+            # space-constrained macOS runner.
+            rm -rf "artifacts/$rid"
+            mv "$d" "artifacts/$rid"
             echo "staged $rid"
           done
           required=(
