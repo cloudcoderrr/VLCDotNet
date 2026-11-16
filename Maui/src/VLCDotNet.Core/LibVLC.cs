@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace VLCDotNet
@@ -38,6 +39,7 @@ namespace VLCDotNet
         {
             if (configure)
             {
+                EnsurePluginPath();
                 VlcRuntime.Configure();
             }
 
@@ -45,6 +47,45 @@ namespace VLCDotNet
             IntPtr instance = LibVlc.libvlc_new(argv?.Length ?? 0, argv);
             _handle = SafeHandleFactory.Adopt<LibVlcInstanceHandle>(instance, "libvlc instance");
         }
+
+        // On Linux/macOS the RID folder name may differ from
+        // RuntimeInformation.RuntimeIdentifier, so point VLC_PLUGIN_PATH at the
+        // plugins folder that sits next to the native libvlc we resolve, when it is
+        // not already configured. VlcRuntime.Configure (called next) honours an
+        // existing VLC_PLUGIN_PATH; Windows/Android/iOS keep their own handling.
+        private static void EnsurePluginPath()
+        {
+            if (!(OperatingSystem.IsLinux() || OperatingSystem.IsMacOS()))
+            {
+                return;
+            }
+
+            try
+            {
+                string? existing = Environment.GetEnvironmentVariable("VLC_PLUGIN_PATH");
+                if (!string.IsNullOrEmpty(existing) && Directory.Exists(existing))
+                {
+                    return;
+                }
+
+                string? nativeDir = VlcNativeLibraryResolver.FindNativeDirectory();
+                if (nativeDir is null)
+                {
+                    return;
+                }
+
+                string plugins = Path.Combine(nativeDir, "plugins");
+                if (Directory.Exists(plugins))
+                {
+                    Environment.SetEnvironmentVariable("VLC_PLUGIN_PATH", plugins);
+                }
+            }
+            catch
+            {
+                // best effort; VlcRuntime.Configure has its own probing
+            }
+        }
+
 
         /// <summary>The libvlc runtime version string (e.g. <c>3.0.24</c>).</summary>
         public static string Version => LibVlc.Utf8ToString(LibVlc.libvlc_get_version()) ?? string.Empty;
