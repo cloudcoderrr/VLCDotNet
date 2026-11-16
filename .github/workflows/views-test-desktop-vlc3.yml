@@ -1,0 +1,89 @@
+name: views-test-desktop-vlc3
+
+# Runs the VLCDotNet3.Playback view-package test suite (Avalonia app --autorun)
+# on each desktop OS. Native libvlc is delivered by the published
+# VLCDotNet3.Playback NuGet, which is downloaded into a local folder feed so the
+# Core/Avalonia packages can restore it.
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "Maui/**"
+      - ".github/workflows/views-test-desktop-vlc3.yml"
+  workflow_dispatch:
+    inputs:
+      playback_tag:
+        description: "VLCDotNet3.Playback release tag to pull native binaries from"
+        required: false
+        default: "vplay3-3.0.24.1"
+
+permissions:
+  contents: read
+
+env:
+  PLAYBACK_TAG: ${{ inputs.playback_tag || 'vplay3-3.0.24.1' }}
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  rid: linux-x64, family: linux }
+          - { os: windows-latest, rid: win-x64,   family: windows }
+          - { os: macos-15,       rid: osx-arm64, family: macos }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Linux headless prerequisites
+        if: matrix.family == 'linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y libfontconfig1
+
+      - name: Download VLCDotNet3.Playback into the local feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: gh release download "$PLAYBACK_TAG" --repo "${{ github.repository }}" --pattern '*.nupkg' -D Maui/.local-nuget
+
+      - name: Build Avalonia test app
+        run: dotnet build Maui/tests/VLCDotNet.ViewTests.Avalonia/VLCDotNet.ViewTests.Avalonia.csproj -c Release
+
+      - name: Run headless view tests
+        id: run
+        shell: bash
+        run: |
+          out="Maui/tests/VLCDotNet.ViewTests.Avalonia/bin/Release/net8.0"
+          set +e
+          dotnet "$out/VLCDotNet.ViewTests.Avalonia.dll" --autorun
+          code=$?
+          set -e
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "---- runner-report.txt ----"
+          cat "$out/test-output/runner-report.txt" || true
+          echo "---- vlc-log.txt (tail) ----"
+          tail -n 30 "$out/test-output/vlc-log.txt" || true
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: views-desktop-${{ matrix.rid }}
+          path: Maui/tests/VLCDotNet.ViewTests.Avalonia/bin/Release/net8.0/test-output
+          if-no-files-found: warn
+
+      - name: Fail if tests failed
+        shell: bash
+        run: |
+          if [ "${{ steps.run.outputs.code }}" != "0" ]; then
+            echo "::error::${{ steps.run.outputs.code }} view test(s) failed"
+            exit 1
+          fi
+          echo "All desktop view tests passed."

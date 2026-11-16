@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    VLCDotNet3.Playback.Maui - a .NET MAUI video surface for the high-level
+    VLCDotNet3.Playback.Core API.
+
+    MAUI heads cannot all be built on a single OS: iOS/Mac Catalyst require macOS
+    and Windows requires Windows. This library targets the heads that build
+    together on macOS (android + ios + maccatalyst, where Mac Catalyst is the
+    desktop head); the Windows handler source is retained behind #if WINDOWS for
+    a future net*-windows target. The native libvlc runtimes arrive transitively
+    through VLCDotNet3.Playback.Core.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-android</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('OSX'))">net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+
+    <UseMaui>true</UseMaui>
+    <AssemblyName>VLCDotNet.Maui</AssemblyName>
+    <RootNamespace>VLCDotNet.Maui</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">12.2</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
+
+    <!-- NuGet packaging -->
+    <IsPackable>true</IsPackable>
+    <PackageId>VLCDotNet3.Playback.Maui</PackageId>
+    <Version>$(VlcVersion)</Version>
+    <Title>VLCDotNet3.Playback.Maui - .NET MAUI video view for libvlc</Title>
+    <Description>A .NET MAUI VideoView control that plays any format with libvlc 3.x on Android, iOS and Mac Catalyst. Hardware-accelerated native (VideoToolbox) output on Apple platforms and portable bitmap rendering on Android. No built-in playback controls - overlay your own. Built on VLCDotNet3.Playback.Core.</Description>
+    <PackageTags>vlc;libvlc;maui;video;player;videoview;media;playback;android;ios</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VLCDotNet.Core\VLCDotNet.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\PACKAGE-LICENSE.txt" Pack="true" PackagePath="" />
+    <None Include="README.md" Pack="true" PackagePath="README.md" />
+  </ItemGroup>
+
+</Project>

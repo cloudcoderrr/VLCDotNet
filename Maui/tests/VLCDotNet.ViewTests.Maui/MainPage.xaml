@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vlc="clr-namespace:VLCDotNet.Maui;assembly=VLCDotNet.Maui"
+             x:Class="VLCDotNet.ViewTests.Maui.MainPage"
+             Title="VLCDotNet View Tests">
+  <Grid RowDefinitions="220,Auto,Auto,*" Padding="10" RowSpacing="8">
+
+    <!-- The video surface with your own controls composed above it. -->
+    <Grid Grid.Row="0" BackgroundColor="Black">
+      <vlc:VideoView x:Name="DemoVideo" />
+      <HorizontalStackLayout HorizontalOptions="Center" VerticalOptions="End" Spacing="8" Padding="8">
+        <Button Text="Play" Clicked="OnPlay" />
+        <Button Text="Pause" Clicked="OnPause" />
+        <Button Text="Stop" Clicked="OnStop" />
+      </HorizontalStackLayout>
+    </Grid>
+
+    <Button x:Name="RunButton" Grid.Row="1" Text="Run all tests" Clicked="OnRunClicked" />
+    <Label x:Name="SummaryLabel" Grid.Row="2" Text="Ready." />
+
+    <CollectionView x:Name="ResultsView" Grid.Row="3">
+      <CollectionView.ItemTemplate>
+        <DataTemplate>
+          <Grid ColumnDefinitions="54,92,*" Padding="2,4">
+            <Label Grid.Column="0" Text="{Binding Status}" FontAttributes="Bold" />
+            <Label Grid.Column="1" Text="{Binding Category}" TextColor="Gray" />
+            <Label Grid.Column="2" Text="{Binding Name}" LineBreakMode="TailTruncation" />
+          </Grid>
+        </DataTemplate>
+      </CollectionView.ItemTemplate>
+    </CollectionView>
+  </Grid>
+</ContentPage>

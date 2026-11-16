@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    VLCDotNet3.Playback.Avalonia - an Avalonia video surface for the high-level
+    VLCDotNet3.Playback.Core API.
+
+    Pure managed, net8.0: it references only the cross-platform Avalonia core
+    package (NativeControlHost, Control, WriteableBitmap, Dispatcher), so it is
+    consumable by Avalonia desktop AND mobile (Android/iOS) app heads. The native
+    libvlc runtimes arrive transitively through VLCDotNet3.Playback.Core.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>VLCDotNet.Avalonia</AssemblyName>
+    <RootNamespace>VLCDotNet.Avalonia</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <!-- NuGet packaging -->
+    <IsPackable>true</IsPackable>
+    <PackageId>VLCDotNet3.Playback.Avalonia</PackageId>
+    <Version>$(VlcVersion)</Version>
+    <Title>VLCDotNet3.Playback.Avalonia - Avalonia video view for libvlc</Title>
+    <Description>An Avalonia VideoView control that plays any format with libvlc 3.x. Hardware-accelerated native-window output on Windows, Linux (X11) and macOS, with a portable WriteableBitmap rendering mode for Android and headless scenarios. No built-in playback controls - overlay your own. Built on VLCDotNet3.Playback.Core.</Description>
+    <PackageTags>vlc;libvlc;avalonia;video;player;videoview;media;playback</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.1" />
+  </ItemGroup>
+
+  <!--
+    Referenced as a project so the family builds together. dotnet pack emits a
+    matching VLCDotNet3.Playback.Core package dependency into the nuspec (same
+    PackageVersion), so consumers of the NuGet get the dependency automatically.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\VLCDotNet.Core\VLCDotNet.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\PACKAGE-LICENSE.txt" Pack="true" PackagePath="" />
+    <None Include="README.md" Pack="true" PackagePath="README.md" />
+  </ItemGroup>
+
+</Project>

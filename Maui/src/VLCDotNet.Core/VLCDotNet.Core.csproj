@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    VLCDotNet3.Playback.Core - high-level, resource-safe C# wrappers over the
+    raw libvlc P/Invoke bindings shipped by the VLCDotNet3.Playback package.
+
+    This package contains ZERO native code. It takes a PackageReference on
+    VLCDotNet3.Playback, which supplies both the managed P/Invoke assembly
+    (VLCDotNet.dll) and the native libvlc runtimes for every supported RID. The
+    dependency flows transitively to the consuming app, so adding this package
+    (or one of the UI view packages that depend on it) is all an app needs.
+
+    Target frameworks mirror the dependency package so each platform binds the
+    correct native libvlc. Mobile heads are opt-in (VlcMobileTargets=true) so a
+    plain desktop build does not require the Apple/Android SDK workloads.
+  -->
+  <PropertyGroup>
+    <VlcMobileTargets Condition="'$(VlcMobileTargets)' == ''">false</VlcMobileTargets>
+
+    <TargetFrameworks>net8.0</TargetFrameworks>
+    <TargetFrameworks Condition="'$(VlcMobileTargets)' == 'true' and $([MSBuild]::IsOSPlatform('OSX'))">net8.0;net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+    <TargetFrameworks Condition="'$(VlcMobileTargets)' == 'true' and !$([MSBuild]::IsOSPlatform('OSX'))">net8.0;net10.0-android</TargetFrameworks>
+
+    <AssemblyName>VLCDotNet.Core</AssemblyName>
+    <RootNamespace>VLCDotNet</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <!-- The VLCDotNet3.Playback version this build pins. Overridable from CI. -->
+    <VlcPlaybackPackageVersion Condition="'$(VlcPlaybackPackageVersion)' == ''">3.0.24.1</VlcPlaybackPackageVersion>
+
+    <!-- NuGet packaging -->
+    <IsPackable>true</IsPackable>
+    <PackageId>VLCDotNet3.Playback.Core</PackageId>
+    <Version>$(VlcVersion)</Version>
+    <Title>VLCDotNet3.Playback.Core - high-level libvlc API for .NET</Title>
+    <Description>Resource-safe, object-oriented C# wrappers (LibVLC, Media, MediaPlayer, MediaList, Equalizer, tracks and events) over the playback-only libvlc 3.x bindings. Pulls in the native VLC runtimes for Windows, Linux, macOS, Mac Catalyst, iOS and Android via VLCDotNet3.Playback. The foundation for the VLCDotNet3.Playback.Avalonia and VLCDotNet3.Playback.Maui video views.</Description>
+    <PackageTags>vlc;libvlc;video;audio;media;player;playback;maui;avalonia;interop</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(TargetFramework.EndsWith('-ios'))">
+    <SupportedOSPlatformVersion>12.2</SupportedOSPlatformVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(TargetFramework.EndsWith('-maccatalyst'))">
+    <SupportedOSPlatformVersion>13.1</SupportedOSPlatformVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(TargetFramework.EndsWith('-android'))">
+    <SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="VLCDotNet3.Playback" Version="$(VlcPlaybackPackageVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\PACKAGE-LICENSE.txt" Pack="true" PackagePath="" />
+    <None Include="README.md" Pack="true" PackagePath="README.md" />
+  </ItemGroup>
+
+</Project>

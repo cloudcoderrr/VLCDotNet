@@ -1,0 +1,7 @@
+# Local NuGet feed populated from the VLCDotNet3.Playback GitHub Release asset.
+# Never commit the ~800 MB native package.
+.local-nuget/
+
+# Build output
+bin/
+obj/

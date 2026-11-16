@@ -1,0 +1,30 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vlc="using:VLCDotNet.Avalonia"
+        x:Class="VLCDotNet.ViewTests.Avalonia.MainWindow"
+        Width="960" Height="600"
+        Title="VLCDotNet3.Playback — Avalonia VideoView">
+
+  <DockPanel>
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="10">
+      <Button x:Name="RunTestsButton" Content="Run all tests" Click="OnRunTests" />
+      <TextBlock x:Name="SummaryText" VerticalAlignment="Center" Text="Ready." />
+    </StackPanel>
+
+    <Grid>
+      <!-- The video surface: no built-in controls. -->
+      <vlc:VideoView x:Name="Video" />
+
+      <!-- Your own transport controls, composed ABOVE the video surface. -->
+      <Border HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="16"
+              Background="#99000000" CornerRadius="8" Padding="8">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="Play" Click="OnPlay" />
+          <Button Content="Pause" Click="OnPause" />
+          <Button Content="Stop" Click="OnStop" />
+          <Button Content="Snapshot" Click="OnSnapshot" />
+        </StackPanel>
+      </Border>
+    </Grid>
+  </DockPanel>
+</Window>
