@@ -157,6 +157,11 @@ namespace VLCDotNet
             var errors = new List<string>();
             foreach (string path in CandidatePaths())
             {
+                // libvlc references libvlccore via @rpath, but the packaged dylib
+                // carries no LC_RPATH, so pre-load the sibling core first to satisfy
+                // the reference by install name (also helps on Linux/soname layouts).
+                PreloadDependencies(Path.GetDirectoryName(path));
+
                 try
                 {
                     return NativeLibrary.Load(path);
@@ -180,6 +185,37 @@ namespace VLCDotNet
             }
 
             return IntPtr.Zero;
+        }
+
+        // Pre-load libvlccore from the same directory so libvlc's @rpath/soname
+        // reference to it resolves even without an LC_RPATH entry. Best effort.
+        private static void PreloadDependencies(string? dir)
+        {
+            if (string.IsNullOrEmpty(dir))
+            {
+                return;
+            }
+
+            string[] cores = OperatingSystem.IsMacOS()
+                ? new[] { "libvlccore.dylib", "libvlccore.9.dylib" }
+                : new[] { "libvlccore.so.9", "libvlccore.so", "libvlccore.so.9.0.1" };
+
+            foreach (string name in cores)
+            {
+                string path = Path.Combine(dir, name);
+                if (File.Exists(path))
+                {
+                    try
+                    {
+                        NativeLibrary.Load(path);
+                        return;
+                    }
+                    catch
+                    {
+                        // ignore; the subsequent libvlc load reports the real error
+                    }
+                }
+            }
         }
 
         private static IEnumerable<string> NativeSearchDirectories(string baseDir)
