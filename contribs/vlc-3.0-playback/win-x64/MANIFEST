@@ -1,0 +1,13 @@
+rid=win-x64
+triplet=x86_64-w64-mingw32
+series=3
+vlc_version=3.0.24
+vlc_ref=3.0.24
+build_prefix=/home/runner/work/VLCDotNet/VLCDotNet/build/_work/vlc-win-x86_64/contrib/x86_64-w64-mingw32
+archive=contrib.tar.zst
+parts=2
+part_size=95000000
+sha256=1e89e3115fea3f89174067e297c2a84c7dabdf32d48bada903b39075f084905f
+bytes=109461841
+created=2026-11-16T08:10:52Z
+restore=cat contrib.tar.zst.* | zstd -d | tar -x

@@ -1,0 +1,13 @@
+rid=linux-x64
+triplet=x86_64-linux-gnu
+series=3
+vlc_version=3.0.24
+vlc_ref=3.0.24
+build_prefix=/home/runner/work/VLCDotNet/VLCDotNet/build/_work/vlc-linux-x86_64/contrib/x86_64-linux-gnu
+archive=contrib.tar.zst
+parts=2
+part_size=95000000
+sha256=434e5d4a33fb94d1441c6856963b5368805e8e06278d6c0648852fc051440951
+bytes=136958490
+created=2026-11-16T07:53:17Z
+restore=cat contrib.tar.zst.* | zstd -d | tar -x
