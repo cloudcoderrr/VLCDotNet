@@ -62,16 +62,50 @@ namespace VLCDotNet
         /// </summary>
         internal static string? FindNativeDirectory()
         {
-            string baseDir = AppContext.BaseDirectory ?? Directory.GetCurrentDirectory();
-            foreach (string dir in NativeSearchDirectories(baseDir))
+            foreach (string path in CandidatePaths())
             {
-                if (LibVlcFilesIn(dir).Count > 0)
-                {
-                    return dir;
-                }
+                return Path.GetDirectoryName(path);
             }
 
             return null;
+        }
+
+        // All libvlc binaries that might be loadable, directory-probed first (RID
+        // folders, longest name first) then a recursive sweep of the app base as a
+        // fallback for layouts we did not predict.
+        private static IEnumerable<string> CandidatePaths()
+        {
+            string baseDir = AppContext.BaseDirectory ?? Directory.GetCurrentDirectory();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (string dir in NativeSearchDirectories(baseDir))
+            {
+                foreach (string p in LibVlcFilesIn(dir))
+                {
+                    if (seen.Add(p))
+                    {
+                        yield return p;
+                    }
+                }
+            }
+
+            IEnumerable<string> recursive;
+            try
+            {
+                recursive = Directory.EnumerateFiles(baseDir, GlobPattern, SearchOption.AllDirectories);
+            }
+            catch
+            {
+                recursive = Array.Empty<string>();
+            }
+
+            foreach (string p in recursive)
+            {
+                if (Path.GetFileName(p).StartsWith("libvlc.", StringComparison.Ordinal) && seen.Add(p))
+                {
+                    yield return p;
+                }
+            }
         }
 
         // Every real/symlinked libvlc binary in a directory, longest name first so
@@ -120,20 +154,16 @@ namespace VLCDotNet
                 return IntPtr.Zero; // defer other libraries (e.g. libc) to the default resolver
             }
 
-            string baseDir = AppContext.BaseDirectory ?? Directory.GetCurrentDirectory();
             var errors = new List<string>();
-            foreach (string dir in NativeSearchDirectories(baseDir))
+            foreach (string path in CandidatePaths())
             {
-                foreach (string path in LibVlcFilesIn(dir))
+                try
                 {
-                    try
-                    {
-                        return NativeLibrary.Load(path);
-                    }
-                    catch (Exception ex)
-                    {
-                        errors.Add($"{path}: {ex.Message}");
-                    }
+                    return NativeLibrary.Load(path);
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"{path}: {ex.Message}");
                 }
             }
 
@@ -142,10 +172,11 @@ namespace VLCDotNet
                 return handle;
             }
 
-            Console.Error.WriteLine("[VLCDotNet] could not load native libvlc. Tried:");
+            string baseDir = AppContext.BaseDirectory ?? Directory.GetCurrentDirectory();
+            Console.Error.WriteLine($"[VLCDotNet] could not load native libvlc. baseDir={baseDir}");
             foreach (string e in errors)
             {
-                Console.Error.WriteLine("  " + e);
+                Console.Error.WriteLine("  load-error: " + e);
             }
 
             return IntPtr.Zero;
