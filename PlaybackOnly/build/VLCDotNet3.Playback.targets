@@ -1,0 +1,57 @@
+<Project>
+  <!--
+    Wires the packaged playback-only native VLC binaries into a consuming app.
+    Identical to the full VLCDotNet3 targets: the embedded Apple framework binary
+    is still named "VLCDotNet" and the native payload still lives under
+    build/native/<rid>, so only the file name differs (it must match the package
+    id VLCDotNet3.Playback for NuGet to auto-import it).
+
+    Desktop (win-*, linux-*, osx-*) relies entirely on the NuGet
+    runtimes/<rid>/native convention and needs nothing here.
+
+    Mobile targets are staged under this package's build/native/<rid> folder and
+    injected below.
+  -->
+
+  <PropertyGroup>
+    <_VlcNativeRoot>$(MSBuildThisFileDirectory)native</_VlcNativeRoot>
+  </PropertyGroup>
+
+  <!-- ===================== Android ===================== -->
+  <!-- Ship every libvlc/libvlccore/plugin .so into lib/<abi> of the APK. -->
+  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'android'">
+    <AndroidNativeLibrary Include="$(_VlcNativeRoot)/android-arm64/**/*.so">
+      <Abi>arm64-v8a</Abi>
+      <Link>lib/arm64-v8a/%(Filename)%(Extension)</Link>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="$(_VlcNativeRoot)/android-arm/**/*.so">
+      <Abi>armeabi-v7a</Abi>
+      <Link>lib/armeabi-v7a/%(Filename)%(Extension)</Link>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="$(_VlcNativeRoot)/android-x64/**/*.so">
+      <Abi>x86_64</Abi>
+      <Link>lib/x86_64/%(Filename)%(Extension)</Link>
+    </AndroidNativeLibrary>
+  </ItemGroup>
+
+  <!-- ===================== iOS / Mac Catalyst ===================== -->
+  <!--
+    libvlc ships as a signed, embedded *dynamic* framework
+    (VLCDotNet.framework/VLCDotNet) built by stage_dynamic_vlc: one Mach-O that
+    bundles libvlc + libvlccore + every plugin/contrib archive and force-loads
+    the generated vlc_static_modules[] table internally, resolving all system
+    frameworks at link time. The consumer links it *dynamically* via a single
+    NativeReference (Kind=Framework). The DllImport target name is the framework
+    binary ("VLCDotNet").
+  -->
+  <PropertyGroup Condition="('$(TargetPlatformIdentifier)' == 'ios' or '$(TargetPlatformIdentifier)' == 'maccatalyst') and Exists('$(_VlcNativeRoot)/$(RuntimeIdentifier)/VLCDotNet.framework')">
+    <_VlcRid>$(_VlcNativeRoot)/$(RuntimeIdentifier)</_VlcRid>
+  </PropertyGroup>
+
+  <ItemGroup Condition="('$(TargetPlatformIdentifier)' == 'ios' or '$(TargetPlatformIdentifier)' == 'maccatalyst') and Exists('$(_VlcNativeRoot)/$(RuntimeIdentifier)/VLCDotNet.framework')">
+    <NativeReference Include="$(_VlcRid)/VLCDotNet.framework">
+      <Kind>Framework</Kind>
+      <SmartLink>False</SmartLink>
+    </NativeReference>
+  </ItemGroup>
+</Project>

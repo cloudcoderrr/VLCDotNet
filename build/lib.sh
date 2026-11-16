@@ -28,13 +28,23 @@ VLC_GIT="${VLC_GIT:-https://code.videolan.org/videolan/vlc.git}"
 VLC_SERIES="${VLC_SERIES:-3}"
 VLC_REF="${VLC_REF:-${VLC_VERSION}}"
 
+# Build profile: full (default) or playback. The playback profile removes the
+# dedicated software ENCODER contrib libraries (x264/x265/twolame) so the shipped
+# runtime decodes and plays every format but cannot software-encode H.264/H.265/
+# MP2. It keeps a separate committed contrib cache (-playback suffix) and strips
+# any residual encoder plugins at delivery; everything else is identical.
+VLC_PROFILE="${VLC_PROFILE:-full}"
+
 BUILD_LIB_DIR="$( cd "$(dirname "${BASH_SOURCE[0]}")" && pwd )"
 REPO_ROOT="$( cd "${BUILD_LIB_DIR}/.." && pwd )"
 PATCH_DIR="${PATCH_DIR:-${REPO_ROOT}/patches/vlc-${VLC_SERIES}.0}"
 WORK_DIR="${WORK_DIR:-${REPO_ROOT}/build/_work}"
 ARTIFACTS_DIR="${ARTIFACTS_DIR:-${REPO_ROOT}/artifacts}"
-# In-repo cache of the compressed, split contrib prefixes (Phase 1 output).
-CONTRIB_CACHE_DIR="${CONTRIB_CACHE_DIR:-${REPO_ROOT}/contribs/vlc-${VLC_SERIES}.0}"
+# In-repo cache of the compressed, split contrib prefixes (Phase 1 output). The
+# playback profile uses a sibling cache so it never clobbers the full contrib set.
+_VLC_PROFILE_CACHE_SUFFIX=""
+[ "${VLC_PROFILE}" = "playback" ] && _VLC_PROFILE_CACHE_SUFFIX="-playback"
+CONTRIB_CACHE_DIR="${CONTRIB_CACHE_DIR:-${REPO_ROOT}/contribs/vlc-${VLC_SERIES}.0${_VLC_PROFILE_CACHE_SUFFIX}}"
 # Largest git-committed part size. GitHub rejects individual files >100 MiB, so
 # stay safely under that.
 CONTRIB_PART_SIZE="${CONTRIB_PART_SIZE:-95000000}"
@@ -42,7 +52,7 @@ CONTRIB_ZSTD_LEVEL="${CONTRIB_ZSTD_LEVEL:-19}"
 
 # Baseline contrib bootstrap prune applied on every target. Native builds
 # keep VLC's transport/network dependencies (see
-# build/FEATURES.md): the network package GROUP is KEPT so
+# build/LIBVLC-SUPPORT-GAPS.md): the network package GROUP is KEPT so
 # gnutls (TLS), live555 (RTSP), librist (RIST), smb2/libdsm (SMB), microdns
 # (mDNS/Bonjour discovery), nfs, upnp, srt and shout/ssh2 all build, and the
 # contrib ffmpeg picks up its network protocols (AVIO). Only host-owned or
@@ -192,7 +202,8 @@ build_full_contrib() {
   local -a bootstrap_flags=()
   if [ "${1:-}" = "--" ]; then shift; bootstrap_flags=("$@"); fi
   # Baseline prune on every target (prepended so callers' prunes still apply).
-  local -a default_prune=(${CONTRIB_DEFAULT_PRUNE})
+  # The build profile may add encoder-library removals (playback: x264/x265/...).
+  local -a default_prune=(${CONTRIB_DEFAULT_PRUNE} $(vlc_profile_contrib_prune))
   bootstrap_flags=(${default_prune[@]+"${default_prune[@]}"} ${bootstrap_flags[@]+"${bootstrap_flags[@]}"})
   # macOS runners ship bash 3.2, where expanding an empty array under set -u
   # errors; guard assignments by length and expand with the ${a[@]+"${a[@]}"} idiom.
@@ -311,7 +322,7 @@ build_contrib_group() {
   local src="$1" subdir="$2" triplet="$3" rid="$4" group="$5"; shift 5
   local -a bootstrap_flags=()
   if [ "${1:-}" = "--" ]; then shift; bootstrap_flags=("$@"); fi
-  local -a default_prune=(${CONTRIB_DEFAULT_PRUNE})
+  local -a default_prune=(${CONTRIB_DEFAULT_PRUNE} $(vlc_profile_contrib_prune))
   bootstrap_flags=(${default_prune[@]+"${default_prune[@]}"} ${bootstrap_flags[@]+"${bootstrap_flags[@]}"})
   local -a cenv=() cmk=()
   if declare -p CONTRIB_ENV >/dev/null 2>&1 && [ "${#CONTRIB_ENV[@]}" -gt 0 ]; then cenv=("${CONTRIB_ENV[@]}"); fi
@@ -549,13 +560,37 @@ VLC_EXCLUDED_NET_MODULES="${VLC_EXCLUDED_NET_MODULES-}"
 # framework lean and avoid force-load symbol collisions.
 VLC_APPLE_VIDEO_FILTERS="${VLC_APPLE_VIDEO_FILTERS:-adjust deinterlace transform rotate croppadd canvas fps blend scale}"
 
+# vlc_profile_contrib_prune
+# Extra contrib bootstrap --disable flags for the active build profile. The
+# playback profile drops the dedicated software ENCODER libraries so the shipped
+# runtime plays every format but cannot software-encode. Decode-capable
+# libraries (vpx, dav1d, ffmpeg, ...) are KEPT so "playback of all formats"
+# holds; only encoder-only packages are removed.
+vlc_profile_contrib_prune() {
+  case "${VLC_PROFILE:-full}" in
+    playback) printf '%s' "--disable-x264 --disable-x265 --disable-twolame" ;;
+    *)        printf '%s' "" ;;
+  esac
+}
+
+# vlc_profile_excluded_modules
+# Delivered-plugin removals for the active build profile (backstop: the pruned
+# contrib libraries above already keep these encoder modules from building).
+vlc_profile_excluded_modules() {
+  case "${VLC_PROFILE:-full}" in
+    playback) printf '%s' "x264 x26410b x265 x26510b twolame" ;;
+    *)        printf '%s' "" ;;
+  esac
+}
+
 # effective_excluded_modules
 # Echoes the de-duplicated effective removal set for the current VLC_SERIES: the
-# mandatory base plus the series-specific and caller-provided additions.
+# mandatory base plus the series-specific, profile and caller-provided additions.
 effective_excluded_modules() {
-  printf '%s %s %s %s\n' \
+  printf '%s %s %s %s %s\n' \
     "${VLC_MANDATORY_EXCLUDED_MODULES}" \
     "$(vlc_series_excluded_modules)" \
+    "$(vlc_profile_excluded_modules)" \
     "${VLC_EXCLUDED_MODULES}" \
     "${VLC_EXCLUDED_NET_MODULES}" \
     | tr ' ' '\n' | sed '/^$/d' | sort -u | tr '\n' ' '

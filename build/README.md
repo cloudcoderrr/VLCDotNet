@@ -1,9 +1,9 @@
 # Full-source native builds
 
 This is the repository's native-build pipeline for **VLCDotNet3** and
-**VLCDotNet4**, covering all 15 runtime IDs. VLC and its full contrib dependency
+**VLCDotNet4**, covering all 17 runtime IDs. VLC and its full contrib dependency
 set are built from source in GitHub Actions with explicit platform and package
-exclusions documented in [FEATURES.md](FEATURES.md).
+exclusions documented in [LIBVLC-SUPPORT-GAPS.md](LIBVLC-SUPPORT-GAPS.md).
 
 Dependency builds and libvlc builds run in separate phases so they fit the
 runners' disk and time budgets. Dependency archives are committed to the
@@ -92,6 +92,7 @@ uses a historical directory layout; that value is needed for relocation.
 | Variable | Meaning |
 |----------|---------|
 | `BUILD_PHASE` | `contrib` to generate archives; `libvlc` to restore and build (default). |
+| `VLC_PROFILE` | `full` (default) or `playback`. Playback prunes the software encoder libraries (x264/x265/twolame) and uses the sibling `contribs/vlc-<series>.0-playback/` cache so it never clobbers the full set. |
 | `VLC_VERSION` / `VLC_SERIES` / `VLC_REF` | Upstream version, major series and git ref; match the contrib and runtime phases. |
 | `CONTRIB_GROUP` | Phase-1 group (`heavy` or `rest`); unset builds in one invocation. |
 | `CONTRIB_GROUPS` | Ordered group list (default `heavy rest`). |

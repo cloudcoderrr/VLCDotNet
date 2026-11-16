@@ -44,6 +44,7 @@ if [ "${ARCH}" = "i686" ] && [ "$(uname -m)" = "x86_64" ] && [ -z "${VLCDOTNET_I
     -e VLC_VERSION -e VLC_SERIES -e VLC_REF -e VLC_GIT \
     -e BUILD_PHASE -e CONTRIB_GROUP -e CONTRIB_GROUPS \
     -e CONTRIB_DEFAULT_PRUNE -e CONTRIB_EXTRA_PRUNE -e VLC_EXCLUDED_NET_MODULES \
+    -e VLC_PROFILE \
     -e VLCDOTNET_IN_I386_CONTAINER=1 -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
     -v "${REPO_ROOT}:/work" -w /work i386/debian:bookworm \
     linux32 bash -c 'set -e; bash build/deps-linux.sh && bash build/build-linux.sh i686; \

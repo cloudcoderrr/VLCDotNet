@@ -21,7 +21,7 @@ artifacts.
 ## Network / transport components
 
 Full-source native builds enable VLC's native transport/network stack subject
-to platform exclusions (see [build/FEATURES.md](build/FEATURES.md)), bundling
+to platform exclusions (see [build/LIBVLC-SUPPORT-GAPS.md](build/LIBVLC-SUPPORT-GAPS.md)), bundling
 additional third-party libraries. Each retains its own upstream license:
 
 - **GnuTLS** (TLS provider for `http`/`https` and native HLS/DASH) —

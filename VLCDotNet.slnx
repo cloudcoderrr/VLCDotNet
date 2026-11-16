@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/PlaybackOnly/">
+    <Project Path="PlaybackOnly/VLCDotNet.Playback.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/VLCDotNet/VLCDotNet.csproj" />
   </Folder>

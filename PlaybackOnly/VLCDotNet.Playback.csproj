@@ -1,0 +1,122 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Playback-only VLCDotNet3 package (VLCDotNet3.Playback).
+
+    This is a THIN variant of src/VLCDotNet/VLCDotNet.csproj: it compiles the
+    exact same managed libvlc P/Invoke bindings (no source is duplicated) and
+    packs them with the playback-only native runtimes produced by the
+    *-playback-vlc3 CI workflows (VLC_PROFILE=playback). Those runtimes decode
+    and play every format but ship no software ENCODER modules (x264/x265/
+    twolame are pruned from the contrib closure), so the package is encode-free.
+
+    Target frameworks mirror the full package:
+      net8.0                 -> portable desktop asset (Windows/Linux/macOS, WinUI3, Win32, Avalonia).
+      net10.0-android        -> Android head (libvlc.so as AndroidNativeLibrary).
+      net10.0-ios            -> iOS head (signed embedded dynamic VLCDotNet.framework).
+      net10.0-maccatalyst    -> Mac Catalyst head (same embedded dynamic framework).
+
+    Mobile heads are opt-in (VlcMobileTargets=true) so a plain desktop build does
+    not require the Apple SDK; CI packs on macOS with VlcMobileTargets=true.
+  -->
+  <PropertyGroup>
+    <VlcMobileTargets Condition="'$(VlcMobileTargets)' == ''">false</VlcMobileTargets>
+
+    <TargetFrameworks>net8.0</TargetFrameworks>
+    <TargetFrameworks Condition="'$(VlcMobileTargets)' == 'true' and $([MSBuild]::IsOSPlatform('OSX'))">net8.0;net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+    <TargetFrameworks Condition="'$(VlcMobileTargets)' == 'true' and !$([MSBuild]::IsOSPlatform('OSX'))">net8.0;net10.0-android</TargetFrameworks>
+
+    <AssemblyName>VLCDotNet</AssemblyName>
+    <RootNamespace>VLCDotNet</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <!-- Source lives in ../src/VLCDotNet; include it explicitly (below). -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+
+    <!-- NuGet packaging. Distinct id so it coexists with the full VLCDotNet3. -->
+    <IsPackable>true</IsPackable>
+    <PackageId>VLCDotNet3.Playback</PackageId>
+    <Version>$(VlcVersion)</Version>
+    <Title>VLCDotNet3.Playback - playback-only libvlc 3.x for .NET</Title>
+    <Description>Playback-only, cross-platform libvlc 3.0.x P/Invoke bindings packaged with native VLC binaries for Windows, Linux, macOS, Mac Catalyst, iOS and Android. Decodes and plays every format but ships no software encoders (x264/x265 are removed from the native build). Usable from .NET MAUI, WinUI 3, Win32, Avalonia and console apps.</Description>
+    <PackageTags>vlc;libvlc;video;audio;media;player;playback;decode;maui;avalonia;winui;win32;pinvoke;interop</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!-- Where CI stages the playback native runtimes (artifacts/&lt;rid&gt;/...). -->
+    <VlcArtifacts Condition="'$(VlcArtifacts)' == ''">$(MSBuildThisFileDirectory)../artifacts</VlcArtifacts>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(TargetFramework.EndsWith('-ios'))">
+    <SupportedOSPlatformVersion>12.2</SupportedOSPlatformVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(TargetFramework.EndsWith('-maccatalyst'))">
+    <SupportedOSPlatformVersion>13.1</SupportedOSPlatformVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(TargetFramework.EndsWith('-android'))">
+    <SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <!--
+    Reuse the managed bindings verbatim. The top-level glob (*.cs, non-recursive)
+    captures every binding source without pulling in bin/obj/build. The Java/
+    Android interop file compiles only for the Android head (as in the full csproj).
+  -->
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)../src/VLCDotNet/*.cs" />
+    <Compile Remove="$(MSBuildThisFileDirectory)../src/VLCDotNet/VlcRuntime.Android.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="$(TargetFramework.EndsWith('-android'))">
+    <Compile Include="$(MSBuildThisFileDirectory)../src/VLCDotNet/VlcRuntime.Android.cs" />
+  </ItemGroup>
+
+  <!-- Package metadata / docs / consumer targets. -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)../PACKAGE-LICENSE.txt" Pack="true" PackagePath="PACKAGE-LICENSE.txt" />
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="README.md" />
+    <None Include="$(MSBuildThisFileDirectory)../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="THIRD-PARTY-NOTICES.md" />
+  </ItemGroup>
+
+  <!-- Consumer targets: the file name must match the package id so NuGet auto-imports it. -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)build/VLCDotNet3.Playback.targets" Pack="true" PackagePath="build/VLCDotNet3.Playback.targets" />
+    <None Include="$(MSBuildThisFileDirectory)build/VLCDotNet3.Playback.targets" Pack="true" PackagePath="buildTransitive/VLCDotNet3.Playback.targets" />
+  </ItemGroup>
+
+  <!--
+    Desktop native runtimes. The .NET SDK copies runtimes/<rid>/native/** next to
+    the consuming app automatically. Empty globs (no local build) are fine.
+  -->
+  <ItemGroup Label="Desktop native runtimes">
+    <None Include="$(VlcArtifacts)/win-x64/**/*"      Pack="true" PackagePath="runtimes/win-x64/native/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/win-x86/**/*"      Pack="true" PackagePath="runtimes/win-x86/native/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/win-arm64/**/*"    Pack="true" PackagePath="runtimes/win-arm64/native/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/linux-x64/**/*"    Pack="true" PackagePath="runtimes/linux-x64/native/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/linux-x86/**/*"    Pack="true" PackagePath="runtimes/linux-x86/native/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/linux-arm/**/*"    Pack="true" PackagePath="runtimes/linux-arm/native/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/linux-arm64/**/*"  Pack="true" PackagePath="runtimes/linux-arm64/native/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/osx-x64/**/*"      Pack="true" PackagePath="runtimes/osx-x64/native/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/osx-arm64/**/*"    Pack="true" PackagePath="runtimes/osx-arm64/native/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!--
+    Mobile native runtimes live under build/native/<rid> and are wired into the
+    consuming mobile app by build/VLCDotNet3.Playback.targets (Android .so as
+    native libraries; iOS/Catalyst embed the signed dynamic VLCDotNet.framework).
+    The iOS/Catalyst payload ships the dynamic framework plus the
+    static-modules.txt manifest; build-internal static archives and link
+    intermediates are excluded.
+  -->
+  <ItemGroup Label="Mobile native runtimes">
+    <None Include="$(VlcArtifacts)/android-arm/**/*"        Pack="true" PackagePath="build/native/android-arm/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/android-arm64/**/*"      Pack="true" PackagePath="build/native/android-arm64/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/android-x64/**/*"        Pack="true" PackagePath="build/native/android-x64/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="$(VlcArtifacts)/ios-arm64/**/*"          Exclude="$(VlcArtifacts)/ios-arm64/**/*.a;$(VlcArtifacts)/ios-arm64/static/*.c;$(VlcArtifacts)/ios-arm64/static/*.o"                   Pack="true" PackagePath="build/native/ios-arm64/" />
+    <None Include="$(VlcArtifacts)/iossimulator-x64/**/*"   Exclude="$(VlcArtifacts)/iossimulator-x64/**/*.a;$(VlcArtifacts)/iossimulator-x64/static/*.c;$(VlcArtifacts)/iossimulator-x64/static/*.o"       Pack="true" PackagePath="build/native/iossimulator-x64/" />
+    <None Include="$(VlcArtifacts)/iossimulator-arm64/**/*" Exclude="$(VlcArtifacts)/iossimulator-arm64/**/*.a;$(VlcArtifacts)/iossimulator-arm64/static/*.c;$(VlcArtifacts)/iossimulator-arm64/static/*.o"     Pack="true" PackagePath="build/native/iossimulator-arm64/" />
+    <None Include="$(VlcArtifacts)/maccatalyst-x64/**/*"    Exclude="$(VlcArtifacts)/maccatalyst-x64/**/*.a;$(VlcArtifacts)/maccatalyst-x64/static/*.c;$(VlcArtifacts)/maccatalyst-x64/static/*.o"         Pack="true" PackagePath="build/native/maccatalyst-x64/" />
+    <None Include="$(VlcArtifacts)/maccatalyst-arm64/**/*"  Exclude="$(VlcArtifacts)/maccatalyst-arm64/**/*.a;$(VlcArtifacts)/maccatalyst-arm64/static/*.c;$(VlcArtifacts)/maccatalyst-arm64/static/*.o"       Pack="true" PackagePath="build/native/maccatalyst-arm64/" />
+  </ItemGroup>
+
+</Project>
