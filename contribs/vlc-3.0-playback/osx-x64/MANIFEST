@@ -1,0 +1,13 @@
+rid=osx-x64
+triplet=x86_64-apple-darwin
+series=3
+vlc_version=3.0.24
+vlc_ref=3.0.24
+build_prefix=/Users/runner/work/VLCDotNet/VLCDotNet/build/_work/vlc-apple-macos-x86_64/contrib/x86_64-apple-darwin
+archive=contrib.tar.zst
+parts=2
+part_size=95000000
+sha256=dc664e73a5f56a495e7a6b27bebf9c0f99a0eb98e4787740c0d8094988f803ee
+bytes=96387233
+created=2026-11-16T10:21:32Z
+restore=cat contrib.tar.zst.* | zstd -d | tar -x

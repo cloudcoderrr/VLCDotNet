@@ -1,0 +1,13 @@
+rid=linux-x86
+triplet=i686-linux-gnu
+series=3
+vlc_version=3.0.24
+vlc_ref=3.0.24
+build_prefix=/work/build/_work/vlc-linux-i686/contrib/i686-linux-gnu
+archive=contrib.tar.zst
+parts=2
+part_size=95000000
+sha256=2832d36c9ca624e15062f1dcea356e3ed9ba55c9a0cf9d5643c95f62f72b957f
+bytes=145341443
+created=2026-11-16T09:47:54Z
+restore=cat contrib.tar.zst.* | zstd -d | tar -x
