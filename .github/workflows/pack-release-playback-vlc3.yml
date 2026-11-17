@@ -165,6 +165,7 @@ jobs:
       - name: Strip native debug info (keep nupkg < 2 GiB)
         run: |
           set -euo pipefail
+          # PE (.dll) debug strip via llvm (safe for COFF/PE).
           tool_dir="$RUNNER_TEMP/llvm-mingw"
           mkdir -p "$tool_dir"
           curl -fSL --retry 3 \
@@ -173,11 +174,35 @@ jobs:
           tar -xf "$RUNNER_TEMP/llvm-mingw.tar.xz" -C "$tool_dir" --strip-components=1
           llvm_strip="$tool_dir/bin/llvm-strip"
           "$llvm_strip" --version
+          # ELF (.so) debug strip via GNU binutils. llvm-strip rewrites ELF in a
+          # way that broke PT_LOAD page alignment ("ELF load command address/offset
+          # not page-aligned"), making libvlccore.so unloadable on Linux/Android.
+          # GNU strip preserves alignment; worst case (a tool is unavailable or a
+          # file is skipped) leaves the .so unstripped but valid.
+          brew install --quiet x86_64-elf-binutils aarch64-elf-binutils i686-elf-binutils arm-none-eabi-binutils || true
+          elf_strip() {
+            local f="$1" tool=""
+            case "$f" in
+              */linux-x64/*|*/android-x64/*)     tool="x86_64-elf-strip" ;;
+              */linux-x86/*)                     tool="i686-elf-strip" ;;
+              */linux-arm64/*|*/android-arm64/*) tool="aarch64-elf-strip" ;;
+              */linux-arm/*|*/android-arm/*)     tool="arm-none-eabi-strip" ;;
+              *) return 0 ;;
+            esac
+            if command -v "$tool" >/dev/null 2>&1; then
+              "$tool" --strip-debug "$f" 2>/dev/null || true
+            fi
+          }
           before=$(du -sm artifacts | cut -f1)
+          # Apple dylibs / framework: native strip -S preserves Mach-O.
           find artifacts \( -name '*.dylib' -o -path '*/VLCDotNet.framework/VLCDotNet' \) -type f -print0 \
             | while IFS= read -r -d '' f; do strip -S "$f" 2>/dev/null || true; done
-          find artifacts -type f \( -name '*.so' -o -name '*.so.*' -o -name '*.dll' \) -print0 \
+          # Windows PE.
+          find artifacts -type f -name '*.dll' -print0 \
             | while IFS= read -r -d '' f; do "$llvm_strip" --strip-debug "$f" 2>/dev/null || true; done
+          # Linux + Android ELF.
+          find artifacts -type f \( -name '*.so' -o -name '*.so.*' \) -print0 \
+            | while IFS= read -r -d '' f; do elf_strip "$f"; done
           after=$(du -sm artifacts | cut -f1)
           echo "artifacts: ${before} MB -> ${after} MB"
 
