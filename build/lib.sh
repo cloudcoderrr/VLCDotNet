@@ -965,3 +965,33 @@ bundle_linux_deps() {
 
   log "Bundled runtime now has $(find "${out}" -maxdepth 1 -name '*.so*' | wc -l | tr -d ' ') root shared objects"
 }
+
+# relocate_macos_dylibs <artifact-dir>
+# macOS counterpart of bundle_linux_deps' RPATH pass. The Mach-O libvlc /
+# libvlccore / plugin dylibs reference each other through @rpath/<name> (e.g.
+# libvlc.dylib -> @rpath/libvlccore.dylib) but VLC emits them with NO LC_RPATH,
+# so a consumer that dlopen()s libvlc.dylib straight out of
+# runtimes/<rid>/native cannot resolve the sibling core. Add @loader_path rpaths
+# exactly as the Linux path adds $ORIGIN: @loader_path for the root libraries and
+# @loader_path + @loader_path/../.. for the plugins (two dirs deep,
+# plugins/<cat>/x.dylib) so they reach libvlccore at the artifact root. Any edit
+# invalidates the Mach-O signature and arm64 refuses an invalidly-signed image,
+# so ad-hoc re-sign each touched dylib afterwards.
+relocate_macos_dylibs() {
+  local out="$1"
+  command -v install_name_tool >/dev/null 2>&1 || { warn "install_name_tool missing; cannot relocate macOS dylibs"; return 0; }
+  local f
+  while IFS= read -r -d '' f; do
+    case "${f}" in
+      "${out}"/plugins/*/*)
+        install_name_tool -add_rpath '@loader_path'       "${f}" 2>/dev/null || true
+        install_name_tool -add_rpath '@loader_path/../..' "${f}" 2>/dev/null || true ;;
+      *)
+        install_name_tool -add_rpath '@loader_path'       "${f}" 2>/dev/null || true ;;
+    esac
+    codesign --force --sign - "${f}" 2>/dev/null || true
+  done < <(find "${out}" -type f -name '*.dylib' -print0)
+
+  log "Set @loader_path rpaths on $(find "${out}" -type f -name '*.dylib' | wc -l | tr -d ' ') macOS dylib(s) in ${out}"
+}
+

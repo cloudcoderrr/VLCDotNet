@@ -271,6 +271,12 @@ CONFIG_FLAGS+=("${VLC_PRODUCT_CONFIG_FLAGS[@]}")
 
 normalize_output "${RID}" "${INSTALL_PREFIX}"
 case "${PLATFORM}" in
+  macos)
+    # Make the dylibs relocatable (@loader_path rpaths) so a NuGet consumer can
+    # dlopen libvlc.dylib from runtimes/<rid>/native and still resolve the
+    # sibling libvlccore and plugins. Mirrors bundle_linux_deps on Linux.
+    relocate_macos_dylibs "${ARTIFACTS_DIR}/${RID}"
+    ;;
   ios|iossimulator|maccatalyst)
     export NM="$(xcrun --sdk "${SDK}" --find nm)"
     export LD="$(xcrun --sdk "${SDK}" --find ld-classic 2>/dev/null || xcrun --sdk "${SDK}" --find ld)"

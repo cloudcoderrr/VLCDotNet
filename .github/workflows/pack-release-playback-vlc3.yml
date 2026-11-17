@@ -206,6 +206,35 @@ jobs:
           after=$(du -sm artifacts | cut -f1)
           echo "artifacts: ${before} MB -> ${after} MB"
 
+      - name: Make macOS dylibs relocatable (@loader_path) and re-sign
+        run: |
+          set -euo pipefail
+          # Root-cause fix for "libvlc.dylib loads but its @rpath/libvlccore.dylib
+          # dependency cannot be resolved": VLC emits the macOS dylibs with no
+          # LC_RPATH, so a NuGet consumer that dlopen()s libvlc.dylib straight out
+          # of runtimes/<rid>/native cannot find the sibling libvlccore/plugins.
+          # Add @loader_path rpaths exactly as the Linux build adds $ORIGIN (see
+          # relocate_macos_dylibs in build/lib.sh, which does this at build time
+          # for fresh builds). Repeated here so artifacts produced before that fix
+          # are corrected without a full native rebuild, and because the strip
+          # above invalidates the Mach-O signature - arm64 refuses an
+          # invalidly-signed dylib, so ad-hoc re-sign each one last.
+          for rid in osx-x64 osx-arm64; do
+            dir="artifacts/$rid"
+            [ -d "$dir" ] || continue
+            while IFS= read -r -d '' f; do
+              case "$f" in
+                "$dir"/plugins/*/*)
+                  install_name_tool -add_rpath '@loader_path'       "$f" 2>/dev/null || true
+                  install_name_tool -add_rpath '@loader_path/../..' "$f" 2>/dev/null || true ;;
+                *)
+                  install_name_tool -add_rpath '@loader_path'       "$f" 2>/dev/null || true ;;
+              esac
+              codesign --force --sign - "$f" 2>/dev/null || true
+            done < <(find "$dir" -type f -name '*.dylib' -print0)
+            echo "relocated $(find "$dir" -type f -name '*.dylib' | wc -l | tr -d ' ') dylib(s) in $dir"
+          done
+
       - name: Pack VLCDotNet3.Playback
         run: dotnet pack PlaybackOnly/VLCDotNet.Playback.csproj -c Release -p:VlcMobileTargets=true -p:PackageVersion=${{ steps.rel.outputs.version }} -o out
 
