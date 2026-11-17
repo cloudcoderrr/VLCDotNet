@@ -14,7 +14,17 @@
   -->
 
   <PropertyGroup>
-    <_VlcNativeRoot>$(MSBuildThisFileDirectory)native</_VlcNativeRoot>
+    <!--
+      The native payload is packed under build/native/<rid>. This targets file
+      ships in BOTH build/ (direct consumers) and buildTransitive/ (transitive
+      consumers, e.g. apps that reference this package via another package or a
+      project reference). Resolve the native root relative to the PACKAGE ROOT
+      (../build/native) so it works from either location; using
+      $(MSBuildThisFileDirectory)native resolved to the nonexistent
+      buildTransitive/native for transitive consumers, so their Android .so and
+      Apple framework were never wired (DllNotFoundException: libvlc / VLCDotNet).
+    -->
+    <_VlcNativeRoot>$(MSBuildThisFileDirectory)../build/native</_VlcNativeRoot>
   </PropertyGroup>
 
   <!-- ===================== Android ===================== -->
