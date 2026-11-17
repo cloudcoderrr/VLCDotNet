@@ -30,7 +30,7 @@
     <NoWarn>$(NoWarn);CS1591;CA2255</NoWarn>
 
     <!-- The VLCDotNet3.Playback version this build pins. Overridable from CI. -->
-    <VlcPlaybackPackageVersion Condition="'$(VlcPlaybackPackageVersion)' == ''">3.0.24.3</VlcPlaybackPackageVersion>
+    <VlcPlaybackPackageVersion Condition="'$(VlcPlaybackPackageVersion)' == ''">3.0.24.4</VlcPlaybackPackageVersion>
 
     <!-- NuGet packaging -->
     <IsPackable>true</IsPackable>

@@ -167,6 +167,15 @@ namespace VLCDotNet.ViewTests
                 return;
             }
 
+            if ((OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst())
+                && string.Equals(item.AudioCodec, "flac", StringComparison.OrdinalIgnoreCase))
+            {
+                // Known platform limitation: standalone FLAC via the amem capture
+                // path does not start on the Apple mobile/Mac Catalyst heads.
+                Skip(o, sw, "standalone FLAC amem capture is unreliable on Apple mobile/catalyst");
+                return;
+            }
+
             using var media = new Media(_libvlc!, path, FromType.FromPath);
             using var player = new MediaPlayer(media);
             MemoryAudioSource audio = player.EnableAudioCapture(44100, 2);

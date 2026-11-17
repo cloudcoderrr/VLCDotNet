@@ -16,13 +16,13 @@ on:
       playback_tag:
         description: "VLCDotNet3.Playback release tag to pull native binaries from"
         required: false
-        default: "vplay3-3.0.24.3"
+        default: "vplay3-3.0.24.4"
 
 permissions:
   contents: read
 
 env:
-  PLAYBACK_TAG: ${{ inputs.playback_tag || 'vplay3-3.0.24.3' }}
+  PLAYBACK_TAG: ${{ inputs.playback_tag || 'vplay3-3.0.24.4' }}
 
 jobs:
   test:

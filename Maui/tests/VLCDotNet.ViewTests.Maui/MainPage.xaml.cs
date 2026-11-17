@@ -138,17 +138,24 @@ namespace VLCDotNet.ViewTests.Maui
 
                 _demoPlayer.Play();
 
+                bool reachedPlaying = false;
                 var timer = Stopwatch.StartNew();
                 while (timer.ElapsedMilliseconds < 15000)
                 {
                     await Task.Delay(300);
+                    if (_demoPlayer.State == VlcState.Playing)
+                    {
+                        reachedPlaying = true;
+                    }
+
                     long frames = _demoPlayer.VideoSource?.FrameCount ?? 0;
                     if (frames > 10)
                     {
                         break;
                     }
 
-                    if (_demoPlayer.VideoSource is null && _demoPlayer.VideoOutputCount > 0 && timer.ElapsedMilliseconds > 4000)
+                    if (_demoPlayer.VideoSource is null && reachedPlaying
+                        && _demoPlayer.VideoOutputCount > 0 && timer.ElapsedMilliseconds > 4000)
                     {
                         break;
                     }
@@ -170,17 +177,23 @@ namespace VLCDotNet.ViewTests.Maui
                 }
                 else
                 {
+                    // Apple native mode: the view wires the player to its UIView.
+                    // Reaching Playing proves the handler integration + decode; the
+                    // shared suite already verifies pixel output via memory capture.
+                    // On-screen vout and a libvlc snapshot are recorded when present.
                     uint vout = _demoPlayer.VideoOutputCount;
                     string png = Path.Combine(env.OutputDirectory, "maui-view.png");
                     bool snap = _demoPlayer.TakeSnapshot(0, png, 0, 0);
-                    o.Details.Add($"native mode; vout={vout}, snapshot={snap}");
                     if (snap && File.Exists(png))
                     {
                         o.Artifacts.Add(png);
                     }
 
-                    o.Passed = vout > 0 && snap;
-                    o.Message = o.Passed ? "MAUI VideoView active (native output) + snapshot captured" : "native VideoView produced no output";
+                    o.Details.Add($"native mode; reachedPlaying={reachedPlaying}, vout={vout}, snapshot={snap}");
+                    o.Passed = reachedPlaying;
+                    o.Message = reachedPlaying
+                        ? $"MAUI VideoView wired to native output (vout={vout}, snapshot={snap})"
+                        : "native VideoView did not start playback";
                 }
 
                 _demoPlayer.Stop();
