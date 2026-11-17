@@ -8,14 +8,33 @@ Not affiliated with VideoLAN.
 
 ## Packages
 
-Two NuGet packages are produced and published on the repository's
-[GitHub Releases](https://github.com/cloudcoderrr/VLCDotNet/releases) page:
+All packages are published on the repository's
+[GitHub Releases](https://github.com/cloudcoderrr/VLCDotNet/releases) page.
+
+### Native binding packages
+
+Cross-platform libvlc P/Invoke bindings packaged with the native VLC runtimes:
 
 | Package | libvlc | Status | Latest |
 |---------|--------|--------|--------|
 | `VLCDotNet3` | VLC **3.0.24** (Vetinari) | ✅ production | `v3.0.24.1` |
 | `VLCDotNet3.Playback` | VLC **3.0.24**, playback-only (no encoders) | ✅ production | `vplay3-3.0.24.N` |
 | `VLCDotNet4` | VLC **4.0 master** `f94b6117` | 🔄 preview | `v4.0.0-preview.N` |
+
+### High-level API & video views
+
+A managed-only family built on `VLCDotNet3.Playback` — the native libvlc runtimes
+flow in transitively, so adding one of these brings the engine with it. Published
+together as `vviews3-3.0.24.N`:
+
+| Package | Purpose |
+|---------|---------|
+| `VLCDotNet3.Playback.Core` | Resource-safe `LibVLC` / `Media` / `MediaPlayer` / `MediaList` / `Equalizer` wrappers over the raw bindings. |
+| `VLCDotNet3.Playback.Avalonia` | Avalonia `VideoView` — native-window hardware output on desktop, bitmap on Android. |
+| `VLCDotNet3.Playback.Maui` | .NET MAUI `VideoView` — VideoToolbox on iOS/Mac Catalyst, bitmap on Android. |
+
+These live in [`Maui/`](Maui) and ship **no built-in controls** — overlay your
+own transport UI on top of the view.
 
 The targeted VLC versions live in [`Directory.Build.props`](Directory.Build.props)
 (`VlcVersion` / `VlcVersion4` + `VlcRef4`).
@@ -107,6 +126,12 @@ src/VLCDotNet/            Managed libvlc P/Invoke bindings (netstandard2.0 + mob
 PlaybackOnly/            Thin playback-only package (VLCDotNet3.Playback): reuses
                          src/VLCDotNet + build/, packs the encoder-free runtimes
 
+Maui/                    High-level API + video views over VLCDotNet3.Playback
+  src/VLCDotNet.Core/        Resource-safe wrappers      (VLCDotNet3.Playback.Core)
+  src/VLCDotNet.Avalonia/    Avalonia VideoView          (VLCDotNet3.Playback.Avalonia)
+  src/VLCDotNet.Maui/        .NET MAUI VideoView         (VLCDotNet3.Playback.Maui)
+  tests/                     Avalonia (desktop) + MAUI (mobile) view-test apps
+
 build/                   Full-source native build scripts and documentation
 patches/                 VLC 3 / VLC 4 unified-diff patches (per-series subdirectories)
 contribs/                Committed, split contrib archives produced by CI
@@ -125,7 +150,10 @@ Tests/
 
 Every produced NuGet is validated end-to-end in GitHub Actions against the
 synthetic [`Tests/Data/vlc_test_pack`](Tests/Data/vlc_test_pack) media. All pack
-files are exercised.
+files are exercised. The high-level API and video-view packages (`Maui/`) are
+validated the same way by a parallel Avalonia + MAUI app pair under
+[`Maui/tests/`](Maui/tests), which consume the published `VLCDotNet3.Playback`
+NuGet exactly as a real app does.
 
 - **Desktop OSes** run the **Avalonia** app headless (`--autorun`); **mobile
   OSes** run the **MAUI** app. Both reference the packed NuGet and share one test
@@ -183,6 +211,12 @@ The **playback-only** package has its own parallel set of workflows, built with
 `test-mobile-playback-vlc3`. They upload `vlc3play-native-<rid>` artifacts,
 commit encoder-free contribs to `contribs/vlc-3.0-playback/<rid>/`, and release
 under the `vplay3-*` tag.
+
+The **high-level API & view packages** (`Maui/`) are validated and released by
+their own workflows: `views-test-desktop-vlc3` (Avalonia app on Windows/Linux/
+macOS), `views-test-mobile-vlc3` (MAUI app on the Android emulator, iOS simulator
+and Mac Catalyst) and `views-pack-vlc3` (packs Core/Avalonia/MAUI and publishes
+the `vviews3-*` release).
 
 ## Building locally
 
