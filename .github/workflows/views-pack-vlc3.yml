@@ -12,7 +12,7 @@ on:
       playback_tag:
         description: "VLCDotNet3.Playback release tag the packages depend on"
         required: false
-        default: "vplay3-3.0.24.1"
+        default: "vplay3-3.0.24.2"
       publish_release:
         description: "Create/update a GitHub Release with the packages"
         type: boolean
