@@ -22,13 +22,13 @@ on:
       playback_tag:
         description: "VLCDotNet3.Playback release tag"
         required: false
-        default: "vplay3-3.0.24.5"
+        default: "vplay3-3.0.24.6"
 
 permissions:
   contents: read
 
 env:
-  PLAYBACK_TAG: ${{ inputs.playback_tag || 'vplay3-3.0.24.5' }}
+  PLAYBACK_TAG: ${{ inputs.playback_tag || 'vplay3-3.0.24.6' }}
 
 jobs:
   android:
