@@ -23,8 +23,10 @@
       $(MSBuildThisFileDirectory)native resolved to the nonexistent
       buildTransitive/native for transitive consumers, so their Android .so and
       Apple framework were never wired (DllNotFoundException: libvlc / VLCDotNet).
+      GetFullPath normalises away the ".." so the Android **/*.so glob (which does
+      not tolerate ".." mid-path) also resolves.
     -->
-    <_VlcNativeRoot>$(MSBuildThisFileDirectory)../build/native</_VlcNativeRoot>
+    <_VlcNativeRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../build/native'))</_VlcNativeRoot>
   </PropertyGroup>
 
   <!-- ===================== Android ===================== -->
