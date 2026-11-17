@@ -30,8 +30,19 @@
   </PropertyGroup>
 
   <!-- ===================== Android ===================== -->
-  <!-- Ship every libvlc/libvlccore/plugin .so into lib/<abi> of the APK. -->
-  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'android'">
+  <!--
+    Ship every libvlc/libvlccore/plugin .so into lib/<abi> of the APK.
+
+    Only wire the native libraries into APPLICATION builds ($(AndroidApplication)
+    == 'true'). .NET for Android bundles @(AndroidNativeLibrary) items into a
+    class library's generated .aar, so without this guard every intermediate
+    managed wrapper (VLCDotNet3.Playback.Core, .Maui) would bake ~160 MB of
+    native .so into its own package and double-ship the runtimes. The targets
+    flow transitively to the final app via buildTransitive, so the app still gets
+    the natives directly from this package - the same model used for the desktop
+    runtimes/ assets and the iOS/Mac Catalyst framework.
+  -->
+  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'android' and '$(AndroidApplication)' == 'true'">
     <AndroidNativeLibrary Include="$(_VlcNativeRoot)/android-arm64/**/*.so">
       <Abi>arm64-v8a</Abi>
       <Link>lib/arm64-v8a/%(Filename)%(Extension)</Link>
@@ -69,7 +80,7 @@
     SDKs that predate it.
   -->
   <Target Name="_VlcRemoveDesktopNativeLibrariesFromAndroidApk"
-          Condition="'$(TargetPlatformIdentifier)' == 'android'"
+          Condition="'$(TargetPlatformIdentifier)' == 'android' and '$(AndroidApplication)' == 'true'"
           BeforeTargets="_IncludeNativeSystemLibraries">
     <ItemGroup>
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
