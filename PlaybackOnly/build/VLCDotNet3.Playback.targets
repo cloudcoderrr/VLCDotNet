@@ -46,6 +46,40 @@
     </AndroidNativeLibrary>
   </ItemGroup>
 
+  <!--
+    Keep the DESKTOP libvlc out of the Android APK.
+
+    This package ships desktop runtimes under runtimes/<rid>/native (linux-x64,
+    linux-arm64, ...) for Win/Linux/macOS consumers, and the Android binaries
+    separately under build/native/android-<abi> (wired above). Older .NET for
+    Android SDKs (e.g. the 36.1.2 band shipped with the net10 MAUI workload)
+    resolve native libraries purely by the architecture token of the runtimes/
+    RID folder: runtimes/linux-arm64 -> arm64-v8a and runtimes/linux-x64 ->
+    x86_64. That pulls the GLIBC/desktop libvlc.so into lib/<abi> of the APK and
+    then drops the real Android libvlc.so as a duplicate (warning XA4301), so the
+    app loads a non-Android binary and fails with
+    "System.DllNotFoundException: libvlc" at runtime.
+
+    Remove every non-Android runtimes/ native .so from the publish set before the
+    SDK collects native libraries into the APK. Android's own libvlc comes from
+    build/native/android-* (AndroidNativeLibrary above); both 'android-*' and
+    'linux-bionic-*' RIDs are legitimate Android targets and are preserved. This
+    mirrors the later upstream fix in
+    Microsoft.Android.Sdk.AssemblyResolution.targets so the package is correct on
+    SDKs that predate it.
+  -->
+  <Target Name="_VlcRemoveDesktopNativeLibrariesFromAndroidApk"
+          Condition="'$(TargetPlatformIdentifier)' == 'android'"
+          BeforeTargets="_IncludeNativeSystemLibraries">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+          Condition="'%(Extension)' == '.so'
+                     And $([System.String]::Copy('%(Identity)').Replace('\','/').Contains('/runtimes/'))
+                     And !$([System.String]::Copy('%(Identity)').Replace('\','/').Contains('/runtimes/android'))
+                     And !$([System.String]::Copy('%(Identity)').Replace('\','/').Contains('/runtimes/linux-bionic'))" />
+    </ItemGroup>
+  </Target>
+
   <!-- ===================== iOS / Mac Catalyst ===================== -->
   <!--
     libvlc ships as a signed, embedded *dynamic* framework
